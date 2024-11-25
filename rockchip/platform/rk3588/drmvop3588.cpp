@@ -939,7 +939,7 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane> *composition_planes,
   bool bMulArea = layer_size > 0 ? true : false;
   bool b8kMode = ctx.state.b8kMode_;
   bool b4k120Mode = ctx.state.b4k120pMode_;
-
+  ResourceManager* rm = ResourceManager::getInstance();
 
   //loop plane groups.
   for (iter = plane_groups.begin();
@@ -1142,6 +1142,13 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane> *composition_planes,
                           if(ctx.state.bUseSwPq){
                             if((*iter_layer)->bFbTarget_){
                               (*iter_layer)->bAfbcd_ = false;
+                            }
+                          }
+
+                          if((!(*iter_layer)->bFbTarget_) && rm->isWBMode() && rm->IsWriteBackByRga()){
+                            if(!hwc_rga_utils::isRK3588RGA3SupportFormat((*iter_layer)->iFormat_)){
+                              HWC2_ALOGD_IF_DEBUG("WriteBackByRga is enabled, format %d is not support by RGA3.", (*iter_layer)->iFormat_);
+                              continue;
                             }
                           }
 

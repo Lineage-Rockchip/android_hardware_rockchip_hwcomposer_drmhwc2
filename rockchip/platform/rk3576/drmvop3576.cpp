@@ -939,7 +939,7 @@ int Vop3576::MatchPlane(std::vector<DrmCompositionPlane> *composition_planes,
   uint16_t eotf = TRADITIONAL_GAMMA_SDR;
   bool bMulArea = layer_size > 0 ? true : false;
   bool b4k120Mode = ctx.state.b4k120pMode_;
-
+  ResourceManager* rm = ResourceManager::getInstance();
 
   //loop plane groups.
   for (iter = plane_groups.begin();
@@ -1073,6 +1073,12 @@ int Vop3576::MatchPlane(std::vector<DrmCompositionPlane> *composition_planes,
                             }
                           }
 
+                          if((!(*iter_layer)->bFbTarget_) && rm->isWBMode() && rm->IsWriteBackByRga()){
+                            if(!hwc_rga_utils::isRK3576RGA2SupportFormat((*iter_layer)->iFormat_)){
+                              HWC2_ALOGD_IF_DEBUG("WriteBackByRga is enabled, format %d is not support by RGA2.5.", (*iter_layer)->iFormat_);
+                              continue;
+                            }
+                          }
                           // Format
                           if((*iter_plane)->is_support_format((*iter_layer)->uFourccFormat_,(*iter_layer)->bAfbcd_,(*iter_layer)->bRfbcd_)){
                             bNeed = true;

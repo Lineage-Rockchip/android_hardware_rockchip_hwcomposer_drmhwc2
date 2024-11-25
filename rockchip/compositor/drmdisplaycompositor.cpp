@@ -4592,9 +4592,20 @@ int DrmDisplayCompositor::WriteBackByRGA() {
         IM_STATUS im_state;
         im_opt_t opt;
         memset(&opt, 0x00, sizeof(im_opt_t));
+        if(gIsRK3588()){
+          opt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;
+        }
 
         int usage = IM_SYNC;
         // Call Im2d 格式转换
+        if(releaseFence>0){
+          int ret = sync_wait(releaseFence,500);
+          if(ret){
+            HWC2_ALOGW("wait RGA fence 500ms failed!");
+          }
+          close(releaseFence);
+          releaseFence = -1;
+        }
         im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect,  -1, NULL, &opt, usage);
         if (im_state == IM_STATUS_SUCCESS) {
             HWC2_ALOGD_IF_INFO("%s running success! zpos==0 \n", LOG_TAG);
@@ -4644,17 +4655,39 @@ int DrmDisplayCompositor::WriteBackByRGA() {
         dst.global_alpha = 0xff;
 
         // Set src rect info
-        dst_rect.x = ALIGN_DOWN_INT(layer.source_crop.left, YUV_ALIGN);
-        dst_rect.y = ALIGN_DOWN_INT(layer.source_crop.top, YUV_ALIGN);
-        dst_rect.width = ALIGN_DOWN_INT(layer.source_crop.right - layer.source_crop.left, YUV_ALIGN);
-        dst_rect.height = ALIGN_DOWN_INT(layer.source_crop.bottom - layer.source_crop.top, YUV_ALIGN);
+        dst_rect.x = ALIGN_DOWN_INT(layer.display_frame_sf.left, YUV_ALIGN);
+        dst_rect.y = ALIGN_DOWN_INT(layer.display_frame_sf.top, YUV_ALIGN);
+        dst_rect.width = ALIGN_DOWN_INT(layer.display_frame_sf.right - layer.display_frame_sf.left, YUV_ALIGN);
+        dst_rect.height = ALIGN_DOWN_INT(layer.display_frame_sf.bottom - layer.display_frame_sf.top, YUV_ALIGN);
 
         IM_STATUS im_state;
         im_opt_t opt;
         memset(&opt, 0x00, sizeof(im_opt_t));
 
+        if(gIsRK3588()){
+          opt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;
+        }
+
         int usage = IM_ASYNC | IM_ALPHA_BLEND_SRC_OVER | IM_ALPHA_BLEND_PRE_MUL;
         // Call Im2d 格式转换
+        HWC2_ALOGD_IF_DEBUG("srd_rect: [%d,%d,%d,%d] dst_rect: [%d,%d,%d,%d], name = %s", 
+            src_rect.x,
+            src_rect.y,
+            src_rect.width,
+            src_rect.height,
+            dst_rect.x,
+            dst_rect.y,
+            dst_rect.width,
+            dst_rect.height,layer.sLayerName_.c_str()
+        );
+        if(releaseFence>0){
+          int ret = sync_wait(releaseFence,50);
+          if(ret){
+            HWC2_ALOGW("wait RGA fence 50ms failed!");
+          }
+          close(releaseFence);
+          releaseFence = -1;
+        }
         im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect,  0, &releaseFence, &opt, usage);
         if (im_state == IM_STATUS_SUCCESS) {
             HWC2_ALOGD_IF_INFO("%s running success! zpos==0 \n", LOG_TAG);

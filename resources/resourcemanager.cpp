@@ -719,6 +719,17 @@ int ResourceManager::OutputWBBuffer(int display_id,
   src.hstride = output_buffer->GetHeightStride();
   src.format  = output_buffer->GetFormat();
 
+  bool srcIsRgb = false;
+  switch (src.format)
+  {
+      case HAL_PIXEL_FORMAT_RGBA_8888:
+      case HAL_PIXEL_FORMAT_RGBX_8888:
+      case HAL_PIXEL_FORMAT_RGB_888:
+      case HAL_PIXEL_FORMAT_RGB_565:
+      case HAL_PIXEL_FORMAT_BGRA_8888:srcIsRgb = true; break;
+      default: srcIsRgb = false; break;
+  }
+
   // 由于WriteBack仅支持BGR888(B:G:R little endian)，故需要使用RGA做格式转换
   if(src.format == HAL_PIXEL_FORMAT_RGB_888)
     src.format = RK_FORMAT_BGR_888;
@@ -748,7 +759,7 @@ int ResourceManager::OutputWBBuffer(int display_id,
   }
 
   // Set Dataspace
-  if(dstIsRgb){
+  if(dstIsRgb && !srcIsRgb){
     if((output_buffer->GetDataspace() & android_dataspace_t::HAL_DATASPACE_RANGE_FULL) != 0){
       dst.color_space_mode = IM_YUV_TO_RGB_BT601_FULL;
       HWC2_ALOGD_IF_DEBUG("VDS : output_dataspace is bt601-full, src_format=%d dst_format=%d", src.format, dst.format);
