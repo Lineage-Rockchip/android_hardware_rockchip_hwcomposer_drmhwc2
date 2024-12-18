@@ -87,6 +87,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_C_INCLUDES := \
   ${LOCAL_PATH}/include \
+  ${LOCAL_PATH}/rockchip/common/solidcolor \
   external/libdrm \
   external/libdrm/include/drm \
   system/core \
@@ -95,6 +96,7 @@ LOCAL_C_INCLUDES := \
   hardware/rockchip/libbaseparameter \
   hardware/rockchip/librga/include \
   hardware/rockchip/librga/im2d_api
+
 
 LOCAL_SRC_FILES := \
   drmhwctwo.cpp \

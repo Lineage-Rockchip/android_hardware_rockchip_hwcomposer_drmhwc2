@@ -34,6 +34,7 @@
 #include "drmbuffer.h"
 #include "rockchip/hdr/drmhdrparser.h"
 #include "resources/resourcescache.h"
+#include "solid_color.h"
 
 #ifdef USE_LIBSVEP_MEMC
 #include "SvepMemc.h"
@@ -286,6 +287,10 @@ struct DrmHwcLayer {
 
   // 手写加速图层
   bool bAccelerateLayer_;
+  // 背景图层
+  bool bBackgraoundLayer_ = false;
+  std::shared_ptr<SolidColorBuffer> pSolidColorBuffer_ = NULL;
+  uint32_t uArgbValue_;
 
   // Use Rga
   bool bUseRga_;

@@ -833,6 +833,10 @@ bool DrmHwcLayer::IsSkipLayer(){
     return false;
   }
 
+  if(bBackgraoundLayer_){
+    return false;
+  }
+
   return (!sf_handle ? true:false);
 }
 

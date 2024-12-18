@@ -316,6 +316,12 @@ int DrmPlane::Init() {
     ALOGI("Could not get DCI_DATA property");
   }
 
+  ret = drm_->GetPlaneProperty(*this, "BACKGROUND", &background_property_);
+  if (ret) {
+    ALOGI("Could not get BACKGROUND property");
+  }
+
+
   AddLocalPlaneInfo();
 
   return 0;
@@ -1076,4 +1082,12 @@ const DrmProperty &DrmPlane::dci_data() const{
 
 }
 
+bool DrmPlane::is_support_background() const{
+  return background_property_.id() > 0;
+
+}
+const DrmProperty &DrmPlane::background_property() const{
+  return background_property_;
+
+}
 }  // namespace android

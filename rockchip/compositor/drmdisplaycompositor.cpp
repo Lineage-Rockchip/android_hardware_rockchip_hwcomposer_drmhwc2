@@ -1439,6 +1439,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset,
     uint64_t blend = 0;
     uint16_t eotf = TRADITIONAL_GAMMA_SDR;
     drm_colorspace  colorspace;
+    uint32_t background = 0;
 
     int dst_l,dst_t,dst_w,dst_h;
     int src_l,src_t,src_w,src_h;
@@ -1594,6 +1595,17 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset,
 
       rotation = layer.transform;
       is_metadata_hdr = layer.IsMetadataHdr_;
+
+      if(layer.bBackgraoundLayer_){
+        background = layer.uArgbValue_;
+        // 如果不存在 background_property 属性，则需要等前端填充完成
+        if(plane->background_property().id() <= 0) {
+          // 若未填充完成
+          if(layer.pSolidColorBuffer_ != NULL && layer.pSolidColorBuffer_->isFillCompleted() == false){
+            layer.pSolidColorBuffer_->waitForFillComplete();
+          }
+        }
+      }
     }
 
     // Disable the plane if there's no framebuffer
@@ -1866,6 +1878,21 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset,
 
       if(LogLevel(DBG_DEBUG)){
         out_log << " async_commit=" << sideband;
+      }
+    }
+
+    if(plane->background_property().id()) {
+      ret = drmModeAtomicAddProperty(pset, plane->id(),
+                                    plane->background_property().id(),
+                                    background) < 0;
+      if (ret) {
+        ALOGE("Failed to add background_property property %d to plane %d",
+              plane->background_property().id(), plane->id());
+        break;
+      }
+
+      if(LogLevel(DBG_DEBUG)){
+        out_log << " background=" << background;
       }
     }
 

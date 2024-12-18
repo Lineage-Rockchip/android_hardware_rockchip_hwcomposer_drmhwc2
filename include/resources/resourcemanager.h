@@ -23,6 +23,7 @@
 #include "rockchip/drmbaseparameter.h"
 #include "drmdisplaycompositor.h"
 #include "drmhwctwo.h"
+#include "solid_color.h"
 
 #include "drmbufferqueue.h"
 
@@ -132,6 +133,8 @@ class ResourceManager {
   bool GetEnableRgaAcquireFence() const;
   bool GetRgaSupportAbove4GB() const;
   bool IsSingleDisplayMode() const;
+  bool IsSupportSolidColor() const;
+  std::shared_ptr<SolidColorBuffer> GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h);
 
  private:
   ResourceManager();
@@ -172,11 +175,14 @@ class ResourceManager {
   // WriteBack分辨率
   DrmMode mWBMode_;
   // WriteBack BufferQueue 信息，用于实现环形缓冲区结构
-  std::shared_ptr<DrmBufferQueue> mWriteBackBQ_;
-  std::shared_ptr<DrmBuffer> mResetBackBuffer_;
-  std::shared_ptr<DrmBuffer> mNextWriteBackBuffer_;
-  std::shared_ptr<DrmBuffer> mDrawingWriteBackBuffer_;
+  std::shared_ptr<DrmBufferQueue> mWriteBackBQ_ = NULL;;
+  std::shared_ptr<DrmBuffer> mResetBackBuffer_ = NULL;;
+  std::shared_ptr<DrmBuffer> mNextWriteBackBuffer_ = NULL;;
+  std::shared_ptr<DrmBuffer> mDrawingWriteBackBuffer_ = NULL;;
   std::vector<PAIR_ID_BUFFER> mFinishBufferQueue_;
+
+  // SolidColor manager
+  SolidColorManager mSolidColorManager_;
 
   // 主要用于保存WriteBack 图层信息，用于评估虚拟屏幕是否支持从WriteBack获取图像
   std::map<uint32_t/*z*/, MirrorDisplayInfo_t> mWBDisplayLayerInfo_;
@@ -198,6 +204,8 @@ class ResourceManager {
   bool mEnableRgaAcquireFence = false;
   // Enable signal display
   bool mEnableSingleDisplayMode_ = false;
+  // Enable signal display
+  bool mEnableSolidColorSupport_ = false;
 
   mutable std::recursive_mutex mRecursiveMutex;
 };

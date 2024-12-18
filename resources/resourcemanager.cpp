@@ -197,6 +197,10 @@ int ResourceManager::InitProperty() {
   property_get("vendor.hwc.enable_single_display_mode", property_value, enableSingleDispDefault? "1" : "0");
   mEnableSingleDisplayMode_ = atoi(property_value) > 0;
 
+  // 使能 solid color 支持开关
+  property_get("vendor.hwc.enable_solid_color_support", property_value, "1");
+  mEnableSolidColorSupport_ = atoi(property_value) > 0;
+
   return 0;
 }
 
@@ -230,6 +234,26 @@ bool ResourceManager::GetEnableRgaAcquireFence() const{
 
 bool ResourceManager::IsSingleDisplayMode() const{
   return mEnableSingleDisplayMode_;
+}
+
+bool ResourceManager::IsSupportSolidColor() const{
+  return mEnableSolidColorSupport_;
+}
+std::shared_ptr<SolidColorBuffer> ResourceManager::GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h){
+  // 如果输入的尺寸为0，则默认取Primary的UI渲染分辨率
+  if(w == 0 || h == 0 || rgba == 0){
+    HWC2_ALOGE("rgba=0x%x w=%d h=%d, get SolidColorBuffer fail!", rgba, w, h);
+    return NULL;
+  }
+
+  // 根据 rgba / w / h 获取 drmbuffer
+  std::shared_ptr<SolidColorBuffer> buffer = mSolidColorManager_.getOrCreate(rgba, w, h);
+  if (!buffer) {  // 添加返回值判断
+    HWC2_ALOGE("Failed to create SolidColorBuffer for rgba=0x%x w=%d h=%d", rgba, w, h);
+    return NULL;
+  }
+
+  return buffer;  // 返回创建的缓冲区
 }
 
 bool ResourceManager::GetRgaSupportAbove4GB() const{

@@ -4057,11 +4057,6 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer *layer){
   }
 
   switch(layer->sf_composition){
-    //case HWC2::Composition::Sideband:
-    case HWC2::Composition::SolidColor:
-      HWC2_ALOGD_IF_DEBUG("[%s]：sf_composition =0x%x not support overlay.",
-              layer->sLayerName_.c_str(),layer->sf_composition);
-      return true;
     case HWC2::Composition::Client:
       if(layer->bYuv_ && layer->sf_handle != NULL){
         return false;
@@ -4107,6 +4102,10 @@ void Vop3588::InitRequestContext(std::vector<DrmHwcLayer*> &layers){
 
     if(layer->bFbTarget_)
       continue;
+
+    if(layer->bBackgraoundLayer_){
+      layer->iBestPlaneType = PLANE_RK3588_ALL_ESMART_MASK;
+    }
 
     if(layer->bSkipLayer_ || layer->bGlesCompose_){
       ctx.request.iSkipCnt++;

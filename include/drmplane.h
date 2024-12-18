@@ -463,6 +463,7 @@ class DrmPlane {
   const DrmProperty &kernel6_1_color_encoding() const;
   const DrmProperty &kernel6_1_color_range() const;
   const DrmProperty &dci_data() const;
+  const DrmProperty &background_property() const;
 
   bool is_use();
   void set_use(bool b_use);
@@ -499,7 +500,7 @@ class DrmPlane {
   int  get_transform_8k();
   bool is_support_transform_8k(int transform);
   bool is_support_scale_8k(float scale_rate);
-
+  bool is_support_background() const;
 
  private:
   DrmDevice *drm_;
@@ -542,6 +543,7 @@ class DrmPlane {
   DrmProperty alpha_property_vop1_kernel4_19_;
   DrmProperty blend_mode_property_vop1_kernel4_19;
   DrmProperty dci_data_;
+  DrmProperty background_property_;
 
   // next hdr
   DrmProperty next_hdr_layer_type_property_;

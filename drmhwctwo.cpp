@@ -1792,12 +1792,26 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidatePlanes() {
     if(drm_hwc_layer.bMatch_){
       auto map_hwc2layer = layers_.find(drm_hwc_layer.uId_);
       map_hwc2layer->second.set_validated_type(HWC2::Composition::Device);
-      if(drm_hwc_layer.bUseSr_){
-        ALOGD_IF(LogLevel(DBG_INFO),"[%.4" PRIu32 "]=Device-Sr : %s",drm_hwc_layer.uId_,drm_hwc_layer.sLayerName_.c_str());
-      }else if(drm_hwc_layer.bUseMemc_){
-        ALOGD_IF(LogLevel(DBG_INFO),"[%.4" PRIu32 "]=Device-Memc : %s",drm_hwc_layer.uId_,drm_hwc_layer.sLayerName_.c_str());
-      }else{
-        ALOGD_IF(LogLevel(DBG_INFO),"[%.4" PRIu32 "]=Device : %s",drm_hwc_layer.uId_,drm_hwc_layer.sLayerName_.c_str());
+      switch(map_hwc2layer->second.sf_type()){
+        case HWC2::Composition::Device:
+        case HWC2::Composition::Sideband:
+        case HWC2::Composition::SolidColor:
+        case HWC2::Composition::Cursor:
+          map_hwc2layer->second.set_validated_type(map_hwc2layer->second.sf_type());
+          if(drm_hwc_layer.bUseSr_){
+            ALOGD_IF(LogLevel(DBG_INFO),"[%.4" PRIu32 "]=Device-Sr : %s",drm_hwc_layer.uId_,drm_hwc_layer.sLayerName_.c_str());
+          }else if(drm_hwc_layer.bUseMemc_){
+            ALOGD_IF(LogLevel(DBG_INFO),"[%.4" PRIu32 "]=Device-Memc : %s",drm_hwc_layer.uId_,drm_hwc_layer.sLayerName_.c_str());
+          }else{
+            ALOGD_IF(LogLevel(DBG_INFO),"[%.4" PRIu32 "]=%s : %s",drm_hwc_layer.uId_, to_string(map_hwc2layer->second.validated_type()).c_str(), drm_hwc_layer.sLayerName_.c_str());
+          }
+          break;
+        case HWC2::Composition::Client:
+          map_hwc2layer->second.set_validated_type(HWC2::Composition::Device);
+          ALOGD_IF(LogLevel(DBG_INFO),"[%.4" PRIu32 "]=%s : %s",drm_hwc_layer.uId_, to_string(map_hwc2layer->second.validated_type()).c_str(), drm_hwc_layer.sLayerName_.c_str());
+          break;
+        default:
+          HWC2_ALOGE("invalid Composition =%d", map_hwc2layer->second.sf_type());
       }
     }else{
       auto map_hwc2layer = layers_.find(drm_hwc_layer.uId_);
@@ -1907,6 +1921,9 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
 #endif
       // 如果是RGA处理后的图层，已经更新了GemHandle参数，则不再获取GemHandle
       if(drm_hwc_layer.bUseRga_)
+        continue;
+      // 如果是RGA处理后的图层，已经更新了GemHandle参数，则不再获取GemHandle
+      if(drm_hwc_layer.bBackgraoundLayer_)
         continue;
 
 #ifdef USE_LIBPQ_HWPQ
@@ -3180,10 +3197,6 @@ if(!init_success_ || force_disconneted_){
 
   for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer> &l : layers_) {
     DrmHwcTwo::HwcLayer &layer = l.second;
-    // We can only handle layers of Device type, send everything else to SF
-    if (layer.validated_type() != HWC2::Composition::Device) {
-      layer.set_validated_type(HWC2::Composition::Client);
-    }
     //num_types 应该为发生改变的图层，不仅仅是Client图层
     if(layer.type_changed() && (layer.hwc3_sf_type() != HWC3_COMPOSITION_DISPLAY_DECORATION)){
       ++*num_types;
@@ -4707,6 +4720,17 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColor(hwc_color_t color) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d"", color [r,g,b,a]=[%d,%d,%d,%d]" ,id_,color.r,color.g,color.b,color.a);
   // TODO: Punt to client composition here?
   mCurrentState.color_ = color;
+  ResourceManager* rm = ResourceManager::getInstance();
+  if(rm != NULL && rm->IsSupportSolidColor()){
+    // 将 argb值转换为 uint32_t
+    uint32_t value_rgba = ( mCurrentState.color_.a << 24 ) | ( mCurrentState.color_.r << 16) |
+                          ( mCurrentState.color_.g << 8 )  | ( mCurrentState.color_.b );
+    // TODO: 暂时先用 1920x1080 size实现，后续查看是否用哪个参数
+    mCurrentState.solid_color_buffer_ = rm->GetSolidColorBuffer(value_rgba, 1920, 1080);
+    if(mCurrentState.solid_color_buffer_ != NULL){
+      mCurrentState.is_solid_color_ = true;
+    }
+  }
   bUpdate_ = true;
   return HWC2::Error::None;
 }
@@ -4944,6 +4968,7 @@ void DrmHwcTwo::HwcLayer::PopulateSidebandLayer(DrmHwcLayer *drmHwcLayer,
     return;
 }
 
+
 void DrmHwcTwo::HwcLayer::PopulateNormalLayer(DrmHwcLayer *drmHwcLayer,
                                               hwc2_drm_display_t* ctx) {
     drmHwcLayer->SetDisplayFrame(mCurrentState.display_frame_, ctx);
@@ -4992,6 +5017,59 @@ void DrmHwcTwo::HwcLayer::PopulateNormalLayer(DrmHwcLayer *drmHwcLayer,
     return;
 }
 
+void DrmHwcTwo::HwcLayer::PopulateSolidColorLayer(DrmHwcLayer *drmHwcLayer,
+                                              hwc2_drm_display_t* ctx) {
+    drmHwcLayer->SetDisplayFrame(mCurrentState.display_frame_, ctx);
+    drmHwcLayer->SetTransform(mCurrentState.transform_);
+    // Commit mirror function
+    drmHwcLayer->SetDisplayFrameMirror(mCurrentState.display_frame_);
+
+    android::DrmBuffer* solid_buffer = mCurrentState.solid_color_buffer_->getDrmBuffer();
+    if(solid_buffer != NULL){
+      drmHwcLayer->sf_handle  = solid_buffer->GetHandle();
+      drmHwcLayer->uBufferId_ = solid_buffer->GetBufferId();
+      drmHwcLayer->iFd_     = solid_buffer->GetFd();
+      drmHwcLayer->iWidth_  = solid_buffer->GetWidth();
+      drmHwcLayer->iHeight_ = solid_buffer->GetHeight();
+      drmHwcLayer->iStride_ = solid_buffer->GetStride();
+      drmHwcLayer->iSize_   = solid_buffer->GetSize();
+      drmHwcLayer->iFormat_ = solid_buffer->GetFormat();
+      drmHwcLayer->iUsage   = solid_buffer->GetUsage();
+      drmHwcLayer->iHeightStride_   = solid_buffer->GetHeightStride();
+      drmHwcLayer->iByteStride_     = solid_buffer->GetByteStride();
+      drmHwcLayer->uFourccFormat_   = solid_buffer->GetFourccFormat();
+      drmHwcLayer->uModifier_       = solid_buffer->GetModifier();
+      drmHwcLayer->sLayerName_      = solid_buffer->GetName();
+      drmHwcLayer->uByteStridePlanes_ = solid_buffer->GetByteStridePlanes();
+      drmHwcLayer->uGemHandle_ = solid_buffer->GetGemHandle();
+      drmHwcLayer->bHasMetadata_ = false;
+      drmHwcLayer->pBufferInfo_ = NULL;
+      mCurrentState.source_crop_.left = 0;
+      mCurrentState.source_crop_.top = 0;
+      mCurrentState.source_crop_.right = solid_buffer->GetWidth();
+      mCurrentState.source_crop_.bottom = solid_buffer->GetHeight();
+      drmHwcLayer->SetSourceCrop(mCurrentState.source_crop_);
+    }else{
+      drmHwcLayer->iFd_     = -1;
+      drmHwcLayer->iWidth_  = -1;
+      drmHwcLayer->iHeight_ = -1;
+      drmHwcLayer->iStride_ = -1;
+      drmHwcLayer->iSize_   = -1;
+      drmHwcLayer->iFormat_ = -1;
+      drmHwcLayer->iUsage   = 0;
+      drmHwcLayer->iHeightStride_ = -1;
+      drmHwcLayer->uFourccFormat_   = 0x20202020; //0x20 is space
+      drmHwcLayer->uModifier_ = 0;
+      drmHwcLayer->uGemHandle_ = 0;
+      drmHwcLayer->sLayerName_.clear();
+      drmHwcLayer->uByteStridePlanes_.clear();
+      drmHwcLayer->pBufferInfo_ = nullptr;
+    }
+
+    drmHwcLayer->Init();
+    return;
+}
+
 void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer *drmHwcLayer,
                                                  hwc2_drm_display_t* ctx, uint32_t frame_no) {
   drmHwcLayer->uId_        = layer_id;
@@ -5010,6 +5088,14 @@ void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer *d
   drmHwcLayer->bSideband2_ = false;
   drmHwcLayer->fFps_ = GetActiveFps();
   drmHwcLayer->bUpdate_ = isUpdate();
+
+  if(mCurrentState.is_solid_color_){
+    drmHwcLayer->bBackgraoundLayer_ = mCurrentState.is_solid_color_;
+    drmHwcLayer->pSolidColorBuffer_ = mCurrentState.solid_color_buffer_;
+    // (1 << 31) 为 drm 驱动要求传递的使能标志
+    drmHwcLayer->uArgbValue_ = (1 << 31) | ( mCurrentState.color_.r << 16) |
+                       mCurrentState.color_.g << 8 | mCurrentState.color_.b;
+  }
 
 #ifdef RK3528
   // RK3528 仅 VOP支持AFBC格式，如果遇到以下两个问题需要启用解码预缩小功能：
@@ -5030,7 +5116,9 @@ void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer *d
   // SidebandStream layer
   if(sidebandStreamHandle_ != NULL){
     PopulateSidebandLayer(drmHwcLayer, ctx);
-  }else{
+  }else if(mCurrentState.is_solid_color_) {
+    PopulateSolidColorLayer(drmHwcLayer, ctx);
+  }else {
     PopulateNormalLayer(drmHwcLayer, ctx);
   }
 #ifdef RK3528

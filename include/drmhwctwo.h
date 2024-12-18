@@ -101,6 +101,11 @@ class DrmHwcTwo : public hwc2_device_t {
         }
         sidebandStreamHandle_ = NULL;
       }
+
+      if(mCurrentState.is_solid_color_){
+        bool is_solid_color_=false;
+        std::shared_ptr<SolidColorBuffer> solid_color_buffer_;
+      }
     }
 
     HWC2::Composition sf_type() const {
@@ -209,6 +214,8 @@ class DrmHwcTwo : public hwc2_device_t {
       int32_t cursor_y_;
 
       hwc_color_t color_;
+      bool is_solid_color_=false;
+      std::shared_ptr<SolidColorBuffer> solid_color_buffer_;
 
       uint32_t z_order_ = 0;
     } Hwc2LayerState_t;
@@ -581,6 +588,7 @@ class DrmHwcTwo : public hwc2_device_t {
     void PopulateSidebandLayer(DrmHwcLayer *layer, hwc2_drm_display_t* ctx);
     // Normal layer
     void PopulateNormalLayer(DrmHwcLayer *layer, hwc2_drm_display_t* ctx);
+    void PopulateSolidColorLayer(DrmHwcLayer *layer, hwc2_drm_display_t* ctx);
     void PopulateDrmLayer(hwc2_layer_t layer_id,
                           DrmHwcLayer *layer,
                           hwc2_drm_display_t* ctx,
