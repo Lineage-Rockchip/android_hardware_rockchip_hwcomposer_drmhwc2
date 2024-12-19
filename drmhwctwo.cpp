@@ -2055,7 +2055,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
         sp<ReleaseFence> rf = composition->GetReleaseFence(l.first);
         l.second.set_release_fence(rf);
       }else{
-        l.second.set_release_fence(ReleaseFence::NO_FENCE);
+        /*
+           #519838 主要问题定位为 Device -> Client -> Device 策略切换过程
+           原 Client 合成节点设置的NO_FENCE会作为第三帧 Device的ReleaseFence上
+           传导致问题
+        */
+        l.second.set_release_fence(composition->GetReleaseFence(0));
       }
     }
     sp<ReleaseFence> rf = composition->GetReleaseFence(0);
