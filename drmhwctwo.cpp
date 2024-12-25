@@ -1691,12 +1691,42 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
 
   // now that they're ordered by z, add them to the composition
   for (auto &hwc2layer : layers_) {
+
     drm_hwc_layers_.emplace_back();
     DrmHwcLayer &drmHwclayer = drm_hwc_layers_.back();
     hwc2layer.second.PopulateDrmLayer(hwc2layer.first, &drmHwclayer, &ctx_, frame_no_);
   }
 
   std::sort(drm_hwc_layers_.begin(),drm_hwc_layers_.end(),SortByZpos);
+
+  // 找到可删除的底层黑色的背景图层
+  int have_skip_layer_zpos = 0;
+  for(auto &drm_hwc_layer : drm_hwc_layers_){
+    for (auto &hwc2layer : layers_) {
+      if(hwc2layer.first == drm_hwc_layer.uId_){
+        // 如果图层是纯色图层，并且zpos=0,则跳过该图层，使用CRTC的background作为背景色
+        // 验证结果 alpha 合成效果有误，暂时关闭此功能
+        if(hwc2layer.second.CanSkipSolidColorLayer(have_skip_layer_zpos)){
+          have_skip_layer_zpos++;
+          drm_hwc_layer.bBackgroundSkip_ = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // 遍历所有删除 bBackgroundSkip_ = true 的图层，并重新排序
+  auto it = std::remove_if(drm_hwc_layers_.begin(), drm_hwc_layers_.end(),
+      [](const DrmHwcLayer& layer) {
+          if(layer.bBackgroundSkip_) {
+              HWC2_ALOGI("Delete Background Skip Layer, id=%d, z_order=%d",
+                  layer.uId_, layer.iZpos_);
+              return true;
+          }
+          return false;
+      });
+  drm_hwc_layers_.erase(it, drm_hwc_layers_.end());
+
 
   uint32_t client_id = 0;
   drm_hwc_layers_.emplace_back();
@@ -5017,6 +5047,27 @@ void DrmHwcTwo::HwcLayer::PopulateNormalLayer(DrmHwcLayer *drmHwcLayer,
     return;
 }
 
+bool DrmHwcTwo::HwcLayer::CanSkipSolidColorLayer(int have_skip_layer_zpos){
+  if(mCurrentState.is_solid_color_){
+
+    char value[PROPERTY_VALUE_MAX];
+    property_get("vendor.hwc.disable_background_opt", value, "0");
+    if(atoi(value) > 0){
+      return false;
+    }
+
+    HWC2_ALOGI("Skip Solid Color Layer, z_order=%d, color=(%d,%d,%d) validated_type=%s",
+      mCurrentState.z_order_, mCurrentState.color_.r, mCurrentState.color_.g, mCurrentState.color_.b,  to_string(validated_type()).c_str());
+    if(mCurrentState.z_order_ == have_skip_layer_zpos && mCurrentState.color_.r == 0 && mCurrentState.color_.g == 0 && mCurrentState.color_.b == 0){
+      HWC2_ALOGI("Skip Solid Color Layer, z_order=%d, color=(%d,%d,%d)",
+        mCurrentState.z_order_, mCurrentState.color_.r, mCurrentState.color_.g, mCurrentState.color_.b);
+      set_validated_type(sf_type());
+      return true;
+    }
+  }
+  return false;
+}
+
 void DrmHwcTwo::HwcLayer::PopulateSolidColorLayer(DrmHwcLayer *drmHwcLayer,
                                               hwc2_drm_display_t* ctx) {
     drmHwcLayer->SetDisplayFrame(mCurrentState.display_frame_, ctx);
@@ -5088,6 +5139,10 @@ void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer *d
   drmHwcLayer->bSideband2_ = false;
   drmHwcLayer->fFps_ = GetActiveFps();
   drmHwcLayer->bUpdate_ = isUpdate();
+  drmHwcLayer->bBackgroundSkip_ = false;
+  drmHwcLayer->bBackgraoundLayer_ = false;
+  drmHwcLayer->pSolidColorBuffer_ = NULL;
+  drmHwcLayer->uArgbValue_ = 0;
 
   if(mCurrentState.is_solid_color_){
     drmHwcLayer->bBackgraoundLayer_ = mCurrentState.is_solid_color_;

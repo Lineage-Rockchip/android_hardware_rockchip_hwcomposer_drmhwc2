@@ -652,6 +652,8 @@ class DrmHwcTwo : public hwc2_device_t {
     int DoSwPq(bool validate, DrmHwcLayer *drmHwcLayer, hwc2_drm_display_t* ctx);
     int DoHwPq(bool validate, DrmHwcLayer *drmHwcLayer, hwc2_drm_display_t* ctx);
 
+    bool CanSkipSolidColorLayer(int have_skip_layer_zpos);
+
     // Layer hooks
     HWC2::Error SetCursorPosition(int32_t x, int32_t y);
     HWC2::Error SetLayerBlendMode(int32_t mode);

@@ -289,6 +289,7 @@ struct DrmHwcLayer {
   bool bAccelerateLayer_;
   // 背景图层
   bool bBackgraoundLayer_ = false;
+  bool bBackgroundSkip_ = false;
   std::shared_ptr<SolidColorBuffer> pSolidColorBuffer_ = NULL;
   uint32_t uArgbValue_;
 
