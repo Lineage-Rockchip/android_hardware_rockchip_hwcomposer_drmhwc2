@@ -673,7 +673,7 @@ bool Vop3576::IsLayerCombine(DrmHwcLayer * layer_one,DrmHwcLayer * layer_two){
         || layer_one->alpha!= layer_two->alpha
         || ((layer_one->bScale_ || layer_two->bScale_) && !ctx.state.bMultiAreaScaleEnable)
         || IsRec1IntersectRec2(&layer_one->display_frame,&layer_two->display_frame)
-        || IsXIntersect(&layer_one->display_frame,&layer_two->display_frame)
+        || ((layer_one->bBackgraoundLayer_ && layer_two->bBackgraoundLayer_) ? false : IsXIntersect(&layer_one->display_frame,&layer_two->display_frame))
         )
     {
         HWC2_ALOGD_IF_VERBOSE("is_layer_combine layer one alpha=%d,is_scale=%d",layer_one->alpha,layer_one->bScale_);
