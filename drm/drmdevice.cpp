@@ -1362,7 +1362,21 @@ void DrmDevice::UpdateDrmInfoFromKernel(){
   // 1. 通过 connector 接口获取 crtc 配置信息
   std::map<int, connector_mirror_info_t> kernel_mirror_crtc_id;
   for(auto &conn : connectors_){
+    // 如果  connector 配置了 crtc 信息，display-id 信息同步到crtc中
     if(conn->get_kernel_crtc_id() > 0){
+      // 找到对应的 encoder 和 crtc, 拉齐信息
+      for (DrmEncoder *enc : conn->possible_encoders()) {
+        for (DrmCrtc *crtc : enc->possible_crtcs()) {
+          if(conn->get_kernel_crtc_id() == crtc->id()){
+            crtc->set_display(conn->display());
+            enc->set_crtc(crtc);
+            conn->set_encoder(enc);
+            HWC2_ALOGI("display-id=%d sync kernel info conn[%d] crtc=%d!\n",
+                conn->display(), conn->id(), crtc->id());
+          }
+        }
+      }
+
       if(kernel_mirror_crtc_id.count(conn->get_kernel_crtc_id()) == 0){
         kernel_mirror_crtc_id[conn->get_kernel_crtc_id()].mirror_primary_id = conn->display();
       }else{
