@@ -4756,7 +4756,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColor(hwc_color_t color) {
     uint32_t value_rgba = ( mCurrentState.color_.a << 24 ) | ( mCurrentState.color_.r << 16) |
                           ( mCurrentState.color_.g << 8 )  | ( mCurrentState.color_.b );
     // TODO: 暂时先用 1920x1080 size实现，后续查看是否用哪个参数
-    mCurrentState.solid_color_buffer_ = rm->GetSolidColorBuffer(value_rgba, 1920, 1080);
+    mCurrentState.solid_color_buffer_ = rm->GetSolidColorBuffer(value_rgba, 960, 544);
     if(mCurrentState.solid_color_buffer_ != NULL){
       mCurrentState.is_solid_color_ = true;
     }
