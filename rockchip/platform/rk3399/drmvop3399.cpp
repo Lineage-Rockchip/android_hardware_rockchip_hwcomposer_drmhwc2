@@ -1858,6 +1858,14 @@ int Vop3399::TryGLESPolicy(
       // Check FB target property
       ctx.state.bDisableFBAfbcd = hwc_get_int_property("vendor.gralloc.no_afbc_for_fb_target_layer","0") > 0;
 
+      // afbc mast 16x16 align, and do not support offset
+      if(!(fb_layer->source_crop.left == 0 &&
+          fb_layer->source_crop.top == 0 &&
+          ((int)fb_layer->source_crop.right % 16 == 0) &&
+          ((int)fb_layer->source_crop.bottom % 16 == 0) )){
+        ctx.state.bDisableFBAfbcd = true;
+        HWC2_ALOGD_IF_DEBUG("Afbc must 16x16 align and no offset");
+      }
       // If FB-target unable to meet the scaling requirements, AFBC must be disable.
       if((fb_layer->fHScaleMul_ > 8.0 || fb_layer->fHScaleMul_ < 0.125) ||
          (fb_layer->fVScaleMul_ > 8.0 || fb_layer->fVScaleMul_ < 0.125) ){
@@ -2204,6 +2212,15 @@ void Vop3399::InitStateContext(
         ctx.state.bDisableFBAfbcd = true;
         ALOGI_IF(LogLevel(DBG_DEBUG),"%s,line=%d FB-target over max scale factor, FB-target must disable AFBC(%d).",
              __FUNCTION__,__LINE__,ctx.state.bDisableFBAfbcd);
+      }
+
+      // afbc mast 16x16 align, and do not support offset
+      if(!(layer->source_crop.left == 0 &&
+          layer->source_crop.top == 0 &&
+          ((int)layer->source_crop.right % 16 == 0) &&
+          ((int)layer->source_crop.bottom % 16 == 0) )){
+        ctx.state.bDisableFBAfbcd = true;
+        HWC2_ALOGD_IF_DEBUG("Afbc must 16x16 align and no offset");
       }
 
       if(ctx.state.bDisableFBAfbcd){
