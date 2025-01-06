@@ -341,14 +341,7 @@ int Vop3399::MatchPlane(std::vector<DrmCompositionPlane> *composition_planes,
   std::vector<PlaneGroup *> ::const_iterator iter;
   uint64_t rotation = 0;
   uint64_t alpha = 0xFF;
-  uint16_t eotf = TRADITIONAL_GAMMA_SDR;
   bool bMulArea = layer_size > 0 ? true : false;
-  DrmDevice *drm = crtc->getDrmDevice();
-  bool bHdrSupport = false;
-  DrmConnector *connector = drm->GetConnectorForDisplay(crtc->display());
-  if(connector){
-    bHdrSupport = connector->is_hdmi_support_hdr() && ctx.support.iHdrCnt > 0;
-  }
 
   //loop plane groups.
   for (iter = plane_groups.begin();
@@ -457,15 +450,15 @@ int Vop3399::MatchPlane(std::vector<DrmCompositionPlane> *composition_planes,
                           }
 
                           // HDR
-                          eotf = (*iter_layer)->uEOTF;
+                          bool hdr_layer = (*iter_layer)->bHdr_;
                           b_hdr2sdr = crtc->get_hdr();
-                          if(bHdrSupport && eotf != TRADITIONAL_GAMMA_SDR)
-                          {
-                              if(!b_hdr2sdr)
-                              {
+                          if(hdr_layer){
+                              if(ctx.state.bHDRVideoForceOverlay){
+                                HWC2_ALOGD_IF_DEBUG("vendor.hwc.hdr_video_force_overlay > 0, force overlay.");
+                              }else if(!b_hdr2sdr){
                                   ALOGV("layer id=%d, %s",(*iter_layer)->uId_,(*iter_plane)->name());
-                                  ALOGD_IF(LogLevel(DBG_DEBUG),"%s cann't support etof,layer eotf=%d,hdr2sdr=%d",
-                                          (*iter_plane)->name(),(*iter_layer)->uEOTF,(*iter_plane)->get_hdr2sdr());
+                                  ALOGD_IF(LogLevel(DBG_DEBUG),"%s cann't support hdr layer,layer hdr=%d, crtc can_hdr=%d",
+                                          (*iter_plane)->name(),hdr_layer,b_hdr2sdr);
                                   continue;
                               }
                               else
@@ -1164,6 +1157,16 @@ bool Vop3399::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc *crtc){
     }
   }
 
+  if(ctx.state.bHDRVideoForceOverlay){
+    HWC2_ALOGD_IF_DEBUG("vendor.hwc.hdr_video_force_overlay > 0, force overlay.");
+  }else{
+    //NV15支持CPU 10转16+GPU合成，使用GPU合成色彩更准确
+    if(layer->uFourccFormat_ == DRM_FORMAT_NV15 || layer->bHdr_){
+      HWC2_ALOGD_IF_DEBUG("iFormat_=0x%x,NV15 or HDR fallback to GPU for better color accuracy. layerName:%s", layer->iFormat_, layer->sLayerName_.c_str());
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1226,25 +1229,13 @@ int Vop3399::TryRgaOverlayPolicy(
             break;
           }
 
-          if(yuv_10bit){
-            // RGA 内部特殊修改，需要满足byte_stride 64对齐，width 2对齐
-            dst_buffer = rgaBufferQueue_->DequeueDrmBuffer(ALIGN(ctx.state.iDisplayWidth_, 2),
-                                                           ctx.state.iDisplayHeight_,
-                                                           HAL_PIXEL_FORMAT_YCrCb_NV12_10,
-                                                           RK_GRALLOC_USAGE_STRIDE_ALIGN_64 |
-                                                           MALI_GRALLOC_USAGE_NO_AFBC |
-                                                           RK_GRALLOC_USAGE_WITHIN_4G,
-                                                           "RGA-SurfaceView");
-          }else{
-            dst_buffer = rgaBufferQueue_->DequeueDrmBuffer(ctx.state.iDisplayWidth_,
-                                                           ctx.state.iDisplayHeight_,
-                                                           HAL_PIXEL_FORMAT_YCrCb_NV12,
-                                                           RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
-                                                           MALI_GRALLOC_USAGE_NO_AFBC |
-                                                           RK_GRALLOC_USAGE_WITHIN_4G,
-                                                           "RGA-SurfaceView");
-
-          }
+          dst_buffer = rgaBufferQueue_->DequeueDrmBuffer(ctx.state.iDisplayWidth_,
+                                                          ctx.state.iDisplayHeight_,
+                                                          HAL_PIXEL_FORMAT_YCrCb_NV12,
+                                                          RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
+                                                          MALI_GRALLOC_USAGE_NO_AFBC |
+                                                          RK_GRALLOC_USAGE_WITHIN_4G,
+                                                          "RGA-SurfaceView");
 
           if(dst_buffer == NULL){
             HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
@@ -1342,7 +1333,7 @@ int Vop3399::TryRgaOverlayPolicy(
           if(dst_buffer->GetFormat() == HAL_PIXEL_FORMAT_YUV420_8BIT_I){
             dst_format = HAL_PIXEL_FORMAT_YCrCb_NV12;
           }else if(dst_buffer->GetFormat() == HAL_PIXEL_FORMAT_YUV420_10BIT_I){
-            dst_format = HAL_PIXEL_FORMAT_YCrCb_NV12_10;
+            dst_format = HAL_PIXEL_FORMAT_YCrCb_NV12;
           }else{
             dst_format = dst_buffer->GetFormat();
           }
@@ -2190,6 +2181,7 @@ void Vop3399::InitStateContext(
   ALOGI_IF(LogLevel(DBG_DEBUG),"%s,line=%d bMultiAreaEnable=%d, bRgaPolicyEnable=%d",
             __FUNCTION__,__LINE__,ctx.state.bMultiAreaEnable,ctx.state.bRgaPolicyEnable);
 
+  ctx.state.bHDRVideoForceOverlay = hwc_get_int_property("vendor.hwc.hdr_video_force_overlay","1") > 0;
   // FB-target need disable AFBCD?
   ctx.state.bDisableFBAfbcd = false;
   for(auto &layer : layers){

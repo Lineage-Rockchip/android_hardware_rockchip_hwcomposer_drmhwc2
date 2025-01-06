@@ -146,6 +146,8 @@ typedef struct StateContext{
   // CropSplit mode
   bool bIsCropSplit_;
   bool bIsCropSplitPrimary_;
+
+  bool bHDRVideoForceOverlay = false;
 } StaCtx;
 
 typedef struct DrmVop2Context{

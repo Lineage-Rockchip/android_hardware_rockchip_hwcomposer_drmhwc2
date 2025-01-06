@@ -352,6 +352,17 @@ int DrmCrtc::Init() {
     }
   }
 
+  // Workround: rk3399
+  // VOP BIG support HDR
+  if(isRK3399(soc_id_)){
+    b_can_alpha_scale_ = true;
+    b_can_hdr10_ = false;
+    b_can_next_hdr_ = false;
+    if(port_id_ == 0){
+      b_can_hdr10_ = true;
+    }
+  }
+
   // variable_refresh_rate_ ： 为用户设置给驱动的请求值
   // max_refresh_rate_ ： VRR 支持的最大刷新率
   // min_refresh_rate_ ： VRR 支持的最小刷新率
