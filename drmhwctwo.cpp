@@ -4434,52 +4434,54 @@ int DrmHwcTwo::HwcDisplay::DoMirrorDisplay(int32_t *retire_fence){
     return 0;
   }
 
-  // 拼接主屏获取到实际的ClientBuffer后需要重新调用 TryHwcPolicy 执行策略匹配
-  int ret = 0;
-  std::vector<DrmHwcLayer *> layers;
-  layers.reserve(drm_hwc_layers_.size());
-  for(size_t i = 0; i < drm_hwc_layers_.size(); ++i){
-      layers.push_back(&drm_hwc_layers_[i]);
-  }
+  if(CheckDisplayState() == HWC2::Error::None){
+    // 拼接主屏获取到实际的ClientBuffer后需要重新调用 TryHwcPolicy 执行策略匹配
+    int ret = 0;
+    std::vector<DrmHwcLayer *> layers;
+    layers.reserve(drm_hwc_layers_.size());
+    for(size_t i = 0; i < drm_hwc_layers_.size(); ++i){
+        layers.push_back(&drm_hwc_layers_[i]);
+    }
 
-  for (auto &drm_hwc_layer : drm_hwc_layers_) {
-    if(drm_hwc_layer.bFbTarget_){
-      uint32_t client_id = 0;
-      client_layer_.PopulateFB(client_id, &drm_hwc_layer, &ctx_, frame_no_, false);
-      ret = client_layer_.initOrGetGemhanleFromCache(&drm_hwc_layer);
-      if (ret) {
-        ALOGE("Failed to get_gemhanle client_layer, ret=%d", ret);
-        return ret;
+    for (auto &drm_hwc_layer : drm_hwc_layers_) {
+      if(drm_hwc_layer.bFbTarget_){
+        uint32_t client_id = 0;
+        client_layer_.PopulateFB(client_id, &drm_hwc_layer, &ctx_, frame_no_, false);
+        ret = client_layer_.initOrGetGemhanleFromCache(&drm_hwc_layer);
+        if (ret) {
+          ALOGE("Failed to get_gemhanle client_layer, ret=%d", ret);
+          return ret;
+        }
       }
     }
-  }
 
-  std::vector<PlaneGroup *> plane_groups;
-  DrmDevice *drm = crtc_->getDrmDevice();
-  plane_groups.clear();
-  std::vector<PlaneGroup *> all_plane_groups = drm->GetPlaneGroups();
-  for(auto &plane_group : all_plane_groups){
-    if(plane_group->acquire(1 << crtc_->pipe(), handle_)){
-      // RK3576平台动态迁移功能，如果需要disable的图层则不进行策略匹配
-      if(plane_group->is_will_disable() == false){
-        plane_groups.push_back(plane_group);
-      }else{
-        HWC2_ALOGD_IF_DEBUG("%s will disable, display-id(%" PRIi64 "->%" PRIi64 ") crtc_mask(0x%" PRIx32 " -> 0x%" PRIx32 ")",
-            plane_group->planes[0]->name(),
-            plane_group->possible_display_, plane_group->next_possible_display_,
-            plane_group->current_crtc_, plane_group->next_crtc_);
-        continue;
+    std::vector<PlaneGroup *> plane_groups;
+    DrmDevice *drm = crtc_->getDrmDevice();
+    plane_groups.clear();
+    std::vector<PlaneGroup *> all_plane_groups = drm->GetPlaneGroups();
+    for(auto &plane_group : all_plane_groups){
+      if(plane_group->acquire(1 << crtc_->pipe(), handle_)){
+        // RK3576平台动态迁移功能，如果需要disable的图层则不进行策略匹配
+        if(plane_group->is_will_disable() == false){
+          plane_groups.push_back(plane_group);
+        }else{
+          HWC2_ALOGD_IF_DEBUG("%s will disable, display-id(%" PRIi64 "->%" PRIi64 ") crtc_mask(0x%" PRIx32 " -> 0x%" PRIx32 ")",
+              plane_group->planes[0]->name(),
+              plane_group->possible_display_, plane_group->next_possible_display_,
+              plane_group->current_crtc_, plane_group->next_crtc_);
+          continue;
+        }
       }
     }
-  }
 
-  std::tie(ret,
-          composition_planes_) = planner_->TryHwcPolicy(layers, plane_groups, crtc_,
-                                                        static_screen_opt_ ||
-                                                        force_gles_);
-  if (ret){
-    ALOGE("First, GLES policy fail ret=%d", ret);
-    return -1;
+    std::tie(ret,
+            composition_planes_) = planner_->TryHwcPolicy(layers, plane_groups, crtc_,
+                                                          static_screen_opt_ ||
+                                                          force_gles_);
+    if (ret){
+      ALOGE("First, GLES policy fail ret=%d", ret);
+      return -1;
+    }
   }
 
   int32_t merge_rt_fence = -1;
@@ -6033,6 +6035,10 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
                   cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug",
                   conn->id(),drm_->connector_type_str(conn->type()),conn->type_id());
         display.SetPowerMode(HWC2_POWER_MODE_ON);
+        // 非主屏的拼接屏幕需要创建 DummyLayer
+        if(!conn->IsSplitPrimary()){
+          display.GetOrCreateDummyLayer();
+        }
     }else{
       HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
                   cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug",
@@ -6117,6 +6123,10 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
                     cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug",
                     conn->id(),drm_->connector_type_str(conn->type()),conn->type_id());
         // display.SetPowerMode(HWC2_POWER_MODE_OFF);
+        // 非主屏的拼接屏幕需销毁DummyLayer
+        if(!conn->IsSplitPrimary()){
+          display.DestoryDummyLayer();
+        }
       }else{
         HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
                   cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug",
