@@ -176,7 +176,14 @@ void VSyncWorker::Routine() {
    */
   if (callback) {
 #if USE_HWC3_AIDL
-    callback->Callback(display, timestamp, VSYNC_PERIOD_60FPS);
+    float refresh = 60.0f;  // Default to 60Hz refresh rate
+    DrmConnector *conn = drm_->GetConnectorForDisplay(display_);
+    if (conn && conn->state() == DRM_MODE_CONNECTED) {
+      if (conn->active_mode().v_refresh() > 0.0f)
+        refresh = conn->active_mode().v_refresh();
+    }
+
+    callback->Callback(display, timestamp, kOneSecondNs / refresh);
 #else
     callback->Callback(display, timestamp);
 #endif
