@@ -4058,46 +4058,47 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer){
       }
     }
   }else{
-    // Metadata 不存在，则使用 Android Dataspace
     hdrLayer.metadataHdrParam_.codec_meta_exist = false;
     hdrLayer.metadataHdrParam_.p_hdr_codec_meta = NULL;
+  }
 
-    // Android bt2020 or bt709
-    switch(hdrLayer.eDataSpace_ & HAL_DATASPACE_STANDARD_MASK){
-      case HAL_DATASPACE_STANDARD_BT2020:
-      case HAL_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE :
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.color_prim = COLOR_PRIM_BT2020;
-        break;
-      default:
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.color_prim = COLOR_PRIM_BT709;
-        break;
-    }
+  // 为了处理杜比兼容 Hdr10 的情况，此时存在动态 meta，Hdr 解析库需要根据 Android Dataspace 修正参数 
+  // 因此无论是否存在 metadata, 都需要将 Android Dataspace 信息传递给 Hdr 解析库
+  // Android bt2020 or bt709
+  switch(hdrLayer.eDataSpace_ & HAL_DATASPACE_STANDARD_MASK){
+    case HAL_DATASPACE_STANDARD_BT2020:
+    case HAL_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE :
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.color_prim = COLOR_PRIM_BT2020;
+      break;
+    default:
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.color_prim = COLOR_PRIM_BT709;
+      break;
+  }
 
-    // Android st2084 / HLG / SDR
-    switch(hdrLayer.eDataSpace_ & HAL_DATASPACE_TRANSFER_MASK){
-      case HAL_DATASPACE_TRANSFER_ST2084:
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf = SINK_EOTF_ST2084;
-        break;
-      case HAL_DATASPACE_TRANSFER_HLG :
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf = SINK_EOTF_HLG;
-        break;
-      default:
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf = SINK_EOTF_GAMMA_SDR;
-        break;
-    }
+  // Android st2084 / HLG / SDR
+  switch(hdrLayer.eDataSpace_ & HAL_DATASPACE_TRANSFER_MASK){
+    case HAL_DATASPACE_TRANSFER_ST2084:
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf = SINK_EOTF_ST2084;
+      break;
+    case HAL_DATASPACE_TRANSFER_HLG :
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf = SINK_EOTF_HLG;
+      break;
+    default:
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf = SINK_EOTF_GAMMA_SDR;
+      break;
+  }
 
-    // Android full / limit range
-    switch(hdrLayer.eDataSpace_ & HAL_DATASPACE_RANGE_MASK){
-      case HAL_DATASPACE_RANGE_FULL:
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_FULL;
-        break;
-      case HAL_DATASPACE_RANGE_LIMITED :
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_LIMITED;
-        break;
-      default:
-        hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_LIMITED;
-        break;
-    }
+  // Android full / limit range
+  switch(hdrLayer.eDataSpace_ & HAL_DATASPACE_RANGE_MASK){
+    case HAL_DATASPACE_RANGE_FULL:
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_FULL;
+      break;
+    case HAL_DATASPACE_RANGE_LIMITED :
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_LIMITED;
+      break;
+    default:
+      hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_LIMITED;
+      break;
   }
 
   hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_pq_max_y_mode = 0;
