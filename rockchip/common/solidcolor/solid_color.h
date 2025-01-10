@@ -11,6 +11,7 @@
 
 #include "drmbuffer.h"
 #include "rockchip/utils/drmdebug.h"
+#include "im2d.hpp"
 
 // 颜色缓冲区的包装类
 class SolidColorBuffer {
@@ -110,20 +111,68 @@ class SolidColorBuffer {
   // 启动异步填充
   void startAsyncFill() {
     fillFuture_ = std::async(std::launch::async, [this]() {
-      if (uint32_t* data = static_cast<uint32_t*>(drmBuffer_->Lock())) {
-        auto fillStart = std::chrono::steady_clock::now();
 
-        std::fill_n(data, width_ * height_, rgba_);
+      auto fillStart = std::chrono::steady_clock::now();
+      bool fillSuccess = false;
+      char value[PROPERTY_VALUE_MAX];
+      property_get("vendor.hwc.disable_solid_color_fill_by_rga", value, "0");
+      if(atoi(value) == 0){
+        rga_buffer_t src;
+        im_rect src_rect;
+        memset(&src, 0, sizeof(rga_buffer_t));
+        memset(&src_rect, 0, sizeof(im_rect));
 
+        // Set src buffer info
+        src.fd      = drmBuffer_->GetFd();
+        src.width   = drmBuffer_->GetWidth();
+        src.height  = drmBuffer_->GetHeight();
+        src.wstride = drmBuffer_->GetStride();
+        src.hstride = drmBuffer_->GetHeightStride();
+        src.format  = drmBuffer_->GetFormat();
+
+        // Set src rect info
+        src_rect.x           = 0;
+        src_rect.y           = 0;
+        src_rect.width       = src.width;
+        src_rect.height      = src.height;
+
+        IM_STATUS im_state;
+
+        // Call Im2d 格式转换
+        im_state = imfill(src, src_rect, rgba_);
+
+        if (im_state == IM_STATUS_SUCCESS)
+        {
+            HWC2_ALOGD_IF_DEBUG("SolidColorBuffer: call im2d convert to rgb888 Success");
+            fillSuccess = true;
+        }else{
+            HWC2_ALOGE("SolidColorBuffer: call im2d convert to rgb888 failed");
+        }
         auto fillEnd = std::chrono::steady_clock::now();
         auto fillDuration = std::chrono::duration_cast<
                                 std::chrono::microseconds>(fillEnd - fillStart)
                                 .count();
-        HWC2_ALOGD_IF_DEBUG("SolidColorBuffer Color fill took %lld us", fillDuration);
-
-        drmBuffer_->Unlock();
+        HWC2_ALOGD_IF_DEBUG("SolidColorBuffer: RGA Color fill took %lld us", fillDuration);
         fillCompleted_.store(true, std::memory_order_release);
       }
+
+      // 如果RGA填充失败，则使用CPU填充
+      if(!fillSuccess){
+        if (uint32_t* data = static_cast<uint32_t*>(drmBuffer_->Lock())) {
+
+          std::fill_n(data, width_ * height_, rgba_);
+
+          auto fillEnd = std::chrono::steady_clock::now();
+          auto fillDuration = std::chrono::duration_cast<
+                                  std::chrono::microseconds>(fillEnd - fillStart)
+                                  .count();
+          HWC2_ALOGD_IF_DEBUG("SolidColorBuffer: Color fill took %lld us", fillDuration);
+
+          drmBuffer_->Unlock();
+          fillCompleted_.store(true, std::memory_order_release);
+        }
+      }
+
     });
   }
 

@@ -4752,9 +4752,9 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColor(hwc_color_t color) {
   mCurrentState.color_ = color;
   ResourceManager* rm = ResourceManager::getInstance();
   if(rm != NULL && rm->IsSupportSolidColor()){
-    // 将 argb值转换为 uint32_t
-    uint32_t value_rgba = ( mCurrentState.color_.a << 24 ) | ( mCurrentState.color_.r << 16) |
-                          ( mCurrentState.color_.g << 8 )  | ( mCurrentState.color_.b );
+    // 将 argb值转换为 uint32_t, 由于填充格式为 AB24，需要根据[31:0] A:B:G:R 8:8:8:8 little endian 构造 uint32_t值
+    uint32_t value_rgba = ( mCurrentState.color_.a << 24 ) | ( mCurrentState.color_.b << 16) |
+                          ( mCurrentState.color_.g << 8 )  | ( mCurrentState.color_.r );
     // TODO: 暂时先用 1920x1080 size实现，后续查看是否用哪个参数
     mCurrentState.solid_color_buffer_ = rm->GetSolidColorBuffer(value_rgba, 960, 544);
     if(mCurrentState.solid_color_buffer_ != NULL){
