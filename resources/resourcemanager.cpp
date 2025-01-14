@@ -192,7 +192,9 @@ int ResourceManager::InitProperty() {
   mEnableEdidReport_ = atoi(property_value) > 0;
   // 使能 SingelDisplay 后，HWC仅向SurfaceFlinger注册主屏
   // 所有的热插拔时间都会进行优先级仲裁，重新指定主屏上报SurfaceFlinger
-  property_get("vendor.hwc.enable_single_display_mode", property_value, "0");
+  // RK3528要求HDMI和TV互斥，默认开启singleDisplay模式
+  bool enableSingleDispDefault = gIsRK3528();
+  property_get("vendor.hwc.enable_single_display_mode", property_value, enableSingleDispDefault? "1" : "0");
   mEnableSingleDisplayMode_ = atoi(property_value) > 0;
 
   return 0;
