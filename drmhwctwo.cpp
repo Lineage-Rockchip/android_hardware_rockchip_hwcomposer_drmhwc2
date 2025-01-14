@@ -5690,11 +5690,6 @@ void DrmHwcTwo::HandleDisplayHotplug(hwc2_display_t displayid, int state) {
       }
   }
 
-  // 单主屏模式，忽略上报除了主屏以外的其他屏幕
-  if(ResourceManager::getInstance()->IsSingleDisplayMode() && displayid != HWC_DISPLAY_PRIMARY){
-    HWC2_ALOGW("IsSingleDisplayMode skip display-id=%" PRIu64 " state=%d hotplug event.",displayid,state);
-    return;
-  }
 
   if(displayid == HWC_DISPLAY_PRIMARY && state == HWC2_CONNECTION_DISCONNECTED)
     return;
@@ -6515,6 +6510,11 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange(){
 
   // 根据新绑定的display-id信息进行重新初始化
   for(auto &map : hwc2_->displays_){
+    // 单主屏模式，忽略上报除了主屏以外的其他屏幕
+    if(ResourceManager::getInstance()->IsSingleDisplayMode() && map.first != HWC_DISPLAY_PRIMARY){
+      HWC2_ALOGW("IsSingleDisplayMode skip display-id=%" PRIu64 " CheckStateAndReinit.", map.first);
+      continue;
+    }
     map.second.CheckStateAndReinit();
   }
 
@@ -6522,6 +6522,11 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange(){
   for(auto &connector : drm->connectors()){
     if(connector->hotplug_state() == DRM_MODE_CONNECTED){
       int display_id = connector->display();
+      // 单主屏模式，忽略上报除了主屏以外的其他屏幕
+      if(ResourceManager::getInstance()->IsSingleDisplayMode() && display_id != HWC_DISPLAY_PRIMARY){
+        HWC2_ALOGW("IsSingleDisplayMode skip display-id=%d hotplug event.", display_id);
+        continue;
+      }
       HWC2_ALOGI("DisplayPipeChange : hwc_hotplug: Plug for display_id=%d connector %u type=%s, type_id=%d \n",
                 display_id,
                 connector->id(),
