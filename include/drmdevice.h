@@ -167,7 +167,7 @@ class DrmDevice {
   int SetScreenInfo(unsigned int connector_type,unsigned int connector_id, int index, struct screen_info *info);
 
   std::map<int, int> GetDisplays() { return displays_;}
-  int UpdatePrimaryInfo();
+  int UpdatePrimaryInfo(bool checkonly);
   int UpdateSplitModeInfo();
   int GetDisplayPipelineChange(uint64_t* output_change_mask);
 

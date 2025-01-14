@@ -172,6 +172,15 @@ int DrmConnector::display() const {
 void DrmConnector::set_display(int display) {
   display_ = display;
 }
+
+int DrmConnector::display_next() const {
+  return display_next_;
+}
+
+void DrmConnector::set_display_next(int display_next) {
+  display_next_ = display_next;
+}
+
 int DrmConnector::priority() const{
   return priority_;
 }

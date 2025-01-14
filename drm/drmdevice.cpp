@@ -3570,8 +3570,9 @@ int DrmDevice::SetScreenInfo(unsigned int connector_type,
 }
 
 
-int DrmDevice::UpdatePrimaryInfo(){
+int DrmDevice::UpdatePrimaryInfo(bool checkonly){
   // HwcXml 配置优先级高于系统属性，若存在，则优先使用 xml 文件配置
+  // ConfigPossible操作仅会修改priority和possible_displays，目前仅热插拔线程访问，若后续有多线程访问，需注意修改checkonly逻辑
   if(DmXml_.Enable && DmXml_.Valid){
     ConfigurePossibleDisplaysFromXml();
   }else{
@@ -3647,7 +3648,10 @@ int DrmDevice::UpdatePrimaryInfo(){
     return -1;
   }else{
     if(primary != NULL){
-      primary->set_display(unused_display_id);
+      if(checkonly)
+        primary->set_display_next(unused_display_id);
+      else
+        primary->set_display(unused_display_id);
       unused_display_id++;
     }
   }
@@ -3655,7 +3659,10 @@ int DrmDevice::UpdatePrimaryInfo(){
   for (auto &conn : connectors_) {
     if (primary == conn.get())
       continue;
-    conn->set_display(unused_display_id);
+    if(checkonly)
+      conn->set_display_next(unused_display_id);
+    else
+      conn->set_display(unused_display_id);
     unused_display_id++;
   }
   return 0;

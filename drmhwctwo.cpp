@@ -570,7 +570,8 @@ HWC2::Error DrmHwcTwo::HwcDisplay::Init() {
   }
 
   // RK3528 HDMI/TV互斥模式要求，若HDMI已连接，则 TV不注册
-  if(gIsRK3528() && connector_->type() == DRM_MODE_CONNECTOR_TV){
+  if(gIsRK3528() && !ResourceManager::getInstance()->IsSingleDisplayMode()
+                 && connector_->type() == DRM_MODE_CONNECTOR_TV){
     DrmConnector* primary = drm_->GetConnectorForDisplay(HWC_DISPLAY_PRIMARY);
     if(primary && primary->state() == DRM_MODE_CONNECTED){
       ret = drm_->ReleaseDpyRes(handle_);
@@ -5710,7 +5711,7 @@ void DrmHwcTwo::HandleDisplayHotplug(hwc2_display_t displayid, int state) {
 
 void DrmHwcTwo::HandleInitialHotplugState(DrmDevice *drmDevice) {
     // RK3528 HDMI/TV互斥模式要求，若HDMI已连接，则 TV 不注册
-    if(gIsRK3528()){
+    if(gIsRK3528() && !ResourceManager::getInstance()->IsSingleDisplayMode()){
       drmDevice->FlipHotplugEventForInit();
       return;
     }
@@ -5939,13 +5940,25 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
     return -1;
   }
 
-  ALOGI("hwc_hotplug: %s event %" PRIu64 " for connector %u type=%s, type_id=%d\n",
+  HWC2_ALOGI("hwc_hotplug: %s event %" PRIu64 " for connector %u type=%s, type_id=%d\n",
         event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", event.timestamp, conn->id(),
         drm_->connector_type_str(conn->type()), conn->type_id());
 
+  // 更新主屏信息,可能存在主副屏幕切换行为
+  //  true: Check only
+  // false: Check and Update
+  drm_->UpdatePrimaryInfo(true);
+
+  bool primaryChange = false;
+  for(auto &conn : drm_->connectors()){
+    HWC2_ALOGI("Check Display ID change: conn %s-%d old display=%d, new display = %d", drm_->connector_type_str(conn->type()), conn->type_id(), conn->display(), conn->display_next());
+    if(conn->display() != conn->display_next())
+      primaryChange = true;
+  }
+
   int display_id = conn->display();
   auto &display = hwc2_->displays_.at(display_id);
-  if (cur_state == DRM_MODE_CONNECTED) {
+  if (cur_state == DRM_MODE_CONNECTED && conn->display_next()==0) {
     ret |= (int32_t)display.HoplugEventTmeline();
     ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
     ret |= (int32_t)display.ChosePreferredConfig();
@@ -5960,7 +5973,8 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
       if(event.state_change_panding){
         display.SetNeedPowerModeSync(event.state_change_panding);
       }
-      HaneleDisplayPipelineUpdateEvent(DRM_PIPELINE_PRIMARY_CHANGE);
+      if(primaryChange)
+        HaneleDisplayPipelineUpdateEvent(DRM_PIPELINE_PRIMARY_CHANGE);
       display.SyncPowerMode();
     }
   }else{
@@ -5974,7 +5988,24 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
       HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d to switch primary config.",
                 cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug",
                 conn->id(),drm_->connector_type_str(conn->type()),conn->type_id());
-      HaneleDisplayPipelineUpdateEvent(DRM_PIPELINE_PRIMARY_CHANGE);
+      if(primaryChange)
+        HaneleDisplayPipelineUpdateEvent(DRM_PIPELINE_PRIMARY_CHANGE);
+    }
+  }
+
+  // if we got primary display plug event but no primary change,
+  // hotplug callback to SurfaceFlinger is needed.
+  //
+  // if there is primary change, HaneleDisplayPipelineUpdateEvent() will handle it
+  if(display_id == 0 && cur_state == DRM_MODE_CONNECTED && !primaryChange)
+    hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_CONNECTED);
+
+  // if we got primary display plug event but no primary change,
+  // check and disable display that is not primary
+  if(!primaryChange){
+    for(auto &conn : drm_->connectors()){
+      if(conn->display() != 0)
+        drm_->ReleaseDpyRes(conn->display());
     }
   }
 
@@ -6506,7 +6537,9 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange(){
   }
 
   // 更新主屏信息,可能存在主副屏幕切换行为
-  drm->UpdatePrimaryInfo();
+  //  true: Check only
+  // false: Check and Update
+  drm->UpdatePrimaryInfo(false);
 
   // 根据新绑定的display-id信息进行重新初始化
   for(auto &map : hwc2_->displays_){

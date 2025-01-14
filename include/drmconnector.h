@@ -68,6 +68,8 @@ class DrmConnector {
   const char* unique_name() const { return cUniqueName_;}
   int display() const;
   void set_display(int display);
+  int display_next() const;
+  void set_display_next(int display_next);
   int priority() const;
   void set_priority(uint32_t priority);
   uint32_t possible_displays() const;
@@ -250,6 +252,7 @@ class DrmConnector {
   uint32_t id_;
   DrmEncoder *encoder_;
   int display_;
+  int display_next_;
 
   uint32_t type_;
   uint32_t type_id_;
