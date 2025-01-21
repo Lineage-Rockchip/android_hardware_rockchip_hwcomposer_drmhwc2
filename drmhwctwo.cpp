@@ -2373,6 +2373,9 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentEBookDisplay(int32_t *retire_fence) {
     // 再恢复正常显示
     if(ebook_commit_last_frame_and_stop_){
       ebook_stop_commit_util_power_on_ = true;
+      // 通常PowerOff后系统会清空所有图层，故需要提交完成后将 ebook_commit_last_frame_and_stop_ 置为false
+      // 否则会干扰下次提交
+      ebook_commit_last_frame_and_stop_ = false;
     }
 
   }
