@@ -6,14 +6,17 @@ workflow:
 
 stages:
   - build
+  - test
 
 before_script:
   # 所有作业执行前运行的脚本
   - echo "Setting up the environment"
-  - export PATH=/home/lb/projects/gitlab-ci/drmhwc2-configs/build_sh/:$PATH
+  - export PATH=/home/lb/projects/gitlab-ci/drmhwc2-configs/build_sh/:/home/lb/projects/gitlab-ci/drmhwc2-configs/test_sh/:$PATH
   - echo "Updated PATH=$PATH"  # 打印修改后的 PATH
 
-a15_build:
+
+# 自动化编译部分
+build_android_15:
   stage: build
   tags:
     - android-15
@@ -21,7 +24,7 @@ a15_build:
     - echo "Building the Android-15 SDK ..."
     - . 15_build_drmhwc2.sh
 
-a14_build:
+build_android_14:
   stage: build
   tags:
     - android-14
@@ -29,7 +32,7 @@ a14_build:
     - echo "Building the Android-14 SDK ..."
     - . 14_build_drmhwc2.sh
 
-a13_build:
+build_android_13:
   stage: build
   tags:
     - android-13
@@ -37,7 +40,7 @@ a13_build:
     - echo "Building the Android-14 SDK ..."
     - . 13_build_drmhwc2.sh
 
-a12_build:
+build_android_12:
   stage: build
   tags:
     - android-12
@@ -45,10 +48,35 @@ a12_build:
     - echo "Building the Android-14 SDK ..."
     - . 12_build_drmhwc2.sh
 
-a11_build:
+build_android_11:
   stage: build
   tags:
     - android-11
   script:
     - echo "Building the Android-14 SDK ..."
     - . 11_build_drmhwc2.sh
+
+# 单元测试部分
+test_rk3588_android_14:
+  stage: test
+  tags:
+    - android-14
+  script:
+    - echo "Test the Android-14 RK3588 ..."
+    - . 14_test_drmhwc2.sh "14" "rk3588_u"
+
+test_rk3576_android_14:
+  stage: test
+  tags:
+    - android-14
+  script:
+    - echo "Test the Android-14 RK3576 ..."
+    - . 14_test_drmhwc2.sh "14" "rk3576_u"
+
+test_rk3568_android_14:
+  stage: test
+  tags:
+    - android-14
+  script:
+    - echo "Test the Android-14 RK3568 ..."
+    - . 14_test_drmhwc2.sh "14" "rk3568_u"
