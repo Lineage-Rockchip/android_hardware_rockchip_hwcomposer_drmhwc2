@@ -324,6 +324,9 @@ struct DrmHwcLayer {
   std::shared_ptr<SvepMemc> svep_memc_ = NULL;
 #endif
 
+  // 图层内容是否有更新
+  bool bUpdate_;
+
   // fps
   float fFps_;
 

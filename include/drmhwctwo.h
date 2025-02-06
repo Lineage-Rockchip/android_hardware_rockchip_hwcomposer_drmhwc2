@@ -120,8 +120,18 @@ class DrmHwcTwo : public hwc2_device_t {
       mCurrentState.validated_type_ = type;
     }
     bool type_changed() const {
-      return (mCurrentState.sf_type_        != mCurrentState.validated_type_) ||
-             (mDrawingState.validated_type_ != mCurrentState.validated_type_);
+      if((mCurrentState.sf_type_ != mCurrentState.validated_type_)){
+        return true;
+      }
+
+      // mDrawingState.validated_type_ 初值为 Invalid ，故需要排除掉初值为 Invalid的情况
+      // 当 mDrawingState.validated_type_ 非 Invalid 时，如果当前帧和上一帧validated_type_
+      // 存在变化，则认为发生了change
+      if(mDrawingState.validated_type_ != HWC2::Composition::Invalid &&
+             mDrawingState.validated_type_ != mCurrentState.validated_type_){
+        return true;
+      }
+      return false;
     }
 
     uint32_t z_order() const {
@@ -605,7 +615,6 @@ class DrmHwcTwo : public hwc2_device_t {
       }
 
       uFrameCnt_++;
-      bUpdate_ = true;
       last_buffer_id_ = buffer_id;
 
       // 如果图层更新间隔大于300ms仅计算实时fps，不计算active fps
@@ -690,6 +699,7 @@ class DrmHwcTwo : public hwc2_device_t {
     nsecs_t lastTimeRecod_;
     nsecs_t last_buffer_id_timestamp_;
     uint64_t last_buffer_id_;
+    // 标志图层存在更新
     bool bUpdate_;
     // 考虑世界时间的fps, 1s内不刷新则刷新率为0
     float mFps_ = 0;

@@ -1747,6 +1747,10 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidatePlanes() {
   layers.reserve(drm_hwc_layers_.size());
   for(size_t i = 0; i < drm_hwc_layers_.size(); ++i){
       layers.push_back(&drm_hwc_layers_[i]);
+      if(drm_hwc_layers_[i].bUpdate_){
+        // 如果存在图层更新，则关闭静态桌面优化
+        static_screen_opt_ = false;
+      }
   }
 
   std::vector<PlaneGroup *> plane_groups;
@@ -3184,11 +3188,13 @@ if(!init_success_ || force_disconneted_){
     if(layer.type_changed() && (layer.hwc3_sf_type() != HWC3_COMPOSITION_DISPLAY_DECORATION)){
       ++*num_types;
     }
+    layer.resetUpdate();
   }
 
   if(!client_layer_.isAfbc()){
     ++(*num_requests);
   }
+  client_layer_.resetUpdate();
   HWC2_ALOGD_IF_VERBOSE("num_requests=%" PRIu32",num_types=%" PRIu32, *num_requests, *num_types);
   validate_success_ = true;
   return *num_types ? HWC2::Error::HasChanges : HWC2::Error::None;
@@ -4358,7 +4364,6 @@ int DrmHwcTwo::HwcDisplay::UpdateTimerEnable(){
       enable_timer = false;
     }
 #endif
-
   }
   static_screen_timer_enable_ = enable_timer;
   return 0;
@@ -4603,6 +4608,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::DestoryDummyLayer(){
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBlendMode(int32_t mode) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d"", blend=%d" ,id_,mode);
   mCurrentState.blending_ = static_cast<HWC2::BlendMode>(mode);
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
@@ -4693,6 +4699,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBuffer(buffer_handle_t buffer,
   acquire_fence_ = sp<AcquireFence>(new AcquireFence(acquire_fence));
   bUseSlotCache = false;
   uCacheSlot = -1;
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
@@ -4700,6 +4707,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColor(hwc_color_t color) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d"", color [r,g,b,a]=[%d,%d,%d,%d]" ,id_,color.r,color.g,color.b,color.a);
   // TODO: Punt to client composition here?
   mCurrentState.color_ = color;
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
@@ -4712,25 +4720,28 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerCompositionType(int32_t type) {
 #endif
 
   mCurrentState.sf_type_ = static_cast<HWC2::Composition>(type);
-
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerDataspace(int32_t dataspace) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d"", dataspace=0x%x" ,id_,dataspace);
   mCurrentState.dataspace_ = static_cast<android_dataspace_t>(dataspace);
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerDisplayFrame(hwc_rect_t frame) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d"", frame=[%d,%d,%d,%d]" ,id_,frame.left,frame.top,frame.right,frame.bottom);
   mCurrentState.display_frame_ = frame;
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerPlaneAlpha(float alpha) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d"", alpha=%f" ,id_,alpha);
   mCurrentState.alpha_ = alpha;
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
@@ -4786,6 +4797,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSidebandStream(
   }else{
     setSidebandStream(stream);
   }
+  bUpdate_ = true;
 
   return HWC2::Error::None;
 }
@@ -4793,6 +4805,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSidebandStream(
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSourceCrop(hwc_frect_t crop) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d"", frame=[%f,%f,%f,%f]" ,id_,crop.left,crop.top,crop.right,crop.bottom);
   mCurrentState.source_crop_ = crop;
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
@@ -4800,12 +4813,14 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSurfaceDamage(hwc_region_t damage) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d",id_);
   // TODO: We don't use surface damage, marking as unsupported
   unsupported(__func__, damage);
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerTransform(int32_t transform) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d" ", transform=%x",id_,transform);
   mCurrentState.transform_ = static_cast<HWC2::Transform>(transform);
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
@@ -4813,12 +4828,14 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerVisibleRegion(hwc_region_t visible) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d",id_);
   // TODO: We don't use this information, marking as unsupported
   unsupported(__func__, visible);
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerZOrder(uint32_t order) {
   HWC2_ALOGD_IF_VERBOSE("layer-id=%d" ", z=%d",id_,order);
   mCurrentState.z_order_ = order;
+  bUpdate_ = true;
   return HWC2::Error::None;
 }
 
@@ -4992,6 +5009,7 @@ void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer *d
   drmHwcLayer->IsMetadataHdr_ = false;
   drmHwcLayer->bSideband2_ = false;
   drmHwcLayer->fFps_ = GetActiveFps();
+  drmHwcLayer->bUpdate_ = isUpdate();
 
 #ifdef RK3528
   // RK3528 仅 VOP支持AFBC格式，如果遇到以下两个问题需要启用解码预缩小功能：
