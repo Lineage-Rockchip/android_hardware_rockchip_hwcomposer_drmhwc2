@@ -2097,9 +2097,9 @@ bool Vop356x::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc *crtc){
     return false;
   }
 
-  // RGA 最大宽度仅支持8176
-  if(layer->iWidth_ > 8176){
-    HWC2_ALOGD_IF_DEBUG("RGA can't handle iWidth_=%d yuv layer, rga max is 8176.",
+  // RGA 最大宽度仅支持8196
+  if(layer->iWidth_ > 8196 || layer->iWidth_ < 2){
+    HWC2_ALOGD_IF_DEBUG("RGA can't handle iWidth_=%d yuv layer, rga input range is [2,8196].",
                 layer->iWidth_);
     return false;
   }
@@ -2124,7 +2124,7 @@ bool Vop356x::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc *crtc){
   }
 
   if(!hwc_rga_utils::isRK3568RGA2SupportFormat(layer->iFormat_)){
-    HWC2_ALOGD_IF_DEBUG("FourccFormat_=%c%c%c%c, rk3588 rga3 not supported, layerName:%s",
+    HWC2_ALOGD_IF_DEBUG("FourccFormat_=%c%c%c%c, rk3568/rk3566 rga2 not supported, layerName:%s",
                         layer->uFourccFormat_,
                         layer->uFourccFormat_ >> 8,
                         layer->uFourccFormat_ >> 16,
@@ -2171,45 +2171,23 @@ int Vop356x::TryRgaOverlayPolicy(
   for(auto &drmLayer : layers){
     if(NeedUseRgaPolicy(drmLayer, crtc)){
         if(last_buffer_id != drmLayer->uBufferId_){
-          // 超出 RGA 缩放8倍的场景，执行两级缩放，RGA缩放后再由VOP缩放
+          // 超出 RGA 缩放16倍的场景，执行两级缩放，RGA缩放后再由VOP缩放
           bool rga_scale_max = false;
           // RGA 有缩放倍数限制
-          if((drmLayer->fHScaleMul_ < 0.125 ||
-              drmLayer->fHScaleMul_ > 8.0   ||
-              drmLayer->fVScaleMul_ < 0.125 ||
-              drmLayer->fVScaleMul_ > 8.0)){
+          if((drmLayer->fHScaleMul_ < (1.0/16) ||
+              drmLayer->fHScaleMul_ > 16.0   ||
+              drmLayer->fVScaleMul_ < (1.0/16) ||
+              drmLayer->fVScaleMul_ > 16.0)){
               rga_scale_max = true;
           }
 
-          bool yuv_10bit = false;
-          switch(drmLayer->iFormat_){
-          case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
-          case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
-            yuv_10bit = true;
-            break;
-          default:
-            break;
-          }
-
-          if(yuv_10bit){
-            // RGA 内部特殊修改，需要满足byte_stride 64对齐，width 2对齐
-            dst_buffer = rgaBufferQueue_->DequeueDrmBuffer(ALIGN(ctx.state.iDisplayWidth_, 2),
-                                                           ctx.state.iDisplayHeight_,
-                                                           HAL_PIXEL_FORMAT_YCrCb_NV12_10,
-                                                           RK_GRALLOC_USAGE_STRIDE_ALIGN_64 |
-                                                           MALI_GRALLOC_USAGE_NO_AFBC |
-                                                           RK_GRALLOC_USAGE_WITHIN_4G,
-                                                           "RGA-SurfaceView");
-          }else{
-            dst_buffer = rgaBufferQueue_->DequeueDrmBuffer(ctx.state.iDisplayWidth_,
-                                                           ctx.state.iDisplayHeight_,
-                                                           HAL_PIXEL_FORMAT_YCrCb_NV12,
-                                                           RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
-                                                           MALI_GRALLOC_USAGE_NO_AFBC |
-                                                           RK_GRALLOC_USAGE_WITHIN_4G,
-                                                           "RGA-SurfaceView");
-
-          }
+          dst_buffer = rgaBufferQueue_->DequeueDrmBuffer(ctx.state.iDisplayWidth_,
+                                                          ctx.state.iDisplayHeight_,
+                                                          HAL_PIXEL_FORMAT_YCrCb_NV12,
+                                                          RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
+                                                          MALI_GRALLOC_USAGE_NO_AFBC |
+                                                          RK_GRALLOC_USAGE_WITHIN_4G,
+                                                          "RGA-SurfaceView");
 
           if(dst_buffer == NULL){
             HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
