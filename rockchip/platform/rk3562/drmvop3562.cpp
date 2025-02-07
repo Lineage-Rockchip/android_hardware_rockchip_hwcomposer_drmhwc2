@@ -1234,7 +1234,7 @@ void Vop3562::OutputMatchLayer(int iFirst, int iLast,
 
 int Vop3562::TryOverlayPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   std::vector<DrmHwcLayer*> tmp_layers;
@@ -1256,7 +1256,7 @@ int Vop3562::TryOverlayPolicy(
 #ifdef USE_LIBSR
 int Vop3562::TrySvepPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
 
@@ -1294,7 +1294,7 @@ bool Vop3562::TrySvepOverlay(){
 
 #ifdef USE_LIBSR
 int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane> *composition,
-                      std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                      std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                       std::vector<PlaneGroup *> &plane_groups){
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   std::vector<DrmHwcLayer*> tmp_layers;
@@ -1768,7 +1768,7 @@ bool Vop3562::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc *crtc){
 
 int Vop3562::TryRgaOverlayPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   if(!ctx.state.bRgaPolicyEnable){
     HWC2_ALOGD_IF_DEBUG("bRgaPolicyEnable=%d skip TryRgaOverlayPolicy", ctx.state.bRgaPolicyEnable);
@@ -2157,7 +2157,7 @@ int Vop3562::TryRgaOverlayPolicy(
 ************************************************************/
 int Vop3562::TryGlesSidebandPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   ResetLayer(layers);
@@ -2208,7 +2208,7 @@ int Vop3562::TryGlesSidebandPolicy(
 ************************************************************/
 int Vop3562::TryMixSidebandPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   ResetLayer(layers);
@@ -2267,7 +2267,7 @@ int Vop3562::TryMixSidebandPolicy(
 
 int Vop3562::TryMixSkipPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   ResetLayer(layers);
@@ -2367,7 +2367,7 @@ int Vop3562::TryMixSkipPolicy(
 ************************************************************/
 int Vop3562::TryMixVideoPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   ResetLayer(layers);
@@ -2456,7 +2456,7 @@ int Vop3562::TryMixVideoPolicy(
 ************************************************************/
 int Vop3562::TryMixUpPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   ResetLayer(layers);
@@ -2514,7 +2514,7 @@ int Vop3562::TryMixUpPolicy(
 ************************************************************/
 int Vop3562::TryMixDownPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   ResetLayer(layers);
@@ -2556,7 +2556,7 @@ int Vop3562::TryMixDownPolicy(
 
 int Vop3562::TryMixPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   int ret;
@@ -2606,7 +2606,7 @@ int Vop3562::TryMixPolicy(
 
 int Vop3562::TryGLESPolicy(
     std::vector<DrmCompositionPlane> *composition,
-    std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+    std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
     std::vector<PlaneGroup *> &plane_groups) {
   ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d",__FUNCTION__,__LINE__);
   std::vector<DrmHwcLayer*> fb_target;

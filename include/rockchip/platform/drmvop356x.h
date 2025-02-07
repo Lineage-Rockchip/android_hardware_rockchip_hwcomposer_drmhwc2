@@ -228,48 +228,48 @@ struct SvepXml{
 
  protected:
   int TryOverlayPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int TryRgaOverlayPolicy(std::vector<DrmCompositionPlane> *composition,
-                      std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                      std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                       std::vector<PlaneGroup *> &plane_groups);
   int TryAcceleratePolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
 
 #if (defined USE_LIBSR) || (defined USE_LIBSVEP_MEMC)
   bool TrySvepOverlay();
   int TrySvepPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
 #endif
 
 #ifdef USE_LIBSR
   int TrySrPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
 #endif
 
   int TryMixSkipPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int TryMixVideoPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int TryMixUpPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int TryMixDownPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int TryMixPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int TryGLESPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int TrySplitPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
   int MatchPlanes(std::vector<DrmCompositionPlane> *composition,
                       std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
