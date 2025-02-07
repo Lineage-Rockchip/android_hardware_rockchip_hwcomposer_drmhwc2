@@ -155,6 +155,9 @@ typedef struct StateContext{
   bool bMultiAreaMode=false;
   bool bSmartScaleEnable=false;
 
+  // rga policy
+  bool bRgaPolicyEnable=false;
+
   // Video state
   bool bLargeVideo=false;
   bool bDisableFBAfbcd=false;
@@ -227,6 +230,9 @@ struct SvepXml{
   int TryOverlayPolicy(std::vector<DrmCompositionPlane> *composition,
                         std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
+  int TryRgaOverlayPolicy(std::vector<DrmCompositionPlane> *composition,
+                      std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
+                      std::vector<PlaneGroup *> &plane_groups);
   int TryAcceleratePolicy(std::vector<DrmCompositionPlane> *composition,
                         std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
                         std::vector<PlaneGroup *> &plane_groups);
@@ -328,6 +334,7 @@ struct SvepXml{
                      std::pair<int, std::vector<DrmHwcLayer*>> layers, int zpos, bool match_best);
   bool PreAlignForAfbc(DrmHwcLayer *layer);
   void PrepareLayers(std::vector<DrmHwcLayer*> &layers);
+  bool NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc *crtc);
  private:
   Vop2Ctx ctx;
   std::shared_ptr<DrmBufferQueue> rgaBufferQueue_;

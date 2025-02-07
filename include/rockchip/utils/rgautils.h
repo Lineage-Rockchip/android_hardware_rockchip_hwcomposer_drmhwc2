@@ -7,6 +7,8 @@ int UnifyAndroidFormatForRK3588(int format);
 bool isRK3588RGA3SupportFormat(int format);
 int UnifyAndroidFormatForRK3576(int format);
 bool isRK3576RGA2SupportFormat(int format);
+int UnifyAndroidFormatForRK3568(int format);
+bool isRK3568RGA2SupportFormat(int format);
 
 #ifndef IM_SCHEDULER_RGA2_CORE0
 #define IM_SCHEDULER_RGA2_CORE0 (1 << 2)

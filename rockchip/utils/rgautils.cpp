@@ -166,6 +166,28 @@ std::set<int> rk3576_rga2_support_formats({
     RK_FORMAT_YCrCb_422_SP_10B,
 });
 
+std::set<int> rk3568_rga2_support_formats({
+    RK_FORMAT_RGBA_8888,        RK_FORMAT_BGRA_8888,
+    RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
+    RK_FORMAT_RGBX_8888,        RK_FORMAT_BGRX_8888,
+    RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
+    RK_FORMAT_RGBA_4444,        RK_FORMAT_BGRA_4444,
+    RK_FORMAT_ARGB_4444,        RK_FORMAT_ABGR_4444,
+    RK_FORMAT_RGBA_5551,        RK_FORMAT_BGRA_5551,
+    RK_FORMAT_ARGB_5551,        RK_FORMAT_ABGR_5551,
+    RK_FORMAT_RGB_888,          RK_FORMAT_BGR_888,
+    RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
+    RK_FORMAT_YCbCr_420_SP,     RK_FORMAT_YCrCb_420_SP,
+    RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
+    RK_FORMAT_YCbCr_420_P,      RK_FORMAT_YCrCb_420_P,
+    RK_FORMAT_YCbCr_422_P,      RK_FORMAT_YCrCb_422_P,
+    RK_FORMAT_YUYV_422,         RK_FORMAT_YVYU_422,
+    RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,
+    RK_FORMAT_YCbCr_400,        RK_FORMAT_YCbCr_420_SP_10B,
+    RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B,
+    RK_FORMAT_YCrCb_422_SP_10B
+});
+
 int UnifyAndroidFormatForRK3588(int format){
     auto input_format = format;
 
@@ -205,6 +227,19 @@ int UnifyAndroidFormatForRK3576(int format){
     return input_format;
 }
 
+int UnifyAndroidFormatForRK3568(int format){
+    auto input_format = format;
+
+    if (input_format == HAL_PIXEL_FORMAT_YUV420_8BIT_I) {
+        input_format = HAL_PIXEL_FORMAT_YCrCb_NV12;
+    } else if (input_format == HAL_PIXEL_FORMAT_YUV420_10BIT_I) {
+        input_format = HAL_PIXEL_FORMAT_YCrCb_NV12_10;
+    } else if (input_format == HAL_PIXEL_FORMAT_YCBCR_420_888) {
+        input_format = HAL_PIXEL_FORMAT_YCrCb_NV12;
+    }
+    return input_format;
+}
+
 bool isRK3588RGA3SupportFormat(int format) {
   int input_format = UnifyAndroidFormatForRK3588(format);
   int rga_input_format = HwcGetRgaFormat(input_format);
@@ -232,6 +267,17 @@ bool isRK3576RGA2SupportFormat(int format) {
   int rga_input_format = HwcGetRgaFormat(input_format);
 
   if (rk3576_rga2_support_formats.count(rga_input_format)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool isRK3568RGA2SupportFormat(int format) {
+  int input_format = UnifyAndroidFormatForRK3576(format);
+  int rga_input_format = HwcGetRgaFormat(input_format);
+
+  if (rk3568_rga2_support_formats.count(rga_input_format)) {
     return true;
   } else {
     return false;
