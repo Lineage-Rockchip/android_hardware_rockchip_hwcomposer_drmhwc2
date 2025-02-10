@@ -57,7 +57,8 @@ Rockchip Electronics Co., Ltd.
 
 | **日期**   | **版本** | **作者**  | **修改说明** |
 | ---------- | -------- | --------- | ------------ |
-| 2024/12/2 | 1.0.0    | 李斌 | 发布v1.1.0版本     |
+| 2024/12/2 | 1.0.0    | 李斌 |  v1.5.173： 初版发布    |
+| 2025/2/11| 1.1.0    | 李斌 | v1.5.175：修复开机黑屏问题/实现异常热插拔事件处理逻辑     |
 
 **目 录**
 
@@ -66,27 +67,27 @@ Rockchip Electronics Co., Ltd.
 ## 1 概述
 
  SingleDisplayMode 功能主要的应用场景，如平板产品：存在外接HDMI/DP显示接口需求，对于单VP芯片平台（RK3566/RK3576s等）需要将VP资源动态从build-in display切换到external display上，从平板显示切换到外界显示器的显示模式。
- 
+
  典型的产品：任天堂Switch掌机与主机形态切换。
 
 **平台支持说明**
 
 | **芯片名称** | **系统版本**     | **DrmHwc2版本**|
 | ------------ | ---------------- |--|
-| RK3588       | Android  12 / 13 / 14 |v1.5.173|
-| RK3576       | Android  14 |v1.5.173|
-| RK3568       | Android  11 / 12 / 13 / 14 |v1.5.173|
-| RK3566       | Android  11 / 12 / 13 / 14 |v1.5.173|
-| RK3562       | Android  13 / 14 |v1.5.173|
-| RK3326       | Android  14 |v1.5.173|
-| RK3399       | Android  14 | v1.5.173|
-| RK3528       | Android  14 | v1.5.173|
+| RK3588       | Android  12 / 13 / 14 |v1.5.175|
+| RK3576       | Android  14 |v1.5.175|
+| RK3568       | Android  11 / 12 / 13 / 14 |v1.5.175|
+| RK3566       | Android  11 / 12 / 13 / 14 |v1.5.175|
+| RK3562       | Android  13 / 14 |v1.5.175|
+| RK3326       | Android  14 |v1.5.175|
+| RK3399       | Android  14 | v1.5.175|
+| RK3528       | Android  14 | v1.5.175|
 
  DrmHwc2 版本号获取命令如下：
 
 ```shell
 $ adb shell getprop | grep ghwc
-[vendor.ghwc.version]: [HWC2-1.5.173]
+[vendor.ghwc.version]: [HWC2-1.5.175]
 ```
 
 ## 2 功能说明
@@ -117,12 +118,12 @@ index 82abbaf00477..5691061c2470 100644
 +++ b/arch/arm64/boot/dts/rockchip/rk3576-evb.dtsi
 @@ -588,11 +588,11 @@ dsi_out_panel: endpoint {
  };
- 
+
  &dsi_in_vp0 {
 -       status = "disabled";
 +       status = "okay";
  };
- 
+
  &dsi_in_vp1 {
 -       status = "okay";
 +       status = "disabled";
@@ -146,11 +147,11 @@ vendor.hwc.device.primary=HDMI-A,DSI
 
 1. 配置信息确认：
 ```shell
-# HWC版本号确认，确认更新为 v1.5.173
-adb shell getprop | grep ghwc 
+# HWC版本号确认，确认更新为 v1.5.175
+adb shell getprop | grep ghwc
 
 # DTS配置确认，通过检查 Encoders 的 possible crtcs 字段确认
-adb shell modetest -e 
+adb shell modetest -e
 
 # 属性配置确认，检查配置是否符合预期
 adb shell getprop vendor.hwc.enable_single_display_mode
@@ -162,41 +163,67 @@ adb shell getprop vendor.hwc.device.primary
 # 确认当前配置的主屏屏幕类型， 输出为 [DSI-1:100:connected]
 adb shell getprop vendor.hwc.device.display-0
 # 系统渲染分辨率为 1080x1920
-adb shell wm size 
+adb shell wm size
 
 ```
 
-3. 接HDMI-A，查看日志与注册情况：
+3. 插入 HDMI-A，查看日志与注册情况：
 ```shell
-
 adb shell logcat | grep -E "hotplug|DisplayPipeChange"
 
 ## 日志输出如下：
 
-# 检测到HDMI-A-1的热插拔事件：
-## 收到HDMI热插拔插入事件 
+# 检测到HDMI-A-1的插入事件：
+## 收到HDMI热插拔插入事件，将HDMI设置为主屏
 I hwc-drm-two: HandleEvent,line=5810 hwc_hotplug : HDMI-A-1 state is changed! Disconnected -> Connected, timestamp_us=1087728631779
 I hwc-drm-two: hwc_hotplug: Plug event 1087728631779 for connector 412 type=HDMI-A, type_id=1
 ## 插入事件，进行切换主屏模式
 I hwc-drm-two: HandleSingleDisplayEvent,line=5908 hwc_hotplug: Plug connector 412 type=HDMI-A type_id=1 to switch primary config.
 ## 复用主屏切换逻辑，将HDMI设置为主屏，并且上报SurfaceFlinger，完成切换
-I hwc-drm-two: HandlePrimaryChange,line=6443 DisplayPipeChange : hwc_hotplug: Unplug for display_id=1 connector 412 type=HDMI-A, type_id=1
-W hwc-drm-two: HandleDisplayHotplug,line=5654 IsSingleDisplayMode skip display-id=1 state=2 hotplug event.
-I hwc-drm-two: HandlePrimaryChange,line=6443 DisplayPipeChange : hwc_hotplug: Unplug for display_id=0 connector 428 type=DSI, type_id=1 
-I hwc-drm-two: HandlePrimaryChange,line=6465 DisplayPipeChange : hwc_hotplug: Plug for display_id=0 connector 412 type=HDMI-A, type_id=1 
-I hwc-drm-two: HandlePrimaryChange,line=6465 DisplayPipeChange : hwc_hotplug: Plug for display_id=1 connector 428 type=DSI, type_id=1 
-W hwc-drm-two: HandleDisplayHotplug,line=5654 IsSingleDisplayMode skip display-id=1 state=1 hotplug event.
-I hwc-drm-two: HaneleDisplayPipelineUpdateEvent,line=6407 DisplayPipeChange : handle Success!
+I hwc-drm-two: SendDrmEvent,line=6345 hwc_hotplug : add event display-id=1 type=2 connection=connected timestamp=59394522492570
+I hwc-drm-two: HandleEvent,line=5853 hwc_hotplug : HDMI-A-1 state is changed! Disconnected -> Connected, timestamp_us=59394522492570
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : HDMI-A-2 state is no changed! Disconnected -> Disconnected, timestamp_us=59394522492570
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : DSI-1 state is no changed! Connected -> Connected, timestamp_us=59394522492570
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : DP-1 state is no changed! Disconnected -> Disconnected, timestamp_us=59394522492570
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : DP-2 state is no changed! Disconnected -> Disconnected, timestamp_us=59394522492570
+I hwc-drm-two: HandleSingleDisplayEvent,line=5955 hwc_hotplug: Plug event 59394522492570 for connector 479 type=HDMI-A, type_id=1
+I hwc-drm-two: HandleSingleDisplayEvent,line=5982 hwc_hotplug: primaryChange, old_primary=0 DSI-1, new_primary=1 HDMI-A-1
+I hwc-drm-two: HandleSingleDisplayEvent,line=6008 hwc_hotplug: Plug connector 479 type=HDMI-A type_id=1 to switch primary config.
+
+```
+
+4. 查看主屏注册情况：
+```shell
+adb shell getprop vendor.hwc.device.display-0
+## 输出为 HDMI-A-1:72:connected
+adb shell wm size
+# 系统渲染分辨率为 1920x1080
+```
+
+5. 拔出HDMI-A,查看日志与注册情况
+```shell
+adb shell logcat | grep -E "hotplug|DisplayPipeChange"
+
+## 日志输出如下：
+## 收到HDMI热插拔拔出事件，将DSI设置为主屏
+I hwc-drm-two: SendDrmEvent,line=6345 hwc_hotplug : add event display-id=0 type=2 connection=disconnected timestamp=59399583982073
+I hwc-drm-two: HandleEvent,line=5853 hwc_hotplug : HDMI-A-1 state is changed! Connected -> Disconnected, timestamp_us=59399583982073
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : HDMI-A-2 state is no changed! Disconnected -> Disconnected, timestamp_us=59399583982073
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : DSI-1 state is no changed! Connected -> Connected, timestamp_us=59399583982073
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : DP-1 state is no changed! Disconnected -> Disconnected, timestamp_us=59399583982073
+I hwc-drm-two: HandleEvent,line=5859 hwc_hotplug : DP-2 state is no changed! Disconnected -> Disconnected, timestamp_us=59399583982073
+I hwc-drm-two: HandleSingleDisplayEvent,line=5955 hwc_hotplug: Unplug event 59399583982073 for connector 479 type=HDMI-A, type_id=1
+I hwc-drm-two: HandleSingleDisplayEvent,line=5982 hwc_hotplug: primaryChange, old_primary=0 HDMI-A-1, new_primary=2 DSI-1
+I hwc-drm-two: HandleSingleDisplayEvent,line=6008 hwc_hotplug: Unplug connector 479 type=HDMI-A type_id=1 to switch primary config.
 
 ```
 
 4. 查看HDMI-A注册情况：
 ```shell
-## 输出为 HDMI-A-1:72:connected
 adb shell getprop vendor.hwc.device.display-0
-# 系统渲染分辨率为 1920x1080
-adb shell wm size 
+## 输出为 DSI-1:144:connected
+adb shell wm size
+# 系统渲染分辨率为 1080x1920
 
 ```
-
 

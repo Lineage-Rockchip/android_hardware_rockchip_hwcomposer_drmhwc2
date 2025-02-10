@@ -473,7 +473,7 @@ int DrmHwcTwo::HwcDisplay::ResetDisplay(){
 
   init_success_ = false;
   // 等待一段时间，display处理完当前帧
-  usleep(50*1000);
+  usleep(20*1000);
   if(compositor_ != NULL){
     compositor_->ClearDisplay();
   }
@@ -494,10 +494,9 @@ int DrmHwcTwo::HwcDisplay::DisconnectDisplay(){
     return 0;
   }
 #endif
-
   force_disconneted_ = true;
   // 等待一段时间，display处理完当前帧
-  usleep(50*1000);
+  usleep(20*1000);
   if(compositor_ != NULL){
     compositor_->ClearDisplay();
   }
@@ -5749,6 +5748,13 @@ void DrmHwcTwo::HandleInitialHotplugState(DrmDevice *drmDevice) {
           }
         }
 
+        if(ResourceManager::getInstance()->IsSingleDisplayMode() && conn->display() > 0){
+          HWC2_ALOGI("HWC2 Init: SingleDisplayMode not to register connector %u type=%s, type_id=%d \n",
+                    conn->id(),drmDevice->connector_type_str(conn->type()),
+                    conn->type_id());
+          continue;
+        }
+
         ALOGI("HWC2 Init: SF register connector %u type=%s, type_id=%d \n",
           conn->id(),drmDevice->connector_type_str(conn->type()),conn->type_id());
         HandleDisplayHotplug(conn->display(), conn->state());
@@ -5904,7 +5910,11 @@ void DrmHwcTwo::DrmHotplugHandler::HandleEvent(uint64_t timestamp_us) {
   }
 }
 
-
+// 处理单屏热插拔事件，处理主要分为这几步：
+// 1. 如果主屏没有变化，则不做任何处理
+// 2. 如果主屏有变化：
+//    a. 针对新的PrimaryDisplay，需要重新初始化，并且需要更新SF的Display信息
+//    b. 针对旧的PrimaryDisplay，需要PowerOff对应屏幕以及释放资源
 int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
   uint64_t timestamp_us = event.timestamp;
 
@@ -5944,23 +5954,49 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
         event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", event.timestamp, conn->id(),
         drm_->connector_type_str(conn->type()), conn->type_id());
 
-  // 更新主屏信息,可能存在主副屏幕切换行为
+
+  // 1. 更新主屏信息,可能存在主副屏幕切换行为
+  bool primaryChange = false;
+
   //  true: Check only
   // false: Check and Update
-  drm_->UpdatePrimaryInfo(true);
-
-  bool primaryChange = false;
+  // 检查主屏信息是否发生变化
+  drm_->UpdatePrimaryInfo(true /*checkonly*/);
+  DrmConnector *old_primary = NULL;
+  DrmConnector *new_primary = NULL;
   for(auto &conn : drm_->connectors()){
-    HWC2_ALOGI("Check Display ID change: conn %s-%d old display=%d, new display = %d", drm_->connector_type_str(conn->type()), conn->type_id(), conn->display(), conn->display_next());
-    if(conn->display() != conn->display_next())
-      primaryChange = true;
+    if(conn->display() == 0 && conn->display_next() != 0){
+      // 获取旧主屏信息
+      old_primary = conn.get();
+    }else if(conn->display() != 0 && conn->display_next() == 0){
+      // 获取新主屏信息
+      new_primary = conn.get();
+    }
   }
 
-  int display_id = conn->display();
-  auto &display = hwc2_->displays_.at(display_id);
-  if (cur_state == DRM_MODE_CONNECTED && conn->display_next()==0) {
+  // 主屏发生变化，则需要更新主屏信息
+  if(old_primary != NULL && new_primary != NULL){
+    primaryChange = true;
+    HWC2_ALOGI("hwc_hotplug: primaryChange, old_primary=%d %s-%d, new_primary=%d %s-%d", 
+               old_primary->display(), drm_->connector_type_str(old_primary->type()), old_primary->type_id(),
+               new_primary->display(), drm_->connector_type_str(new_primary->type()), new_primary->type_id());
+
+    // 将所有屏幕设置为断开模式并清黑屏幕
+    for(auto &map : hwc2_->displays_){
+      map.second.DisconnectDisplay();
+    }
+
+    // 释放旧主屏的资源
+    drm_->ReleaseDpyRes(0);
+
+    // 更新主屏信息,主屏已切换
+    drm_->UpdatePrimaryInfo(false);
+
+    // 初始化新主屏
+    auto &display = hwc2_->displays_.at(0);
+    ret = 0;
     ret |= (int32_t)display.HoplugEventTmeline();
-    ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
+    ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(0));
     ret |= (int32_t)display.ChosePreferredConfig();
     if(ret != 0){
       HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
@@ -5973,40 +6009,20 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
       if(event.state_change_panding){
         display.SetNeedPowerModeSync(event.state_change_panding);
       }
-      if(primaryChange)
-        HaneleDisplayPipelineUpdateEvent(DRM_PIPELINE_PRIMARY_CHANGE);
       display.SyncPowerMode();
+      hwc2_->HandleDisplayHotplug(0, DRM_MODE_CONNECTED);
     }
+    // 将所有屏幕设置为连接状态
+    for(auto &map : hwc2_->displays_){
+      map.second.ConnectDisplay();
+    }
+
+
   }else{
-    ret |= (int32_t)display.ClearDisplay();
-    ret |= (int32_t)drm_->ReleaseDpyRes(display_id);
-    if(ret != 0){
-      HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug",
-                conn->id(),drm_->connector_type_str(conn->type()),conn->type_id());
-    }else{
-      HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d to switch primary config.",
-                cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug",
-                conn->id(),drm_->connector_type_str(conn->type()),conn->type_id());
-      if(primaryChange)
-        HaneleDisplayPipelineUpdateEvent(DRM_PIPELINE_PRIMARY_CHANGE);
-    }
-  }
-
-  // if we got primary display plug event but no primary change,
-  // hotplug callback to SurfaceFlinger is needed.
-  //
-  // if there is primary change, HaneleDisplayPipelineUpdateEvent() will handle it
-  if(display_id == 0 && cur_state == DRM_MODE_CONNECTED && !primaryChange)
-    hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_CONNECTED);
-
-  // if we got primary display plug event but no primary change,
-  // check and disable display that is not primary
-  if(!primaryChange){
-    for(auto &conn : drm_->connectors()){
-      if(conn->display() != 0)
-        drm_->ReleaseDpyRes(conn->display());
-    }
+    HWC2_ALOGI("hwc_hotplug : primaryChange is not change. display-id=%d %s-%d cur_state=%s event.connection=%s skip hotplug.",
+            event.display_id, drm_->connector_type_str(conn->type()), conn->type_id(),
+            cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
+            event.connection == DRM_MODE_CONNECTED ? "Connected" : "Disconnected");
   }
 
   auto &primary = hwc2_->displays_.at(0);
@@ -6451,7 +6467,7 @@ int DrmHwcTwo::EventWorker::HandleUserHotplugEvent(DrmEvent event){
   return 0;
 }
 
-int DrmHwcTwo::EventWorker::HaneleDisplayPipelineUpdateEvent(uint64_t force_mask_update){
+int DrmHwcTwo::EventWorker::HaneleDisplayPipelineUpdateEvent(){
 
   ResourceManager* rm = ResourceManager::getInstance();
 
@@ -6463,10 +6479,7 @@ int DrmHwcTwo::EventWorker::HaneleDisplayPipelineUpdateEvent(uint64_t force_mask
 
   // 检查display pipeline更新情况
   uint64_t change_mask = 0;
-  if(drm->GetDisplayPipelineChange(&change_mask) == 0 || force_mask_update > 0){
-    if(force_mask_update > 0){
-      change_mask = force_mask_update;
-    }
+  if(drm->GetDisplayPipelineChange(&change_mask) == 0){
     if(change_mask > 0){
       // 将所有屏幕设置为断开模式并清黑屏幕
       for(auto &map : hwc2_->displays_){
@@ -6543,11 +6556,6 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange(){
 
   // 根据新绑定的display-id信息进行重新初始化
   for(auto &map : hwc2_->displays_){
-    // 单主屏模式，忽略上报除了主屏以外的其他屏幕
-    if(ResourceManager::getInstance()->IsSingleDisplayMode() && map.first != HWC_DISPLAY_PRIMARY){
-      HWC2_ALOGW("IsSingleDisplayMode skip display-id=%" PRIu64 " CheckStateAndReinit.", map.first);
-      continue;
-    }
     map.second.CheckStateAndReinit();
   }
 
@@ -6555,11 +6563,6 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange(){
   for(auto &connector : drm->connectors()){
     if(connector->hotplug_state() == DRM_MODE_CONNECTED){
       int display_id = connector->display();
-      // 单主屏模式，忽略上报除了主屏以外的其他屏幕
-      if(ResourceManager::getInstance()->IsSingleDisplayMode() && display_id != HWC_DISPLAY_PRIMARY){
-        HWC2_ALOGW("IsSingleDisplayMode skip display-id=%d hotplug event.", display_id);
-        continue;
-      }
       HWC2_ALOGI("DisplayPipeChange : hwc_hotplug: Plug for display_id=%d connector %u type=%s, type_id=%d \n",
                 display_id,
                 connector->id(),
