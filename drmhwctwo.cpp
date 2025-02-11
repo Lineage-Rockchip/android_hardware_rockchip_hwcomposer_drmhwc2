@@ -1705,7 +1705,6 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
     for (auto &hwc2layer : layers_) {
       if(hwc2layer.first == drm_hwc_layer.uId_){
         // 如果图层是纯色图层，并且zpos=0,则跳过该图层，使用CRTC的background作为背景色
-        // 验证结果 alpha 合成效果有误，暂时关闭此功能
         if(hwc2layer.second.CanSkipSolidColorLayer(have_skip_layer_zpos)){
           have_skip_layer_zpos++;
           drm_hwc_layer.bBackgroundSkip_ = true;
@@ -5056,10 +5055,8 @@ bool DrmHwcTwo::HwcLayer::CanSkipSolidColorLayer(int have_skip_layer_zpos){
       return false;
     }
 
-    HWC2_ALOGI("Skip Solid Color Layer, z_order=%d, color=(%d,%d,%d) validated_type=%s",
-      mCurrentState.z_order_, mCurrentState.color_.r, mCurrentState.color_.g, mCurrentState.color_.b,  to_string(validated_type()).c_str());
     if(mCurrentState.z_order_ == have_skip_layer_zpos && mCurrentState.color_.r == 0 && mCurrentState.color_.g == 0 && mCurrentState.color_.b == 0){
-      HWC2_ALOGI("Skip Solid Color Layer, z_order=%d, color=(%d,%d,%d)",
+      HWC2_ALOGD_IF_DEBUG("Skip Solid Color Layer, z_order=%d, color=(%d,%d,%d)",
         mCurrentState.z_order_, mCurrentState.color_.r, mCurrentState.color_.g, mCurrentState.color_.b);
       set_validated_type(sf_type());
       return true;

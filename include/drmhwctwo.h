@@ -103,8 +103,10 @@ class DrmHwcTwo : public hwc2_device_t {
       }
 
       if(mCurrentState.is_solid_color_){
-        bool is_solid_color_=false;
-        std::shared_ptr<SolidColorBuffer> solid_color_buffer_;
+        mCurrentState.is_solid_color_ = false;
+        mCurrentState.solid_color_buffer_ = nullptr;
+        mDrawingState.is_solid_color_ = false;
+        mDrawingState.solid_color_buffer_ = nullptr;
       }
     }
 
@@ -159,6 +161,8 @@ class DrmHwcTwo : public hwc2_device_t {
         color_          = rhs.color_;
         z_order_        = rhs.z_order_;
         sidebandStreamHandle_ = rhs.sidebandStreamHandle_;
+        is_solid_color_ = rhs.is_solid_color_;
+        solid_color_buffer_ = rhs.solid_color_buffer_;
         return *this;
       }
 
@@ -185,7 +189,9 @@ class DrmHwcTwo : public hwc2_device_t {
             display_frame_.left   == rhs.display_frame_.left &&
             display_frame_.top    == rhs.display_frame_.top &&
             display_frame_.right  == rhs.display_frame_.right &&
-            display_frame_.bottom == rhs.display_frame_.bottom)
+            is_solid_color_       == rhs.is_solid_color_ &&
+            solid_color_buffer_   == rhs.solid_color_buffer_
+            )
         {
           return true;
         }
