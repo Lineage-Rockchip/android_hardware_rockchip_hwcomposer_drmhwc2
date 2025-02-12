@@ -13,6 +13,10 @@
 #include "rockchip/utils/drmdebug.h"
 #include "im2d.hpp"
 
+#ifndef RK_GRALLOC_USAGE_WITHIN_4G
+#define RK_GRALLOC_USAGE_WITHIN_4G (1ULL << 56)
+#endif
+
 // 颜色缓冲区的包装类
 class SolidColorBuffer {
  public:
@@ -31,7 +35,8 @@ class SolidColorBuffer {
       drmBuffer_ = std::make_unique<
           android::DrmBuffer>(width_, height_, HAL_PIXEL_FORMAT_RGBA_8888,
                               GRALLOC_USAGE_HW_COMPOSER |
-                                  GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                  GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                  RK_GRALLOC_USAGE_WITHIN_4G,
                               "SolidColor");
 
       if (drmBuffer_->Init() != 0) {
