@@ -36,159 +36,124 @@
 
 #include <set>
 
+#include <3rd/hal/drmhwc2_hal_format.h>
 #include <hardware/hardware.h>
 #include <rockchip/utils/drmdebug.h>
-#include <rockchip/utils/rgautils.h>
 #include <rockchip/utils/rgaformats.h>
-#include <3rd/hal/drmhwc2_hal_format.h>
+#include <rockchip/utils/rgautils.h>
 
 #include <system/graphics.h>
 
-namespace hwc_rga_utils{
+namespace hwc_rga_utils {
 
 using android::DBG_ERROR;
 
 int HwcGetRgaCompatibleFormat(int format) {
-  if (format == 0) return format;
+    if (format == 0) return format;
 
-  if ((format >> 8) != 0) {
+    if ((format >> 8) != 0) {
+        return format;
+    } else {
+        return format << 8;
+    }
     return format;
-  } else {
-    return format << 8;
-  }
-  return format;
 }
 
 int HwcGetRgaFormatFromAndroid(int format) {
-  switch (format) {
-    case HAL_PIXEL_FORMAT_RGB_565:
-      return RK_FORMAT_RGB_565;
-    case HAL_PIXEL_FORMAT_RGB_888:
-      return RK_FORMAT_RGB_888;
-    case HAL_PIXEL_FORMAT_RGBA_8888:
-      return RK_FORMAT_RGBA_8888;
-    case HAL_PIXEL_FORMAT_RGBX_8888:
-      return RK_FORMAT_RGBX_8888;
-    case HAL_PIXEL_FORMAT_BGRA_8888:
-      return RK_FORMAT_BGRA_8888;
-    case HAL_PIXEL_FORMAT_YCrCb_420_SP:
-      return RK_FORMAT_YCrCb_420_SP;
-    case HAL_PIXEL_FORMAT_YCrCb_NV12:
-      return RK_FORMAT_YCbCr_420_SP;
-    case HAL_PIXEL_FORMAT_YCrCb_NV12_VIDEO:
-      return RK_FORMAT_YCbCr_420_SP;
-    case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
-      return RK_FORMAT_YCbCr_420_SP_10B;  // 0x20
-    case HAL_PIXEL_FORMAT_YCbCr_422_SP:
-      return RK_FORMAT_YCbCr_422_SP;
-    case HAL_PIXEL_FORMAT_BGR_888:
-      return RK_FORMAT_BGR_888;
-    default:
-      HWC2_ALOGD_IF_ERR("0x%x is not supported, please fix.", format);
-      return -1;
-  }
+    switch (format) {
+        case HAL_PIXEL_FORMAT_RGB_565:
+            return RK_FORMAT_RGB_565;
+        case HAL_PIXEL_FORMAT_RGB_888:
+            return RK_FORMAT_RGB_888;
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+            return RK_FORMAT_RGBA_8888;
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+            return RK_FORMAT_RGBX_8888;
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            return RK_FORMAT_BGRA_8888;
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+            return RK_FORMAT_YCrCb_420_SP;
+        case HAL_PIXEL_FORMAT_YCrCb_NV12:
+            return RK_FORMAT_YCbCr_420_SP;
+        case HAL_PIXEL_FORMAT_YCrCb_NV12_VIDEO:
+            return RK_FORMAT_YCbCr_420_SP;
+        case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
+            return RK_FORMAT_YCbCr_420_SP_10B;  // 0x20
+        case HAL_PIXEL_FORMAT_YCbCr_422_SP:
+            return RK_FORMAT_YCbCr_422_SP;
+        case HAL_PIXEL_FORMAT_BGR_888:
+            return RK_FORMAT_BGR_888;
+        default:
+            HWC2_ALOGD_IF_ERR("0x%x is not supported, please fix.", format);
+            return -1;
+    }
 }
 
 int HwcGetRgaFormat(int format) {
-  /* Because the format of librga is the value of driver format << 8 . */
-  if (format & 0xFF) {
-    format = HwcGetRgaFormatFromAndroid(format);
-    if (format < 0) return -1;
-  }
-  if (format & 0xFF00 || format == 0)
-    return format;
-  else {
-    format = HwcGetRgaCompatibleFormat(format);
-    if (format & 0xFF00 || format == 0) return format;
-  }
+    /* Because the format of librga is the value of driver format << 8 . */
+    if (format & 0xFF) {
+        format = HwcGetRgaFormatFromAndroid(format);
+        if (format < 0) return -1;
+    }
+    if (format & 0xFF00 || format == 0)
+        return format;
+    else {
+        format = HwcGetRgaCompatibleFormat(format);
+        if (format & 0xFF00 || format == 0) return format;
+    }
 
-  HWC2_ALOGD_IF_ERR("%x is not supported, please fix.", format);
-  return -1;
+    HWC2_ALOGD_IF_ERR("%x is not supported, please fix.", format);
+    return -1;
 }
 
-std::set<int> rk3588_rga3_support_formats({
-    RK_FORMAT_RGBA_8888,        RK_FORMAT_BGRA_8888,
-    RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
-    RK_FORMAT_RGBX_8888,        RK_FORMAT_BGRX_8888,
-    RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
-    RK_FORMAT_RGB_888,          RK_FORMAT_BGR_888,
-    RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
-    RK_FORMAT_YCbCr_420_SP,     RK_FORMAT_YCrCb_420_SP,
-    RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
-    RK_FORMAT_YUYV_422,         RK_FORMAT_YVYU_422,
-    RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,
-    RK_FORMAT_YCbCr_420_SP_10B, RK_FORMAT_YCrCb_420_SP_10B,
-    RK_FORMAT_YCbCr_422_SP_10B, RK_FORMAT_YCrCb_422_SP_10B
-});
+std::set<int> rk3588_rga3_support_formats(
+        {RK_FORMAT_RGBA_8888,        RK_FORMAT_BGRA_8888,        RK_FORMAT_ARGB_8888,
+         RK_FORMAT_ABGR_8888,        RK_FORMAT_RGBX_8888,        RK_FORMAT_BGRX_8888,
+         RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,        RK_FORMAT_RGB_888,
+         RK_FORMAT_BGR_888,          RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
+         RK_FORMAT_YCbCr_420_SP,     RK_FORMAT_YCrCb_420_SP,     RK_FORMAT_YCbCr_422_SP,
+         RK_FORMAT_YCrCb_422_SP,     RK_FORMAT_YUYV_422,         RK_FORMAT_YVYU_422,
+         RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,         RK_FORMAT_YCbCr_420_SP_10B,
+         RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B, RK_FORMAT_YCrCb_422_SP_10B});
 
-std::set<int> rk3588_rga2_support_formats({
-    RK_FORMAT_RGBA_8888,        RK_FORMAT_BGRA_8888,
-    RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
-    RK_FORMAT_RGBX_8888,        RK_FORMAT_BGRX_8888,
-    RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
-    RK_FORMAT_RGBA_4444,        RK_FORMAT_BGRA_4444,
-    RK_FORMAT_ARGB_4444,        RK_FORMAT_ABGR_4444,
-    RK_FORMAT_RGBA_5551,        RK_FORMAT_BGRA_5551,
-    RK_FORMAT_ARGB_5551,        RK_FORMAT_ABGR_5551,
-    RK_FORMAT_RGB_888,          RK_FORMAT_BGR_888,
-    RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
-    RK_FORMAT_YCbCr_420_SP,     RK_FORMAT_YCrCb_420_SP,
-    RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
-    RK_FORMAT_YCbCr_420_P,      RK_FORMAT_YCrCb_420_P,
-    RK_FORMAT_YCbCr_422_P,      RK_FORMAT_YCrCb_422_P,
-    RK_FORMAT_YUYV_422,         RK_FORMAT_YVYU_422,
-    RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,
-    RK_FORMAT_YCbCr_400,        RK_FORMAT_YCbCr_420_SP_10B,
-    RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B,
-    RK_FORMAT_YCrCb_422_SP_10B
-});
+std::set<int> rk3588_rga2_support_formats(
+        {RK_FORMAT_RGBA_8888,       RK_FORMAT_BGRA_8888,        RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
+         RK_FORMAT_RGBX_8888,       RK_FORMAT_BGRX_8888,        RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
+         RK_FORMAT_RGBA_4444,       RK_FORMAT_BGRA_4444,        RK_FORMAT_ARGB_4444,        RK_FORMAT_ABGR_4444,
+         RK_FORMAT_RGBA_5551,       RK_FORMAT_BGRA_5551,        RK_FORMAT_ARGB_5551,        RK_FORMAT_ABGR_5551,
+         RK_FORMAT_RGB_888,         RK_FORMAT_BGR_888,          RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
+         RK_FORMAT_YCbCr_420_SP,    RK_FORMAT_YCrCb_420_SP,     RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
+         RK_FORMAT_YCbCr_420_P,     RK_FORMAT_YCrCb_420_P,      RK_FORMAT_YCbCr_422_P,      RK_FORMAT_YCrCb_422_P,
+         RK_FORMAT_YUYV_422,        RK_FORMAT_YVYU_422,         RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,
+         RK_FORMAT_YCbCr_400,       RK_FORMAT_YCbCr_420_SP_10B, RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B,
+         RK_FORMAT_YCrCb_422_SP_10B});
 
 std::set<int> rk3576_rga2_support_formats({
-    RK_FORMAT_RGBA_8888,        RK_FORMAT_BGRA_8888,
-    RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
-    RK_FORMAT_RGBX_8888,        RK_FORMAT_BGRX_8888,
-    RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
-    RK_FORMAT_RGBA_4444,        RK_FORMAT_BGRA_4444,
-    RK_FORMAT_ARGB_4444,        RK_FORMAT_ABGR_4444,
-    RK_FORMAT_RGBA_5551,        RK_FORMAT_BGRA_5551,
-    RK_FORMAT_ARGB_5551,        RK_FORMAT_ABGR_5551,
-    RK_FORMAT_RGB_888,          RK_FORMAT_BGR_888,
-    RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
-    RK_FORMAT_YCbCr_420_SP,     RK_FORMAT_YCrCb_420_SP,
-    RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
-    RK_FORMAT_YCbCr_444_SP,     RK_FORMAT_YCrCb_444_SP,
-    RK_FORMAT_YCbCr_420_P,      RK_FORMAT_YCrCb_420_P,
-    RK_FORMAT_YCbCr_422_P,      RK_FORMAT_YCrCb_422_P,
-    RK_FORMAT_YUYV_422,         RK_FORMAT_YVYU_422,
-    RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,
-    RK_FORMAT_YCbCr_400,        RK_FORMAT_YCbCr_420_SP_10B,
-    RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B,
-    RK_FORMAT_YCrCb_422_SP_10B,
+        RK_FORMAT_RGBA_8888,        RK_FORMAT_BGRA_8888,        RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
+        RK_FORMAT_RGBX_8888,        RK_FORMAT_BGRX_8888,        RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
+        RK_FORMAT_RGBA_4444,        RK_FORMAT_BGRA_4444,        RK_FORMAT_ARGB_4444,        RK_FORMAT_ABGR_4444,
+        RK_FORMAT_RGBA_5551,        RK_FORMAT_BGRA_5551,        RK_FORMAT_ARGB_5551,        RK_FORMAT_ABGR_5551,
+        RK_FORMAT_RGB_888,          RK_FORMAT_BGR_888,          RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
+        RK_FORMAT_YCbCr_420_SP,     RK_FORMAT_YCrCb_420_SP,     RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
+        RK_FORMAT_YCbCr_444_SP,     RK_FORMAT_YCrCb_444_SP,     RK_FORMAT_YCbCr_420_P,      RK_FORMAT_YCrCb_420_P,
+        RK_FORMAT_YCbCr_422_P,      RK_FORMAT_YCrCb_422_P,      RK_FORMAT_YUYV_422,         RK_FORMAT_YVYU_422,
+        RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,         RK_FORMAT_YCbCr_400,        RK_FORMAT_YCbCr_420_SP_10B,
+        RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B, RK_FORMAT_YCrCb_422_SP_10B,
 });
 
-std::set<int> rk3568_rga2_support_formats({
-    RK_FORMAT_RGBA_8888,        RK_FORMAT_BGRA_8888,
-    RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
-    RK_FORMAT_RGBX_8888,        RK_FORMAT_BGRX_8888,
-    RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
-    RK_FORMAT_RGBA_4444,        RK_FORMAT_BGRA_4444,
-    RK_FORMAT_ARGB_4444,        RK_FORMAT_ABGR_4444,
-    RK_FORMAT_RGBA_5551,        RK_FORMAT_BGRA_5551,
-    RK_FORMAT_ARGB_5551,        RK_FORMAT_ABGR_5551,
-    RK_FORMAT_RGB_888,          RK_FORMAT_BGR_888,
-    RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
-    RK_FORMAT_YCbCr_420_SP,     RK_FORMAT_YCrCb_420_SP,
-    RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
-    RK_FORMAT_YCbCr_420_P,      RK_FORMAT_YCrCb_420_P,
-    RK_FORMAT_YCbCr_422_P,      RK_FORMAT_YCrCb_422_P,
-    RK_FORMAT_YUYV_422,         RK_FORMAT_YVYU_422,
-    RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,
-    RK_FORMAT_YCbCr_400,        RK_FORMAT_YCbCr_420_SP_10B,
-    RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B,
-    RK_FORMAT_YCrCb_422_SP_10B
-});
+std::set<int> rk3568_rga2_support_formats(
+        {RK_FORMAT_RGBA_8888,       RK_FORMAT_BGRA_8888,        RK_FORMAT_ARGB_8888,        RK_FORMAT_ABGR_8888,
+         RK_FORMAT_RGBX_8888,       RK_FORMAT_BGRX_8888,        RK_FORMAT_XRGB_8888,        RK_FORMAT_XBGR_8888,
+         RK_FORMAT_RGBA_4444,       RK_FORMAT_BGRA_4444,        RK_FORMAT_ARGB_4444,        RK_FORMAT_ABGR_4444,
+         RK_FORMAT_RGBA_5551,       RK_FORMAT_BGRA_5551,        RK_FORMAT_ARGB_5551,        RK_FORMAT_ABGR_5551,
+         RK_FORMAT_RGB_888,         RK_FORMAT_BGR_888,          RK_FORMAT_RGB_565,          RK_FORMAT_BGR_565,
+         RK_FORMAT_YCbCr_420_SP,    RK_FORMAT_YCrCb_420_SP,     RK_FORMAT_YCbCr_422_SP,     RK_FORMAT_YCrCb_422_SP,
+         RK_FORMAT_YCbCr_420_P,     RK_FORMAT_YCrCb_420_P,      RK_FORMAT_YCbCr_422_P,      RK_FORMAT_YCrCb_422_P,
+         RK_FORMAT_YUYV_422,        RK_FORMAT_YVYU_422,         RK_FORMAT_UYVY_422,         RK_FORMAT_VYUY_422,
+         RK_FORMAT_YCbCr_400,       RK_FORMAT_YCbCr_420_SP_10B, RK_FORMAT_YCrCb_420_SP_10B, RK_FORMAT_YCbCr_422_SP_10B,
+         RK_FORMAT_YCrCb_422_SP_10B});
 
-int UnifyAndroidFormatForRK3588(int format){
+int UnifyAndroidFormatForRK3588(int format) {
     auto input_format = format;
 
     if (input_format == HAL_PIXEL_FORMAT_YUV420_8BIT_I) {
@@ -201,7 +166,7 @@ int UnifyAndroidFormatForRK3588(int format){
     return input_format;
 }
 
-int UnifyAndroidFormatForRK3576(int format){
+int UnifyAndroidFormatForRK3576(int format) {
     auto input_format = format;
 
     if (input_format == HAL_PIXEL_FORMAT_YUV420_8BIT_I) {
@@ -222,12 +187,12 @@ int UnifyAndroidFormatForRK3576(int format){
         input_format = RK_FORMAT_YCbCr_444_SP;
     } else if (input_format == HAL_PIXEL_FORMAT_YUV444_10BIT_RFBC) {
         HWC2_ALOGD_IF_ERR("librga do not support this Format: YUV444_10BIT_RFBC");
-      // input_format = RK_FORMAT_YCbCr_444_SP_10B;
+        // input_format = RK_FORMAT_YCbCr_444_SP_10B;
     }
     return input_format;
 }
 
-int UnifyAndroidFormatForRK3568(int format){
+int UnifyAndroidFormatForRK3568(int format) {
     auto input_format = format;
 
     if (input_format == HAL_PIXEL_FORMAT_YUV420_8BIT_I) {
@@ -241,47 +206,47 @@ int UnifyAndroidFormatForRK3568(int format){
 }
 
 bool isRK3588RGA3SupportFormat(int format) {
-  int input_format = UnifyAndroidFormatForRK3588(format);
-  int rga_input_format = HwcGetRgaFormat(input_format);
+    int input_format = UnifyAndroidFormatForRK3588(format);
+    int rga_input_format = HwcGetRgaFormat(input_format);
 
-  if (rk3588_rga3_support_formats.count(rga_input_format)) {
-    return true;
-  } else {
-    return false;
-  }
+    if (rk3588_rga3_support_formats.count(rga_input_format)) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 bool isRK3588RGA2SupportFormat(int format) {
-  int input_format = UnifyAndroidFormatForRK3588(format);
-  int rga_input_format = HwcGetRgaFormat(input_format);
+    int input_format = UnifyAndroidFormatForRK3588(format);
+    int rga_input_format = HwcGetRgaFormat(input_format);
 
-  if (rk3588_rga2_support_formats.count(rga_input_format)) {
-    return true;
-  } else {
-    return false;
-  }
+    if (rk3588_rga2_support_formats.count(rga_input_format)) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 bool isRK3576RGA2SupportFormat(int format) {
-  int input_format = UnifyAndroidFormatForRK3576(format);
-  int rga_input_format = HwcGetRgaFormat(input_format);
+    int input_format = UnifyAndroidFormatForRK3576(format);
+    int rga_input_format = HwcGetRgaFormat(input_format);
 
-  if (rk3576_rga2_support_formats.count(rga_input_format)) {
-    return true;
-  } else {
-    return false;
-  }
+    if (rk3576_rga2_support_formats.count(rga_input_format)) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 bool isRK3568RGA2SupportFormat(int format) {
-  int input_format = UnifyAndroidFormatForRK3576(format);
-  int rga_input_format = HwcGetRgaFormat(input_format);
+    int input_format = UnifyAndroidFormatForRK3576(format);
+    int rga_input_format = HwcGetRgaFormat(input_format);
 
-  if (rk3568_rga2_support_formats.count(rga_input_format)) {
-    return true;
-  } else {
-    return false;
-  }
+    if (rk3568_rga2_support_formats.count(rga_input_format)) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
-};
+};  // namespace hwc_rga_utils

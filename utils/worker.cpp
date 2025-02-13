@@ -21,74 +21,66 @@
 
 namespace android {
 
-Worker::Worker(const char *name, int priority)
-    : name_(name), priority_(priority), exit_(false), initialized_(false) {
-}
+Worker::Worker(const char* name, int priority) : name_(name), priority_(priority), exit_(false), initialized_(false) {}
 
 Worker::~Worker() {
-  Exit();
+    Exit();
 }
 
 int Worker::InitWorker() {
-  std::lock_guard<std::mutex> lk(mutex_);
-  if (initialized())
-    return -EALREADY;
+    std::lock_guard<std::mutex> lk(mutex_);
+    if (initialized()) return -EALREADY;
 
-  thread_ = std::unique_ptr<std::thread>(
-      new std::thread(&Worker::InternalRoutine, this));
-  initialized_ = true;
-  exit_ = false;
+    thread_ = std::unique_ptr<std::thread>(new std::thread(&Worker::InternalRoutine, this));
+    initialized_ = true;
+    exit_ = false;
 
-  return 0;
+    return 0;
 }
 
 void Worker::Exit() {
-  std::unique_lock<std::mutex> lk(mutex_);
-  exit_ = true;
-  if (initialized()) {
-    lk.unlock();
-    cond_.notify_all();
-    thread_->join();
-    initialized_ = false;
-  }
+    std::unique_lock<std::mutex> lk(mutex_);
+    exit_ = true;
+    if (initialized()) {
+        lk.unlock();
+        cond_.notify_all();
+        thread_->join();
+        initialized_ = false;
+    }
 }
 
 int Worker::WaitForSignalOrExitLocked(int64_t max_nanoseconds) {
-  int ret = 0;
-  if (should_exit())
-    return -EINTR;
+    int ret = 0;
+    if (should_exit()) return -EINTR;
 
-  std::unique_lock<std::mutex> lk(mutex_, std::adopt_lock);
-  if (max_nanoseconds < 0) {
-    cond_.wait(lk);
-  } else if (std::cv_status::timeout ==
-             cond_.wait_for(lk, std::chrono::nanoseconds(max_nanoseconds))) {
-    ret = -ETIMEDOUT;
-  }
+    std::unique_lock<std::mutex> lk(mutex_, std::adopt_lock);
+    if (max_nanoseconds < 0) {
+        cond_.wait(lk);
+    } else if (std::cv_status::timeout == cond_.wait_for(lk, std::chrono::nanoseconds(max_nanoseconds))) {
+        ret = -ETIMEDOUT;
+    }
 
-  // exit takes precedence on timeout
-  if (should_exit())
-    ret = -EINTR;
+    // exit takes precedence on timeout
+    if (should_exit()) ret = -EINTR;
 
-  // release leaves mutex locked when going out of scope
-  lk.release();
+    // release leaves mutex locked when going out of scope
+    lk.release();
 
-  return ret;
+    return ret;
 }
 
 void Worker::InternalRoutine() {
-  setpriority(PRIO_PROCESS, 0, priority_);
-  prctl(PR_SET_NAME, name_.c_str());
+    setpriority(PRIO_PROCESS, 0, priority_);
+    prctl(PR_SET_NAME, name_.c_str());
 
-  std::unique_lock<std::mutex> lk(mutex_, std::defer_lock);
+    std::unique_lock<std::mutex> lk(mutex_, std::defer_lock);
 
-  while (true) {
-    lk.lock();
-    if (should_exit())
-      return;
-    lk.unlock();
+    while (true) {
+        lk.lock();
+        if (should_exit()) return;
+        lk.unlock();
 
-    Routine();
-  }
+        Routine();
+    }
 }
 }  // namespace android

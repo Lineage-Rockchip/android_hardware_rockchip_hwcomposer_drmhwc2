@@ -19,81 +19,72 @@
 #include <mutex>
 #include <queue>
 
-#include "utils/drmfence.h"
+#include <drm/drm_mode.h>
+#include <rga.h>
 #include "drmbuffer.h"
 #include "rockchip/producer/videotunnel/video_tunnel.h"
 #include "rockchip/producer/vpcontext.h"
+#include "utils/drmfence.h"
 #include "utils/worker.h"
-#include <drm/drm_mode.h>
-#include <rga.h>
 
 namespace android {
-class DrmVideoProducer : public Worker{
-public:
-  static DrmVideoProducer* getInstance(){
-    static DrmVideoProducer drmVideoProducer;
-    return &drmVideoProducer;
-  };
-  //Worker need constructor and destorctor be public, but don't call it!!!;
-  DrmVideoProducer();
-  ~DrmVideoProducer();
+class DrmVideoProducer : public Worker {
+  public:
+    static DrmVideoProducer* getInstance() {
+        static DrmVideoProducer drmVideoProducer;
+        return &drmVideoProducer;
+    };
+    //Worker need constructor and destorctor be public, but don't call it!!!;
+    DrmVideoProducer();
+    ~DrmVideoProducer();
 
-
-  // Init video tunel.
-  int Init();
-  // Is invalid.
-  bool IsValid();
-  // Create tunnel connection.
-  int CreateConnection(int display_id, int tunnel_id, android_dataspace_t dataspace, uint32_t transform);
-  // Destory Connection
-  int DestoryConnection(int display_id, int tunnel_id);
-  // Get Last video buffer
-  std::shared_ptr<DrmBuffer> AcquireBuffer(int display_id,
-                                           int tunnel_id,
-                                           vt_rect_t *dis_rect,
-                                           int timeout_ms,
-                                           bool wait_Fence = true
-                                           );
-  // Release video buffer
-  int ReleaseBuffer(int display_id, int tunnel_id, uint64_t buffer_id);
-  // Signal buffer's ReleaseFence
-  int SignalReleaseFence(int display_id, int tunnel_id, uint64_t buffer_id);
-  int SetProducerFps(int tunnel_id, float fps);
-  float GetProducerFps(int tunnel_id);
-  void PrintTimeStamp(int display_id, int tunnel_id, uint64_t buffer_id);
-  int DoTransform(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer, std::set<uint32_t> transforms);
+    // Init video tunel.
+    int Init();
+    // Is invalid.
+    bool IsValid();
+    // Create tunnel connection.
+    int CreateConnection(int display_id, int tunnel_id, android_dataspace_t dataspace, uint32_t transform);
+    // Destory Connection
+    int DestoryConnection(int display_id, int tunnel_id);
+    // Get Last video buffer
+    std::shared_ptr<DrmBuffer> AcquireBuffer(int display_id, int tunnel_id, vt_rect_t* dis_rect, int timeout_ms,
+                                             bool wait_Fence = true);
+    // Release video buffer
+    int ReleaseBuffer(int display_id, int tunnel_id, uint64_t buffer_id);
+    // Signal buffer's ReleaseFence
+    int SignalReleaseFence(int display_id, int tunnel_id, uint64_t buffer_id);
+    int SetProducerFps(int tunnel_id, float fps);
+    float GetProducerFps(int tunnel_id);
+    void PrintTimeStamp(int display_id, int tunnel_id, uint64_t buffer_id);
+    int DoTransform(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer, std::set<uint32_t> transforms);
 #ifdef USE_LIBPQ_HWPQ
-  std::shared_ptr<DrmBuffer> DoHwPq(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer);
+    std::shared_ptr<DrmBuffer> DoHwPq(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer);
 #endif
 
-  enum ReleaseFenceMode{
-    DisableReleaseFence = 0,
-    EnableReleaseFence = 1
-  };
+    enum ReleaseFenceMode { DisableReleaseFence = 0, EnableReleaseFence = 1 };
 
- protected:
-  void Routine() override;
+  protected:
+    void Routine() override;
 
- private:
-  DrmVideoProducer(const DrmVideoProducer &) = delete;
-  DrmVideoProducer &operator=(const DrmVideoProducer &) = delete;
-  int InitLibHandle();
-  bool bInit_;
-  int iTunnelFd_;
-  std::map<int, std::shared_ptr<VpContext>> mMapCtx_;
-  mutable std::mutex mtx_;
-  float uFastestFps_=120.0f;
-  ReleaseFenceMode iFenceMode_ = EnableReleaseFence;
-  //first:tunnel_id second:retry_counter
-  std::vector<int> mPendingReleaseTunnel_;
-  void printPendingReleaseTunnel();
-  bool bLastAcquireSucceed = false;
+  private:
+    DrmVideoProducer(const DrmVideoProducer&) = delete;
+    DrmVideoProducer& operator=(const DrmVideoProducer&) = delete;
+    int InitLibHandle();
+    bool bInit_;
+    int iTunnelFd_;
+    std::map<int, std::shared_ptr<VpContext>> mMapCtx_;
+    mutable std::mutex mtx_;
+    float uFastestFps_ = 120.0f;
+    ReleaseFenceMode iFenceMode_ = EnableReleaseFence;
+    //first:tunnel_id second:retry_counter
+    std::vector<int> mPendingReleaseTunnel_;
+    void printPendingReleaseTunnel();
+    bool bLastAcquireSucceed = false;
 #ifdef USE_LIBPQ_HWPQ
-  std::shared_ptr<Pq> hwpq_ = NULL;
+    std::shared_ptr<Pq> hwpq_ = NULL;
 #endif
 };
 
-}; // namespace android
+};  // namespace android
 
-
-#endif // _VIDEO_PRODUCER_H_
+#endif  // _VIDEO_PRODUCER_H_

@@ -16,76 +16,72 @@
 
 #define LOG_TAG "hwc-drm-compositor-worker"
 
-#include "drmdisplaycompositor.h"
 #include "drmcompositorworker.h"
+#include "drmdisplaycompositor.h"
 #include "utils/worker.h"
 
 #include <stdlib.h>
 
-#include <log/log.h>
 #include <hardware/hardware.h>
+#include <log/log.h>
 
 namespace android {
 
-DrmCompositorWorker::DrmCompositorWorker(DrmDisplayCompositor *compositor)
-    : Worker("drm-compositor", HAL_PRIORITY_URGENT_DISPLAY),
-      compositor_(compositor) {
-}
+DrmCompositorWorker::DrmCompositorWorker(DrmDisplayCompositor* compositor)
+    : Worker("drm-compositor", HAL_PRIORITY_URGENT_DISPLAY), compositor_(compositor) {}
 
-DrmCompositorWorker::~DrmCompositorWorker() {
-}
+DrmCompositorWorker::~DrmCompositorWorker() {}
 
 int DrmCompositorWorker::Init() {
-  bSchedFifoOnce_ = false;
-  return InitWorker();
+    bSchedFifoOnce_ = false;
+    return InitWorker();
 }
 
 void DrmCompositorWorker::Routine() {
-  int ret;
+    int ret;
 
-  // 需要将此线程设置为实时线程，为了让底层调用CPU计时器可以获得更准确的计时
-  // 所有平台的提交线程需要设置为实时线程
-  if(bSchedFifoOnce_ == false){
-    bSchedFifoOnce_ = true;
-    static constexpr int kFifoPriority = 2;
-    struct sched_param param = {0};
-    int sched_policy;
-    sched_policy = SCHED_FIFO;
-    param.sched_priority = kFifoPriority;
+    // 需要将此线程设置为实时线程，为了让底层调用CPU计时器可以获得更准确的计时
+    // 所有平台的提交线程需要设置为实时线程
+    if (bSchedFifoOnce_ == false) {
+        bSchedFifoOnce_ = true;
+        static constexpr int kFifoPriority = 2;
+        struct sched_param param = {0};
+        int sched_policy;
+        sched_policy = SCHED_FIFO;
+        param.sched_priority = kFifoPriority;
 
-    if (sched_setscheduler(0, sched_policy, &param) != 0) {
-        HWC2_ALOGE("DrmCompositorWorker set SCHED_FIFO fail!");
-    }else{
-        HWC2_ALOGI("DrmCompositorWorker set SCHED_FIFO success!");
+        if (sched_setscheduler(0, sched_policy, &param) != 0) {
+            HWC2_ALOGE("DrmCompositorWorker set SCHED_FIFO fail!");
+        } else {
+            HWC2_ALOGI("DrmCompositorWorker set SCHED_FIFO success!");
+        }
     }
-  }
 
-  if(!compositor_->IsSidebandMode() && !compositor_->IsMemcMode()){
-    if (!compositor_->HaveQueuedComposites()) {
-      Lock();
-      int wait_ret = WaitForSignalOrExitLocked(kWaitTimeOut_);
-      Unlock();
+    if (!compositor_->IsSidebandMode() && !compositor_->IsMemcMode()) {
+        if (!compositor_->HaveQueuedComposites()) {
+            Lock();
+            int wait_ret = WaitForSignalOrExitLocked(kWaitTimeOut_);
+            Unlock();
 
-      switch (wait_ret) {
-        case 0:
-          break;
-        case -EINTR:
-          return;
-        //close pre-comp for static screen.
-        case -ETIMEDOUT:
-          kWaitTimeOut_ = kWaitTimeOut_ * 2 > 500000000LL? 500000000LL : kWaitTimeOut_ * 2;
-          return;
-        default:
-          ALOGE("Failed to wait for signal, %d", wait_ret);
-          return;
-      }
+            switch (wait_ret) {
+                case 0:
+                    break;
+                case -EINTR:
+                    return;
+                //close pre-comp for static screen.
+                case -ETIMEDOUT:
+                    kWaitTimeOut_ = kWaitTimeOut_ * 2 > 500000000LL ? 500000000LL : kWaitTimeOut_ * 2;
+                    return;
+                default:
+                    ALOGE("Failed to wait for signal, %d", wait_ret);
+                    return;
+            }
+        }
     }
-  }
 
-  kWaitTimeOut_ = 2000000LL;
+    kWaitTimeOut_ = 2000000LL;
 
-  ret = compositor_->Composite();
-  if (ret)
-    ALOGE("Failed to composite! %d", ret);
+    ret = compositor_->Composite();
+    if (ret) ALOGE("Failed to composite! %d", ret);
 }
-}
+}  // namespace android

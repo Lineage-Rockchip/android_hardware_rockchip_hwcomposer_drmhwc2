@@ -21,33 +21,28 @@ using aidl::rockchip::hwc::proxy::aidl::RkHwcProxyClient;
 
 namespace android {
 
-RkHwcProxyClientWorker::RkHwcProxyClientWorker()
-	: Worker("RkHwcProxyClientWorker", HAL_PRIORITY_URGENT_DISPLAY) {
-}
+RkHwcProxyClientWorker::RkHwcProxyClientWorker() : Worker("RkHwcProxyClientWorker", HAL_PRIORITY_URGENT_DISPLAY) {}
 
-RkHwcProxyClientWorker::~RkHwcProxyClientWorker() {
-}
+RkHwcProxyClientWorker::~RkHwcProxyClientWorker() {}
 
 int RkHwcProxyClientWorker::Init(int fd) {
-	// ABinderProcess_setThreadPoolMaxThreadCount(2);
-	// default thread pool is 10
-	ABinderProcess_startThreadPool();
+    // ABinderProcess_setThreadPoolMaxThreadCount(2);
+    // default thread pool is 10
+    ABinderProcess_startThreadPool();
 
-	// Initial and set callback
-	mRkHwcProxyClient_ = RkHwcProxyClient();
-	int ret = mRkHwcProxyClient_.Setup(fd);
-	if (ret < 0)
-		HWC2_ALOGE("RkHwcProxyClient Setup failed");
+    // Initial and set callback
+    mRkHwcProxyClient_ = RkHwcProxyClient();
+    int ret = mRkHwcProxyClient_.Setup(fd);
+    if (ret < 0) HWC2_ALOGE("RkHwcProxyClient Setup failed");
 
-	return InitWorker();
+    return InitWorker();
 }
 
-void RkHwcProxyClientWorker::Routine () {
-	// Verify: only register callback, do not call function
-	// waiting for the data from callback
-	std::cv_status waitStatus = mRkHwcProxyClient_.wait();
-	while (waitStatus == std::cv_status::no_timeout)
-		waitStatus = mRkHwcProxyClient_.wait();
+void RkHwcProxyClientWorker::Routine() {
+    // Verify: only register callback, do not call function
+    // waiting for the data from callback
+    std::cv_status waitStatus = mRkHwcProxyClient_.wait();
+    while (waitStatus == std::cv_status::no_timeout) waitStatus = mRkHwcProxyClient_.wait();
 }
 
 }  // namespace android

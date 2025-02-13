@@ -38,32 +38,32 @@
 
 #include "rockchip/drmtype.h"
 #include <drm_fourcc.h>
+#include <errno.h>
 #include <hardware/gralloc.h>
 #include <log/log.h>
-#include <errno.h>
 
-uint32_t ConvertHalFormatToDrm(uint32_t hal_format){
-  switch (hal_format) {
-    case HAL_PIXEL_FORMAT_RGB_888:
-      return DRM_FORMAT_BGR888;
-    case HAL_PIXEL_FORMAT_BGRA_8888:
-      return DRM_FORMAT_ARGB8888;
-    case HAL_PIXEL_FORMAT_RGBX_8888:
-      return DRM_FORMAT_XBGR8888;
-    case HAL_PIXEL_FORMAT_RGBA_8888:
-      return DRM_FORMAT_ABGR8888;
-    case HAL_PIXEL_FORMAT_RGBA_1010102:
-      return DRM_FORMAT_ABGR2101010;
-    case HAL_PIXEL_FORMAT_RGB_565:
-      return DRM_FORMAT_BGR565;
-    case HAL_PIXEL_FORMAT_YV12:
-      return DRM_FORMAT_YVU420;
-    case HAL_PIXEL_FORMAT_YCrCb_NV12:
-      return DRM_FORMAT_NV12;
-    case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
-      return DRM_FORMAT_NV12_10;
-    default:
-      ALOGE("Cannot convert hal format to drm format %u", hal_format);
-      return -EINVAL;
-  }
+uint32_t ConvertHalFormatToDrm(uint32_t hal_format) {
+    switch (hal_format) {
+        case HAL_PIXEL_FORMAT_RGB_888:
+            return DRM_FORMAT_BGR888;
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            return DRM_FORMAT_ARGB8888;
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+            return DRM_FORMAT_XBGR8888;
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+            return DRM_FORMAT_ABGR8888;
+        case HAL_PIXEL_FORMAT_RGBA_1010102:
+            return DRM_FORMAT_ABGR2101010;
+        case HAL_PIXEL_FORMAT_RGB_565:
+            return DRM_FORMAT_BGR565;
+        case HAL_PIXEL_FORMAT_YV12:
+            return DRM_FORMAT_YVU420;
+        case HAL_PIXEL_FORMAT_YCrCb_NV12:
+            return DRM_FORMAT_NV12;
+        case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
+            return DRM_FORMAT_NV12_10;
+        default:
+            ALOGE("Cannot convert hal format to drm format %u", hal_format);
+            return -EINVAL;
+    }
 }

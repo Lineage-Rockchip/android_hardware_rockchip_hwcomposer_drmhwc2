@@ -46,21 +46,18 @@
 // RFBC FORMAT from
 // hardware/rockchip/libhardware_rockchip/include/hardware/hardware_rockchip.h
 #ifndef HAL_PIXEL_FORMAT_YUV420_8BIT_RFBC
-#define HAL_PIXEL_FORMAT_YUV420_8BIT_RFBC   0x200
-#define HAL_PIXEL_FORMAT_YUV420_10BIT_RFBC  0x201
-#define HAL_PIXEL_FORMAT_YUV422_8BIT_RFBC   0x202
-#define HAL_PIXEL_FORMAT_YUV422_10BIT_RFBC  0x203
-#define HAL_PIXEL_FORMAT_YUV444_8BIT_RFBC   0x204
-#define HAL_PIXEL_FORMAT_YUV444_10BIT_RFBC  0x205
+#define HAL_PIXEL_FORMAT_YUV420_8BIT_RFBC 0x200
+#define HAL_PIXEL_FORMAT_YUV420_10BIT_RFBC 0x201
+#define HAL_PIXEL_FORMAT_YUV422_8BIT_RFBC 0x202
+#define HAL_PIXEL_FORMAT_YUV422_10BIT_RFBC 0x203
+#define HAL_PIXEL_FORMAT_YUV444_8BIT_RFBC 0x204
+#define HAL_PIXEL_FORMAT_YUV444_10BIT_RFBC 0x205
 #endif
 
-static inline bool hwc_is_hal_rfbc_format(int format){
-    return (format == HAL_PIXEL_FORMAT_YUV420_8BIT_RFBC   ||
-            format == HAL_PIXEL_FORMAT_YUV420_10BIT_RFBC  ||
-            format == HAL_PIXEL_FORMAT_YUV422_8BIT_RFBC   ||
-            format == HAL_PIXEL_FORMAT_YUV422_10BIT_RFBC  ||
-            format == HAL_PIXEL_FORMAT_YUV444_8BIT_RFBC   ||
-            format == HAL_PIXEL_FORMAT_YUV444_10BIT_RFBC);
+static inline bool hwc_is_hal_rfbc_format(int format) {
+    return (format == HAL_PIXEL_FORMAT_YUV420_8BIT_RFBC || format == HAL_PIXEL_FORMAT_YUV420_10BIT_RFBC ||
+            format == HAL_PIXEL_FORMAT_YUV422_8BIT_RFBC || format == HAL_PIXEL_FORMAT_YUV422_10BIT_RFBC ||
+            format == HAL_PIXEL_FORMAT_YUV444_8BIT_RFBC || format == HAL_PIXEL_FORMAT_YUV444_10BIT_RFBC);
 }
 
 #endif

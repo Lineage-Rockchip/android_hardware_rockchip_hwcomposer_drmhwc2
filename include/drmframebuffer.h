@@ -26,81 +26,67 @@
 namespace android {
 
 struct DrmFramebuffer {
-  DrmFramebuffer() : release_fence_fd_(-1) {
-  }
+    DrmFramebuffer() : release_fence_fd_(-1) {}
 
-  ~DrmFramebuffer() {
-    if (release_fence_fd() >= 0)
-      close(release_fence_fd());
-  }
+    ~DrmFramebuffer() {
+        if (release_fence_fd() >= 0) close(release_fence_fd());
+    }
 
-  bool is_valid() {
-    return buffer_ != NULL;
-  }
+    bool is_valid() { return buffer_ != NULL; }
 
-  sp<GraphicBuffer> buffer() {
-    return buffer_;
-  }
+    sp<GraphicBuffer> buffer() { return buffer_; }
 
-  int release_fence_fd() {
-    return release_fence_fd_;
-  }
+    int release_fence_fd() { return release_fence_fd_; }
 
-  void set_release_fence_fd(int fd) {
-    if (release_fence_fd_ >= 0)
-      close(release_fence_fd_);
-    release_fence_fd_ = fd;
-  }
+    void set_release_fence_fd(int fd) {
+        if (release_fence_fd_ >= 0) close(release_fence_fd_);
+        release_fence_fd_ = fd;
+    }
 
-  bool Allocate(uint32_t w, uint32_t h) {
-    if (is_valid()) {
-      if (buffer_->getWidth() == w && buffer_->getHeight() == h)
-        return true;
+    bool Allocate(uint32_t w, uint32_t h) {
+        if (is_valid()) {
+            if (buffer_->getWidth() == w && buffer_->getHeight() == h) return true;
 
-      if (release_fence_fd_ >= 0) {
-        if (sync_wait(release_fence_fd_, kReleaseWaitTimeoutMs) != 0) {
-          ALOGE("Wait for release fence failed\n");
-          return false;
+            if (release_fence_fd_ >= 0) {
+                if (sync_wait(release_fence_fd_, kReleaseWaitTimeoutMs) != 0) {
+                    ALOGE("Wait for release fence failed\n");
+                    return false;
+                }
+            }
+            Clear();
         }
-      }
-      Clear();
-    }
-    buffer_ = new GraphicBuffer(w, h, PIXEL_FORMAT_RGB_888,
-                                GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_RENDER |
-                                    GRALLOC_USAGE_HW_COMPOSER);
-    release_fence_fd_ = -1;
-    return is_valid();
-  }
-
-  void Clear() {
-    if (!is_valid())
-      return;
-
-    if (release_fence_fd_ >= 0) {
-      close(release_fence_fd_);
-      release_fence_fd_ = -1;
+        buffer_ = new GraphicBuffer(w, h, PIXEL_FORMAT_RGB_888,
+                                    GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER);
+        release_fence_fd_ = -1;
+        return is_valid();
     }
 
-    buffer_.clear();
-  }
+    void Clear() {
+        if (!is_valid()) return;
 
-  int WaitReleased(int timeout_milliseconds) {
-    if (!is_valid())
-      return 0;
-    if (release_fence_fd_ < 0)
-      return 0;
+        if (release_fence_fd_ >= 0) {
+            close(release_fence_fd_);
+            release_fence_fd_ = -1;
+        }
 
-    int ret = sync_wait(release_fence_fd_, timeout_milliseconds);
-    return ret;
-  }
+        buffer_.clear();
+    }
 
-  // Somewhat arbitrarily chosen, but wanted to stay below 3000ms, which is the
-  // system timeout
-  static const int kReleaseWaitTimeoutMs = 1500;
+    int WaitReleased(int timeout_milliseconds) {
+        if (!is_valid()) return 0;
+        if (release_fence_fd_ < 0) return 0;
 
- private:
-  sp<GraphicBuffer> buffer_;
-  int release_fence_fd_;
+        int ret = sync_wait(release_fence_fd_, timeout_milliseconds);
+        return ret;
+    }
+
+    // Somewhat arbitrarily chosen, but wanted to stay below 3000ms, which is the
+    // system timeout
+    static const int kReleaseWaitTimeoutMs = 1500;
+
+  private:
+    sp<GraphicBuffer> buffer_;
+    int release_fence_fd_;
 };
 }  // namespace android
 

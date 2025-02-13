@@ -32,36 +32,30 @@
 namespace android {
 
 VSyncWorker::VSyncWorker()
-    : Worker("vsync", HAL_PRIORITY_URGENT_DISPLAY),
-      drm_(NULL),
-      display_(-1),
-      enabled_(false),
-      last_timestamp_(-1) {
-}
+    : Worker("vsync", HAL_PRIORITY_URGENT_DISPLAY), drm_(NULL), display_(-1), enabled_(false), last_timestamp_(-1) {}
 
-VSyncWorker::~VSyncWorker() {
-}
+VSyncWorker::~VSyncWorker() {}
 
-int VSyncWorker::Init(DrmDevice *drm, int display) {
-  drm_ = drm;
-  display_ = display;
+int VSyncWorker::Init(DrmDevice* drm, int display) {
+    drm_ = drm;
+    display_ = display;
 
-  return InitWorker();
+    return InitWorker();
 }
 
 void VSyncWorker::RegisterCallback(std::shared_ptr<VsyncCallback> callback) {
-  Lock();
-  callback_ = callback;
-  Unlock();
+    Lock();
+    callback_ = callback;
+    Unlock();
 }
 
 void VSyncWorker::VSyncControl(bool enabled) {
-  Lock();
-  enabled_ = enabled;
-  last_timestamp_ = -1;
-  Unlock();
+    Lock();
+    enabled_ = enabled;
+    last_timestamp_ = -1;
+    Unlock();
 
-  Signal();
+    Signal();
 }
 
 /*
@@ -78,117 +72,106 @@ void VSyncWorker::VSyncControl(bool enabled) {
  *  timestamp.
  */
 int64_t VSyncWorker::GetPhasedVSync(int64_t frame_ns, int64_t current) {
-  if (last_timestamp_ < 0)
-    return current + frame_ns;
+    if (last_timestamp_ < 0) return current + frame_ns;
 
-  return frame_ns * ((current - last_timestamp_) / frame_ns + 1) +
-         last_timestamp_;
+    return frame_ns * ((current - last_timestamp_) / frame_ns + 1) + last_timestamp_;
 }
 
 static const int64_t kOneSecondNs = 1 * 1000 * 1000 * 1000;
 
-int VSyncWorker::SyntheticWaitVBlank(int64_t *timestamp) {
-  struct timespec vsync;
-  int ret = clock_gettime(CLOCK_MONOTONIC, &vsync);
+int VSyncWorker::SyntheticWaitVBlank(int64_t* timestamp) {
+    struct timespec vsync;
+    int ret = clock_gettime(CLOCK_MONOTONIC, &vsync);
 
-  float refresh = 60.0f;  // Default to 60Hz refresh rate
-  DrmConnector *conn = drm_->GetConnectorForDisplay(display_);
-  if (conn && conn->state() == DRM_MODE_CONNECTED) {
-    if (conn->active_mode().v_refresh() > 0.0f)
-      refresh = conn->active_mode().v_refresh();
-  }
+    float refresh = 60.0f;  // Default to 60Hz refresh rate
+    DrmConnector* conn = drm_->GetConnectorForDisplay(display_);
+    if (conn && conn->state() == DRM_MODE_CONNECTED) {
+        if (conn->active_mode().v_refresh() > 0.0f) refresh = conn->active_mode().v_refresh();
+    }
 
-  int64_t phased_timestamp = GetPhasedVSync(kOneSecondNs / refresh,
-                                            vsync.tv_sec * kOneSecondNs +
-                                                vsync.tv_nsec);
-  vsync.tv_sec = phased_timestamp / kOneSecondNs;
-  vsync.tv_nsec = phased_timestamp - (vsync.tv_sec * kOneSecondNs);
-  do {
-    ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &vsync, NULL);
-  } while (ret == -1 && errno == EINTR);
-  if (ret)
-    return ret;
+    int64_t phased_timestamp = GetPhasedVSync(kOneSecondNs / refresh, vsync.tv_sec * kOneSecondNs + vsync.tv_nsec);
+    vsync.tv_sec = phased_timestamp / kOneSecondNs;
+    vsync.tv_nsec = phased_timestamp - (vsync.tv_sec * kOneSecondNs);
+    do {
+        ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &vsync, NULL);
+    } while (ret == -1 && errno == EINTR);
+    if (ret) return ret;
 
-  *timestamp = (int64_t)vsync.tv_sec * kOneSecondNs + (int64_t)vsync.tv_nsec;
-  return 0;
+    *timestamp = (int64_t)vsync.tv_sec * kOneSecondNs + (int64_t)vsync.tv_nsec;
+    return 0;
 }
 
 //TODO: AIDI dynamic to adjust vsync period
 #define VSYNC_PERIOD_60FPS 16666666
 
 void VSyncWorker::Routine() {
-  int ret;
+    int ret;
 
-  Lock();
-  if (!enabled_) {
-    ret = WaitForSignalOrExitLocked();
-    if (ret == -EINTR) {
-      Unlock();
-      return;
+    Lock();
+    if (!enabled_) {
+        ret = WaitForSignalOrExitLocked();
+        if (ret == -EINTR) {
+            Unlock();
+            return;
+        }
     }
-  }
 
-  int display = display_;
-  Unlock();
+    int display = display_;
+    Unlock();
 
-  int64_t timestamp;
-  DrmCrtc *crtc = drm_->GetCrtcForDisplay(display);
+    int64_t timestamp;
+    DrmCrtc* crtc = drm_->GetCrtcForDisplay(display);
 
-  if (!crtc) {
-    ret = SyntheticWaitVBlank(&timestamp);
-    if (ret)
-      return;
-  } else {
-    uint32_t high_crtc = (crtc->pipe() << DRM_VBLANK_HIGH_CRTC_SHIFT);
-
-    drmVBlank vblank;
-    memset(&vblank, 0, sizeof(vblank));
-    vblank.request.type = (drmVBlankSeqType)(
-        DRM_VBLANK_RELATIVE | (high_crtc & DRM_VBLANK_HIGH_CRTC_MASK));
-    vblank.request.sequence = 1;
-
-    ret = drmWaitVBlank(drm_->fd(), &vblank);
-    if (ret == -EINTR) {
-      return;
-    } else if (ret) {
-      ret = SyntheticWaitVBlank(&timestamp);
-      if (ret)
-        return;
+    if (!crtc) {
+        ret = SyntheticWaitVBlank(&timestamp);
+        if (ret) return;
     } else {
-      timestamp = (int64_t)vblank.reply.tval_sec * kOneSecondNs +
-                  (int64_t)vblank.reply.tval_usec * 1000;
+        uint32_t high_crtc = (crtc->pipe() << DRM_VBLANK_HIGH_CRTC_SHIFT);
+
+        drmVBlank vblank;
+        memset(&vblank, 0, sizeof(vblank));
+        vblank.request.type = (drmVBlankSeqType)(DRM_VBLANK_RELATIVE | (high_crtc & DRM_VBLANK_HIGH_CRTC_MASK));
+        vblank.request.sequence = 1;
+
+        ret = drmWaitVBlank(drm_->fd(), &vblank);
+        if (ret == -EINTR) {
+            return;
+        } else if (ret) {
+            ret = SyntheticWaitVBlank(&timestamp);
+            if (ret) return;
+        } else {
+            timestamp = (int64_t)vblank.reply.tval_sec * kOneSecondNs + (int64_t)vblank.reply.tval_usec * 1000;
+        }
     }
-  }
 
-  if (!enabled_) return;
+    if (!enabled_) return;
 
-  Lock();
-  std::shared_ptr<VsyncCallback> callback(callback_);
-  Unlock();
-  /*
-   * There's a race here where a change in callback_ will not take effect until
-   * the next subsequent requested vsync. This is unavoidable since we can't
-   * call the vsync hook while holding the thread lock.
-   *
-   * We could shorten the race window by caching callback_ right before calling
-   * the hook. However, in practice, callback_ is only updated once, so it's not
-   * worth the overhead.
-   */
-  if (callback) {
+    Lock();
+    std::shared_ptr<VsyncCallback> callback(callback_);
+    Unlock();
+    /*
+     * There's a race here where a change in callback_ will not take effect until
+     * the next subsequent requested vsync. This is unavoidable since we can't
+     * call the vsync hook while holding the thread lock.
+     *
+     * We could shorten the race window by caching callback_ right before calling
+     * the hook. However, in practice, callback_ is only updated once, so it's not
+     * worth the overhead.
+     */
+    if (callback) {
 #if USE_HWC3_AIDL
-    float refresh = 60.0f;  // Default to 60Hz refresh rate
-    DrmConnector *conn = drm_->GetConnectorForDisplay(display_);
-    if (conn && conn->state() == DRM_MODE_CONNECTED) {
-      if (conn->active_mode().v_refresh() > 0.0f)
-        refresh = conn->active_mode().v_refresh();
+        float refresh = 60.0f;  // Default to 60Hz refresh rate
+        DrmConnector* conn = drm_->GetConnectorForDisplay(display_);
+        if (conn && conn->state() == DRM_MODE_CONNECTED) {
+            if (conn->active_mode().v_refresh() > 0.0f) refresh = conn->active_mode().v_refresh();
+        }
+
+        callback->Callback(display, timestamp, kOneSecondNs / refresh);
+#else
+        callback->Callback(display, timestamp);
+#endif
     }
 
-    callback->Callback(display, timestamp, kOneSecondNs / refresh);
-#else
-    callback->Callback(display, timestamp);
-#endif
-  }
-
-  last_timestamp_ = timestamp;
+    last_timestamp_ = timestamp;
 }
 }  // namespace android

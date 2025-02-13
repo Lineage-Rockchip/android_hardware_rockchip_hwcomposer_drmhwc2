@@ -20,47 +20,45 @@
 #include "rockchip/hdr/dovi.h"
 #include "rockchip/hdr/metadata_hdr.h"
 
-#include <mutex>
 #include <map>
+#include <mutex>
 namespace android {
 
-class DrmHdrParser{
-public:
-  static DrmHdrParser* Get() { return GetInstance(); }
-  ~DrmHdrParser();
-  DrmHdrParser(const DrmHdrParser&)=delete;
-  DrmHdrParser& operator=(const DrmHdrParser&)=delete;
+class DrmHdrParser {
+  public:
+    static DrmHdrParser* Get() { return GetInstance(); }
+    ~DrmHdrParser();
+    DrmHdrParser(const DrmHdrParser&) = delete;
+    DrmHdrParser& operator=(const DrmHdrParser&) = delete;
 
-  // NextHdr
-  void* NextHdrCreatHandle(int display, uint32_t layer_id);
-  int NextHdrParser(dovi_handle_t dovi_handle, dovi_parser_param_s* param);
-  void NextHdrDestoryHandle(int display, uint32_t layer_id);
+    // NextHdr
+    void* NextHdrCreatHandle(int display, uint32_t layer_id);
+    int NextHdrParser(dovi_handle_t dovi_handle, dovi_parser_param_s* param);
+    void NextHdrDestoryHandle(int display, uint32_t layer_id);
 
-  // RK3528 Metadata hdr parser
-  int MetadataHdrParser(rk_hdr_parser_params_t* p_hdr_parser_params);
-  int MetadataHdrparserFormat(rk_hdr_parser_params_t* p_hdr_parser_params,
-                              rk_hdr_fmt_info_t* p_hdr_fmt_info);
+    // RK3528 Metadata hdr parser
+    int MetadataHdrParser(rk_hdr_parser_params_t* p_hdr_parser_params);
+    int MetadataHdrparserFormat(rk_hdr_parser_params_t* p_hdr_parser_params, rk_hdr_fmt_info_t* p_hdr_fmt_info);
 
-private:
-  DrmHdrParser();
-  int Init();
-  int InitNextHdr();
-  int InitVividHdr();
-  static DrmHdrParser* GetInstance(){
-    static DrmHdrParser dhp;
-    if(dhp.Init())
-      return NULL;
-    else
-      return &dhp;
-  }
+  private:
+    DrmHdrParser();
+    int Init();
+    int InitNextHdr();
+    int InitVividHdr();
+    static DrmHdrParser* GetInstance() {
+        static DrmHdrParser dhp;
+        if (dhp.Init())
+            return NULL;
+        else
+            return &dhp;
+    }
 
-  bool bInit_;
-  bool bInitNextHdrSucess_;
-  bool bInitVividHdrSucess_;
-  std::map<int, std::map<uint32_t, dovi_handle_t>>
-    mCacheHandle_;
-  mutable std::mutex mtx_;
+    bool bInit_;
+    bool bInitNextHdrSucess_;
+    bool bInitVividHdrSucess_;
+    std::map<int, std::map<uint32_t, dovi_handle_t>> mCacheHandle_;
+    mutable std::mutex mtx_;
 };
-}; // namespace android
+};  // namespace android
 
 #endif

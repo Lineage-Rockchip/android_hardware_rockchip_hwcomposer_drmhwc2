@@ -18,50 +18,51 @@
 #define DRMHWC2_FOURCC_H
 #include "drm_fourcc.h"
 
-
 #ifndef DRM_FORMAT_NV15
 /*
  * 2 plane YCbCr
  * index 0 = Y plane, [39:0] Y3:Y2:Y1:Y0 little endian
  * index 1 = Cr:Cb plane, [39:0] Cr1:Cb1:Cr0:Cb0 little endian
  */
-#define DRM_FORMAT_NV15		fourcc_code('N', 'V', '1', '5') /* 2x2 subsampled Cr:Cb plane */
+#define DRM_FORMAT_NV15 fourcc_code('N', 'V', '1', '5') /* 2x2 subsampled Cr:Cb plane */
 #endif
 
 #ifndef DRM_FORMAT_NV12_10
-#define DRM_FORMAT_NV12_10		fourcc_code('N', 'A', '1', '2') /* 2x2 subsampled Cr:Cb plane */
+#define DRM_FORMAT_NV12_10 fourcc_code('N', 'A', '1', '2') /* 2x2 subsampled Cr:Cb plane */
 #endif
 
 #ifndef DRM_FORMAT_NV20
-#define DRM_FORMAT_NV20		fourcc_code('N', 'V', '2', '0') /* 2x1 subsampled Cr:Cb plane */
+#define DRM_FORMAT_NV20 fourcc_code('N', 'V', '2', '0') /* 2x1 subsampled Cr:Cb plane */
 #endif
 
 #ifndef DRM_FORMAT_NV30
-#define DRM_FORMAT_NV30		fourcc_code('N', 'V', '3', '0') /* non-subsampled Cr:Cb plane */
+#define DRM_FORMAT_NV30 fourcc_code('N', 'V', '3', '0') /* non-subsampled Cr:Cb plane */
 #endif
 
 #ifndef DRM_FORMAT_YUV420_8BIT
-#define DRM_FORMAT_YUV420_8BIT	fourcc_code('Y', 'U', '0', '8')
+#define DRM_FORMAT_YUV420_8BIT fourcc_code('Y', 'U', '0', '8')
 #endif
 
 #ifndef DRM_FORMAT_YUV420_10BIT
-#define DRM_FORMAT_YUV420_10BIT	fourcc_code('Y', 'U', '1', '0')
+#define DRM_FORMAT_YUV420_10BIT fourcc_code('Y', 'U', '1', '0')
 #endif
 
 #ifndef DRM_FORMAT_YUYV
-#define DRM_FORMAT_YUYV		fourcc_code('Y', 'U', 'Y', 'V') /* [31:0] Cr0:Y1:Cb0:Y0 8:8:8:8 little endian */
+#define DRM_FORMAT_YUYV fourcc_code('Y', 'U', 'Y', 'V') /* [31:0] Cr0:Y1:Cb0:Y0 8:8:8:8 little endian */
 #endif
 
 #ifndef DRM_FORMAT_Y210
-#define DRM_FORMAT_Y210         fourcc_code('Y', '2', '1', '0') /* [63:0] Cr0:0:Y1:0:Cb0:0:Y0:0 10:6:10:6:10:6:10:6 little endian per 2 Y pixels */
+#define DRM_FORMAT_Y210 \
+    fourcc_code('Y', '2', '1', '0') /* [63:0] Cr0:0:Y1:0:Cb0:0:Y0:0 10:6:10:6:10:6:10:6 little endian per 2 Y pixels */
 #endif
 
 #ifndef DRM_FORMAT_VUY888
-#define DRM_FORMAT_VUY888	fourcc_code('V', 'U', '2', '4') /* [23:0] Cr:Cb:Y 8:8:8 little endian */
+#define DRM_FORMAT_VUY888 fourcc_code('V', 'U', '2', '4') /* [23:0] Cr:Cb:Y 8:8:8 little endian */
 #endif
 
 #ifndef DRM_FORMAT_VUY101010
-#define DRM_FORMAT_VUY101010	fourcc_code('V', 'U', '3', '0') /* Y followed by U then V, 10:10:10. Non-linear modifier only */
+#define DRM_FORMAT_VUY101010 \
+    fourcc_code('V', 'U', '3', '0') /* Y followed by U then V, 10:10:10. Non-linear modifier only */
 #endif
 
 #ifndef DRM_FORMAT_MOD_VENDOR_ROCKCHIP
@@ -69,47 +70,45 @@
 #endif
 
 #ifndef fourcc_mod_get_vendor
-#define fourcc_mod_get_vendor(modifier) \
-	(((modifier) >> 56) & 0xff)
+#define fourcc_mod_get_vendor(modifier) (((modifier) >> 56) & 0xff)
 #endif
 
 #ifndef fourcc_mod_is_vendor
-#define fourcc_mod_is_vendor(modifier, vendor) \
-	(fourcc_mod_get_vendor(modifier) == DRM_FORMAT_MOD_VENDOR_## vendor)
+#define fourcc_mod_is_vendor(modifier, vendor) (fourcc_mod_get_vendor(modifier) == DRM_FORMAT_MOD_VENDOR_##vendor)
 #endif
 
 #ifndef DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT
-#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT	52
+#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT 52
 #endif
 
 #ifndef DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK
-#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK	0xf
+#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK 0xf
 #endif
 
 #ifndef DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC
-#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC	0x1
+#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC 0x1
 #endif
 
 #ifndef ROCKCHIP_RFBC_BLOCK_SIZE_64x4
-#define ROCKCHIP_RFBC_BLOCK_SIZE_64x4		(1ULL)
+#define ROCKCHIP_RFBC_BLOCK_SIZE_64x4 (1ULL)
 #endif
 
 #ifndef DRM_FORMAT_MOD_ROCKCHIP_CODE
 #define DRM_FORMAT_MOD_ROCKCHIP_CODE(__type, __val) \
-	fourcc_mod_code(ROCKCHIP, ((__u64)(__type) << DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) | \
-			((__val) & 0x000fffffffffffffULL))
+    fourcc_mod_code(ROCKCHIP,                       \
+                    ((__u64)(__type) << DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) | ((__val) & 0x000fffffffffffffULL))
 #endif
 
 #ifndef DRM_FORMAT_MOD_ROCKCHIP_RFBC
 /* Rockchip rfbc modifier format */
-#define DRM_FORMAT_MOD_ROCKCHIP_RFBC(mode) \
-	DRM_FORMAT_MOD_ROCKCHIP_CODE(DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC, mode)
+#define DRM_FORMAT_MOD_ROCKCHIP_RFBC(mode) DRM_FORMAT_MOD_ROCKCHIP_CODE(DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC, mode)
 #endif
 
 #ifndef IS_ROCKCHIP_RFBC_MOD
-#define IS_ROCKCHIP_RFBC_MOD(val) \
-	(fourcc_mod_is_vendor((val), ROCKCHIP) && \
-	 (((val) >> DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) & DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK) == DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC)
+#define IS_ROCKCHIP_RFBC_MOD(val)                                                           \
+    (fourcc_mod_is_vendor((val), ROCKCHIP) &&                                               \
+     (((val) >> DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) & DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK) == \
+             DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC)
 #endif
 
 #endif

@@ -23,43 +23,38 @@
 
 namespace android {
 
-DrmEncoder::DrmEncoder(drmModeEncoderPtr e, DrmCrtc *current_crtc,
-                       const std::vector<DrmCrtc *> &possible_crtcs)
-    : id_(e->encoder_id),
-      crtc_(current_crtc),
-      display_(-1),
-      possible_crtcs_(possible_crtcs) {
-}
+DrmEncoder::DrmEncoder(drmModeEncoderPtr e, DrmCrtc* current_crtc, const std::vector<DrmCrtc*>& possible_crtcs)
+    : id_(e->encoder_id), crtc_(current_crtc), display_(-1), possible_crtcs_(possible_crtcs) {}
 
 uint32_t DrmEncoder::id() const {
-  return id_;
+    return id_;
 }
 
-DrmCrtc *DrmEncoder::crtc() const {
-  return crtc_;
+DrmCrtc* DrmEncoder::crtc() const {
+    return crtc_;
 }
 
-bool DrmEncoder::CanClone(DrmEncoder *possible_clone) {
-  return possible_clones_.find(possible_clone) != possible_clones_.end();
+bool DrmEncoder::CanClone(DrmEncoder* possible_clone) {
+    return possible_clones_.find(possible_clone) != possible_clones_.end();
 }
 
-void DrmEncoder::AddPossibleClone(DrmEncoder *possible_clone) {
-  possible_clones_.insert(possible_clone);
+void DrmEncoder::AddPossibleClone(DrmEncoder* possible_clone) {
+    possible_clones_.insert(possible_clone);
 }
 
-void DrmEncoder::set_crtc(DrmCrtc *crtc) {
-  crtc_ = crtc;
-  if(crtc == NULL )
-    display_ = -1;
-  else
-    display_ = crtc->display();
+void DrmEncoder::set_crtc(DrmCrtc* crtc) {
+    crtc_ = crtc;
+    if (crtc == NULL)
+        display_ = -1;
+    else
+        display_ = crtc->display();
 }
 
 int DrmEncoder::display() const {
-  return display_;
+    return display_;
 }
 
 bool DrmEncoder::can_bind(int display) const {
-  return display_ == -1 || display_ == display;
+    return display_ == -1 || display_ == display;
 }
 }  // namespace android

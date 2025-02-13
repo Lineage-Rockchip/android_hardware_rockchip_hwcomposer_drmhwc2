@@ -1,6 +1,6 @@
 #ifndef RGAUTILS_H
 #define RGAUTILS_H
-namespace hwc_rga_utils{
+namespace hwc_rga_utils {
 
 int HwcGetRgaFormat(int format);
 int UnifyAndroidFormatForRK3588(int format);
@@ -29,5 +29,5 @@ bool isRK3568RGA2SupportFormat(int format);
 #define IM_AFBC32x8_MODE (1 << 5)
 #endif
 
-};
-#endif //RGAUTILS_H
+};  // namespace hwc_rga_utils
+#endif  //RGAUTILS_H

@@ -36,9 +36,9 @@
 #ifndef ANDROID_DRM_VOP_3326_H_
 #define ANDROID_DRM_VOP_3326_H_
 
-#include "platform.h"
-#include "drmdevice.h"
 #include "drmbufferqueue.h"
+#include "drmdevice.h"
+#include "platform.h"
 
 #include <cutils/properties.h>
 
@@ -68,174 +68,147 @@ class DrmDevice;
 // come first serve), and then sticks the rest in a precomposition plane (if
 // needed).
 class Vop3326 : public Planner::PlanStage {
+    typedef std::map<int, std::vector<DrmHwcLayer*>> LayerMap;
 
-typedef std::map<int, std::vector<DrmHwcLayer*>> LayerMap;
+    typedef enum tagComposeMode {
+        HWC_OVERLAY_POLICY,
+        HWC_MIX_SKIP_POLICY,
+        HWC_MIX_VIDEO_POLICY,
+        HWC_MIX_UP_POLICY,
+        HWC_MIX_DOWN_POLICY,
+        HWC_MIX_POLICY,
+        HWC_GLES_POLICY,
+        HWC_RGA_OVERLAY_POLICY,
+        HWC_3D_POLICY,
+        HWC_DEBUG_POLICY
+    } ComposeMode;
 
-typedef enum tagComposeMode{
-   HWC_OVERLAY_POLICY,
-   HWC_MIX_SKIP_POLICY,
-   HWC_MIX_VIDEO_POLICY,
-   HWC_MIX_UP_POLICY,
-   HWC_MIX_DOWN_POLICY,
-   HWC_MIX_POLICY,
-   HWC_GLES_POLICY,
-   HWC_RGA_OVERLAY_POLICY,
-   HWC_3D_POLICY,
-   HWC_DEBUG_POLICY
-}ComposeMode;
+    typedef struct RequestContext {
+        int iSkipCnt = 0;
 
-typedef struct RequestContext{
-  int iSkipCnt=0;
+        // Afbcd info
+        int iAfbcdCnt = 0;
+        int iAfbcdScaleCnt = 0;
+        int iAfbcdYuvCnt = 0;
+        int iAfcbdLargeYuvCnt = 0;
+        int iAfbcdRotateCnt = 0;
+        int iAfbcdHdrCnt = 0;
 
-  // Afbcd info
-  int iAfbcdCnt=0;
-  int iAfbcdScaleCnt=0;
-  int iAfbcdYuvCnt=0;
-  int iAfcbdLargeYuvCnt=0;
-  int iAfbcdRotateCnt=0;
-  int iAfbcdHdrCnt=0;
+        // No Afbcd info
+        int iCnt = 0;
+        int iScaleCnt = 0;
+        int iYuvCnt = 0;
+        int iLargeYuvCnt = 0;
+        int iRotateCnt = 0;
+        int iHdrCnt = 0;
+    } ReqCtx;
 
-  // No Afbcd info
-  int iCnt=0;
-  int iScaleCnt=0;
-  int iYuvCnt=0;
-  int iLargeYuvCnt=0;
-  int iRotateCnt=0;
-  int iHdrCnt=0;
-} ReqCtx;
+    typedef struct SupportContext {
+        // Afbcd info
+        int iAfbcdCnt = 0;
+        int iAfbcdScaleCnt = 0;
+        int iAfbcdYuvCnt = 0;
+        int iAfbcdRotateCnt = 0;
+        int iAfbcdHdrCnt = 0;
 
-typedef struct SupportContext{
-  // Afbcd info
-  int iAfbcdCnt=0;
-  int iAfbcdScaleCnt=0;
-  int iAfbcdYuvCnt=0;
-  int iAfbcdRotateCnt=0;
-  int iAfbcdHdrCnt=0;
+        // No Afbcd info
+        int iCnt = 0;
+        int iScaleCnt = 0;
+        int iYuvCnt = 0;
+        int iRotateCnt = 0;
+        int iHdrCnt = 0;
 
-  // No Afbcd info
-  int iCnt=0;
-  int iScaleCnt=0;
-  int iYuvCnt=0;
-  int iRotateCnt=0;
-  int iHdrCnt=0;
+        // Reserved DrmPlane
+        char arrayReservedPlaneName[PROPERTY_VALUE_MAX] = {0};
+    } SupCtx;
 
-  // Reserved DrmPlane
-  char arrayReservedPlaneName[PROPERTY_VALUE_MAX] = {0};
-} SupCtx;
+    typedef struct StateContext {
+        // Multi area
+        bool bMultiAreaEnable = false;
+        bool bMultiAreaMode = false;
 
-typedef struct StateContext{
+        // Video state
+        bool bLargeVideo = false;
+        bool bDisableFBAfbcd = false;
+        bool bRgaPolicyEnable = false;
 
-  // Multi area
-  bool bMultiAreaEnable=false;
-  bool bMultiAreaMode=false;
+        bool fbUseAfbc = false;
 
-  // Video state
-  bool bLargeVideo=false;
-  bool bDisableFBAfbcd=false;
-  bool bRgaPolicyEnable=false;
+        int iDisplayWidth_ = 0;
+        int iDisplayHeight_ = 0;
 
-  bool fbUseAfbc = false;
+        // Soc id
+        int iSocId = 0;
+        std::set<ComposeMode> setHwcPolicy;
+    } StaCtx;
 
-  int iDisplayWidth_=0;
-  int iDisplayHeight_=0;
+    typedef struct DrmVop2Context {
+        ReqCtx request;
+        SupCtx support;
+        StaCtx state;
+    } Vop2Ctx;
 
-  // Soc id
-  int iSocId=0;
-  std::set<ComposeMode> setHwcPolicy;
-} StaCtx;
+  public:
+    Vop3326() : rgaBufferQueue_((std::make_shared<DrmBufferQueue>())) { Init(); }
+    void Init();
+    bool SupportPlatform(uint32_t soc_id);
+    int TryHwcPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*>& layers,
+                     std::vector<PlaneGroup*>& plane_groups, DrmCrtc* crtc, bool gles_policy);
+    // Try to assign DrmPlane to display
+    int TryAssignPlane(DrmDevice* drm, const std::map<int, int> map_dpys);
 
-typedef struct DrmVop2Context{
-  ReqCtx request;
-  SupCtx support;
-  StaCtx state;
-} Vop2Ctx;
+  protected:
+    int TryOverlayPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers, DrmCrtc* crtc,
+                         std::vector<PlaneGroup*>& plane_groups);
+    int TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers, DrmCrtc* crtc,
+                         std::vector<PlaneGroup*>& plane_groups);
+    int TryMixVideoPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers,
+                          DrmCrtc* crtc, std::vector<PlaneGroup*>& plane_groups);
+    int TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers,
+                            DrmCrtc* crtc, std::vector<PlaneGroup*>& plane_groups);
+    int TryMixUpPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers, DrmCrtc* crtc,
+                       std::vector<PlaneGroup*>& plane_groups);
+    int TryMixDownPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers, DrmCrtc* crtc,
+                         std::vector<PlaneGroup*>& plane_groups);
+    int TryMixPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers, DrmCrtc* crtc,
+                     std::vector<PlaneGroup*>& plane_groups);
+    int TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers, DrmCrtc* crtc,
+                      std::vector<PlaneGroup*>& plane_groups);
+    int MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*>& layers, DrmCrtc* crtc,
+                    std::vector<PlaneGroup*>& plane_groups);
 
- public:
-  Vop3326()
-    : rgaBufferQueue_((std::make_shared<DrmBufferQueue>()))
-  { 
-    Init(); 
-  }
-  void Init();
-  bool SupportPlatform(uint32_t soc_id);
-  int TryHwcPolicy(std::vector<DrmCompositionPlane> *composition,
-                   std::vector<DrmHwcLayer*> &layers,
-                   std::vector<PlaneGroup *> &plane_groups,
-                   DrmCrtc *crtc,
-                   bool gles_policy);
-  // Try to assign DrmPlane to display
-  int TryAssignPlane(DrmDevice* drm, const std::map<int,int> map_dpys);
+    bool TryOverlay();
+    void TryMix();
+    bool NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc);
+    void UpdateResevedPlane(DrmCrtc* crtc);
+    bool CheckGLESLayer(DrmHwcLayer* layers);
+    void InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGroup*>& plane_groups, DrmCrtc* crtc);
+    void InitRequestContext(std::vector<DrmHwcLayer*>& layers);
+    void InitSupportContext(std::vector<PlaneGroup*>& plane_groups, DrmCrtc* crtc);
+    int InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGroup*>& plane_groups, DrmCrtc* crtc,
+                    bool gles_policy);
 
- protected:
-  int TryOverlayPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int TryMixSkipPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int TryMixVideoPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int TryRgaOverlayPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int TryMixUpPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int TryMixDownPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int TryMixPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int TryGLESPolicy(std::vector<DrmCompositionPlane> *composition,
-                        std::vector<DrmHwcLayer*> layers, DrmCrtc *crtc,
-                        std::vector<PlaneGroup *> &plane_groups);
-  int MatchPlanes(std::vector<DrmCompositionPlane> *composition,
-                      std::vector<DrmHwcLayer*> &layers, DrmCrtc *crtc,
-                      std::vector<PlaneGroup *> &plane_groups);
+    bool HasLayer(std::vector<DrmHwcLayer*>& layer_vector, DrmHwcLayer* layer);
+    int IsXIntersect(hwc_rect_t* rec, hwc_rect_t* rec2);
+    bool IsRec1IntersectRec2(hwc_rect_t* rec1, hwc_rect_t* rec2);
+    bool IsLayerCombine(DrmHwcLayer* layer_one, DrmHwcLayer* layer_two);
+    int CombineLayer(LayerMap& layer_map, std::vector<DrmHwcLayer*>& layers, uint32_t iPlaneSize);
+    int GetPlaneGroups(DrmCrtc* crtc, std::vector<PlaneGroup*>& out_plane_groups);
+    void ResetLayerFromTmpExceptFB(std::vector<DrmHwcLayer*>& layers, std::vector<DrmHwcLayer*>& tmp_layers);
+    void ResetLayerFromTmp(std::vector<DrmHwcLayer*>& layers, std::vector<DrmHwcLayer*>& tmp_layers);
+    void MoveFbToTmp(std::vector<DrmHwcLayer*>& layers, std::vector<DrmHwcLayer*>& tmp_layers);
+    void OutputMatchLayer(int iFirst, int iLast, std::vector<DrmHwcLayer*>& out_layers,
+                          std::vector<DrmHwcLayer*>& tmp_layers);
+    void ResetPlaneGroups(std::vector<PlaneGroup*>& plane_groups);
+    void ResetLayer(std::vector<DrmHwcLayer*>& layers);
+    int MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, std::vector<PlaneGroup*>& plane_groups,
+                   DrmCompositionPlane::Type type, DrmCrtc* crtc, std::pair<int, std::vector<DrmHwcLayer*>> layers,
+                   int zpos, bool match_best);
 
-  bool TryOverlay();
-  void TryMix();
-  bool NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc *crtc);
-  void UpdateResevedPlane(DrmCrtc *crtc);
-  bool CheckGLESLayer(DrmHwcLayer* layers);
-  void InitStateContext(
-      std::vector<DrmHwcLayer*> &layers,
-      std::vector<PlaneGroup *> &plane_groups,
-      DrmCrtc *crtc);
-  void InitRequestContext(std::vector<DrmHwcLayer*> &layers);
-  void InitSupportContext(
-      std::vector<PlaneGroup *> &plane_groups,
-      DrmCrtc *crtc);
-  int InitContext(std::vector<DrmHwcLayer*> &layers,
-      std::vector<PlaneGroup *> &plane_groups,
-      DrmCrtc *crtc,
-      bool gles_policy);
-
-  bool HasLayer(std::vector<DrmHwcLayer*>& layer_vector,DrmHwcLayer *layer);
-  int  IsXIntersect(hwc_rect_t* rec,hwc_rect_t* rec2);
-  bool IsRec1IntersectRec2(hwc_rect_t* rec1, hwc_rect_t* rec2);
-  bool IsLayerCombine(DrmHwcLayer *layer_one,DrmHwcLayer *layer_two);
-  int  CombineLayer(LayerMap& layer_map,std::vector<DrmHwcLayer*>& layers,uint32_t iPlaneSize);
-  int  GetPlaneGroups(DrmCrtc *crtc, std::vector<PlaneGroup *>&out_plane_groups);
-  void ResetLayerFromTmpExceptFB(std::vector<DrmHwcLayer*>& layers, std::vector<DrmHwcLayer*>& tmp_layers);
-  void ResetLayerFromTmp(std::vector<DrmHwcLayer*>& layers, std::vector<DrmHwcLayer*>& tmp_layers);
-  void MoveFbToTmp(std::vector<DrmHwcLayer*>& layers,std::vector<DrmHwcLayer*>& tmp_layers);
-  void OutputMatchLayer(int iFirst, int iLast,
-                        std::vector<DrmHwcLayer *>& out_layers,
-                        std::vector<DrmHwcLayer *>& tmp_layers);
-  void ResetPlaneGroups(std::vector<PlaneGroup *> &plane_groups);
-  void ResetLayer(std::vector<DrmHwcLayer*>& layers);
-  int  MatchPlane(std::vector<DrmCompositionPlane> *composition_planes,
-                     std::vector<PlaneGroup *> &plane_groups,
-                     DrmCompositionPlane::Type type, DrmCrtc *crtc,
-                     std::pair<int, std::vector<DrmHwcLayer*>> layers, int zpos, bool match_best);
- private:
-  Vop2Ctx ctx;
-  std::shared_ptr<DrmBufferQueue> rgaBufferQueue_;
+  private:
+    Vop2Ctx ctx;
+    std::shared_ptr<DrmBufferQueue> rgaBufferQueue_;
 };
 
 }  // namespace android
 #endif
-

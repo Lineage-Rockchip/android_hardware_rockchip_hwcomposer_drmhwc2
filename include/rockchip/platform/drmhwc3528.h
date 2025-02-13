@@ -36,8 +36,8 @@
 #ifndef ANDROID_HWC_3528_H_
 #define ANDROID_HWC_3528_H_
 
-#include "platform.h"
 #include "drmdevice.h"
+#include "platform.h"
 
 #include <cutils/properties.h>
 
@@ -48,19 +48,17 @@ class DrmDevice;
 // come first serve), and then sticks the rest in a precomposition plane (if
 // needed).
 class Hwc3528 : public HwcPlatform::Platform {
- public:
-  Hwc3528(){ Init(); }
-  void Init();
-  bool SupportPlatform(uint32_t soc_id);
-  // Try to assign DrmPlane to display
-  int TryAssignPlane(DrmDevice* drm);
-  int assignPlaneByPlaneMask(DrmDevice* drm);
-  int assignPlaneByHWC(DrmDevice* drm);
- private:
+  public:
+    Hwc3528() { Init(); }
+    void Init();
+    bool SupportPlatform(uint32_t soc_id);
+    // Try to assign DrmPlane to display
+    int TryAssignPlane(DrmDevice* drm);
+    int assignPlaneByPlaneMask(DrmDevice* drm);
+    int assignPlaneByHWC(DrmDevice* drm);
 
- private:
-
+  private:
+  private:
 };
 }  // namespace android
 #endif
-

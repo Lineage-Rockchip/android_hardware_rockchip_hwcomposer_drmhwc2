@@ -21,25 +21,22 @@
 namespace android {
 
 class AutoLock {
- public:
-  AutoLock(pthread_mutex_t *mutex, const char *const name)
-      : mutex_(mutex), name_(name) {
-  }
-  ~AutoLock() {
-    if (locked_)
-      Unlock();
-  }
+  public:
+    AutoLock(pthread_mutex_t* mutex, const char* const name) : mutex_(mutex), name_(name) {}
+    ~AutoLock() {
+        if (locked_) Unlock();
+    }
 
-  AutoLock(const AutoLock &rhs) = delete;
-  AutoLock &operator=(const AutoLock &rhs) = delete;
+    AutoLock(const AutoLock& rhs) = delete;
+    AutoLock& operator=(const AutoLock& rhs) = delete;
 
-  int Lock();
-  int Unlock();
+    int Lock();
+    int Unlock();
 
- private:
-  pthread_mutex_t *const mutex_;
-  bool locked_ = false;
-  const char *const name_;
+  private:
+    pthread_mutex_t* const mutex_;
+    bool locked_ = false;
+    const char* const name_;
 };
 }  // namespace android
 #endif

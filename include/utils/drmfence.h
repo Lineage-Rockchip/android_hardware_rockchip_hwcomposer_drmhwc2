@@ -18,27 +18,28 @@
 #include "rockchip/utils/drmdebug.h"
 
 #include <android/sync.h>
-#include <libsync/sw_sync.h>
-#include <utils/RefBase.h>
-#include <vector>
-#include <queue>
-#include <unistd.h>
 #include <fcntl.h>
+#include <libsync/sw_sync.h>
+#include <unistd.h>
+#include <utils/RefBase.h>
+#include <queue>
+#include <vector>
 
 namespace android {
 
 // C++ wrapper class for sync timeline.
 class SyncTimeline {
-public:
+  public:
     SyncTimeline() noexcept;
     ~SyncTimeline();
-    SyncTimeline(const SyncTimeline &) = delete;
+    SyncTimeline(const SyncTimeline&) = delete;
     SyncTimeline& operator=(SyncTimeline&) = delete;
     void destroy();
     bool isValid() const;
     int getFd() const;
     int IncTimeline();
-private:
+
+  private:
     int iFd_ = -1;
     bool bFdInitialized_ = false;
     int iTimelineCnt_ = 0;
@@ -48,16 +49,16 @@ struct SyncPointInfo {
     std::string driverName;
     std::string objectName;
     uint64_t timeStampNs;
-    int status; // 1 sig, 0 active, neg is err
+    int status;  // 1 sig, 0 active, neg is err
 };
 
 static int s_fenceCount = 0;
 
 // Wrapper class for sync fence.
 class ReleaseFence : public LightRefBase<ReleaseFence> {
-public:
+  public:
     static const sp<ReleaseFence> NO_FENCE;
-    ReleaseFence(){};
+    ReleaseFence() {};
     ~ReleaseFence();
 
     ReleaseFence(const ReleaseFence& rhs) = delete;
@@ -66,9 +67,7 @@ public:
     ReleaseFence& operator=(ReleaseFence&& rhs) = delete;
 
     ReleaseFence(const int fd, std::string name = "UnKnow") noexcept;
-    ReleaseFence(const SyncTimeline &timeline,
-              int value,
-              const char *name = nullptr) noexcept;
+    ReleaseFence(const SyncTimeline& timeline, int value, const char* name = nullptr) noexcept;
 
     void clearFd();
     void destroy();
@@ -85,7 +84,8 @@ public:
     int getErrorCount() const;
     std::string dump() const;
     std::string getName() const;
-private:
+
+  private:
     // Only allow instantiation using ref counting.
     friend class LightRefBase<ReleaseFence>;
     void setFd(int fd, int sync_timeline_fd, std::string name = "UnKnow");
@@ -98,9 +98,9 @@ private:
 
 // Wrapper class for sync fence.
 class AcquireFence : public LightRefBase<AcquireFence> {
-public:
+  public:
     static const sp<AcquireFence> NO_FENCE;
-    AcquireFence(){};
+    AcquireFence() {};
     ~AcquireFence();
 
     AcquireFence(const AcquireFence& rhs) = delete;
@@ -119,7 +119,8 @@ public:
     int getSignaledCount() const;
     int getActiveCount() const;
     int getErrorCount() const;
-private:
+
+  private:
     // Only allow instantiation using ref counting.
     friend class LightRefBase<AcquireFence>;
     void setFd(int fd);
@@ -148,50 +149,42 @@ private:
 // n by returning the fence from frame n-1. For frame 0, the adapter
 // returns NO_FENCE.
 class DeferredRetireFence {
-    public:
-        DeferredRetireFence()
-          : mFences({ReleaseFence::NO_FENCE, ReleaseFence::NO_FENCE}) {}
+  public:
+    DeferredRetireFence() : mFences({ReleaseFence::NO_FENCE, ReleaseFence::NO_FENCE}) {}
 
-        void add(int32_t fenceFd, std::string name) {
-            mFences.emplace(new ReleaseFence(fenceFd, name));
-            mFences.pop();
-        }
-        void add(sp<ReleaseFence> rf) {
-            mFences.push(rf);
-            mFences.pop();
-        }
+    void add(int32_t fenceFd, std::string name) {
+        mFences.emplace(new ReleaseFence(fenceFd, name));
+        mFences.pop();
+    }
+    void add(sp<ReleaseFence> rf) {
+        mFences.push(rf);
+        mFences.pop();
+    }
 
-        const sp<ReleaseFence> &get() const {
-            return mFences.front();
-        }
-        const sp<ReleaseFence> &get_back() const {
-            return mFences.back();
-        }
-    private:
-        // There are always two fences in this queue.
-        std::queue<sp<ReleaseFence>> mFences;
+    const sp<ReleaseFence>& get() const { return mFences.front(); }
+    const sp<ReleaseFence>& get_back() const { return mFences.back(); }
+
+  private:
+    // There are always two fences in this queue.
+    std::queue<sp<ReleaseFence>> mFences;
 };
 
 class DeferredReleaseFence {
-    public:
-        DeferredReleaseFence()
-          : mFences({ReleaseFence::NO_FENCE, ReleaseFence::NO_FENCE}) {}
+  public:
+    DeferredReleaseFence() : mFences({ReleaseFence::NO_FENCE, ReleaseFence::NO_FENCE}) {}
 
-        void add(sp<ReleaseFence> rf) {
-            mFences.push(rf);
-            mFences.pop();
-        }
+    void add(sp<ReleaseFence> rf) {
+        mFences.push(rf);
+        mFences.pop();
+    }
 
-        const sp<ReleaseFence> &get() const {
-            return mFences.front();
-        }
+    const sp<ReleaseFence>& get() const { return mFences.front(); }
 
-        const sp<ReleaseFence> &get_back() const {
-            return mFences.back();
-        }
-    private:
-        // There are always two fences in this queue.
-        std::queue<sp<ReleaseFence>> mFences;
+    const sp<ReleaseFence>& get_back() const { return mFences.back(); }
+
+  private:
+    // There are always two fences in this queue.
+    std::queue<sp<ReleaseFence>> mFences;
 };
-} // namespace android
+}  // namespace android
 #endif

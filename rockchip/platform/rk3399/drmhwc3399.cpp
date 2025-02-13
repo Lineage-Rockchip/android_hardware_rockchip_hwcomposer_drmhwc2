@@ -17,9 +17,9 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #define LOG_TAG "hwc-drm-two"
 
-#include "platform.h"
 #include "rockchip/platform/drmhwc3399.h"
 #include "drmdevice.h"
+#include "platform.h"
 
 #include <log/log.h>
 
@@ -27,64 +27,59 @@ namespace android {
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-void Hwc3399::Init(){
+void Hwc3399::Init() {}
+
+bool Hwc3399::SupportPlatform(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3399:
+            return true;
+        default:
+            break;
+    }
+    return false;
 }
 
-bool Hwc3399::SupportPlatform(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3399:
-      return true;
-    default:
-      break;
-  }
-  return false;
+int Hwc3399::assignPlaneByPossibleCrtcs(DrmDevice* drm) {
+    std::vector<PlaneGroup*> all_plane_group = drm->GetPlaneGroups();
+    // First, assign active display plane_mask
+    for (auto& conn : drm->connectors()) {
+        if (conn->state() != DRM_MODE_CONNECTED) continue;
+        int display_id = conn->display();
+        DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
+        if (!crtc) {
+            ALOGE("%s,line=%d crtc is NULL.", __FUNCTION__, __LINE__);
+            continue;
+        }
+
+        uint32_t crtc_mask = 1 << crtc->pipe();
+        for (auto& plane_group : all_plane_group) {
+            uint64_t possible_crtcs = plane_group->possible_crtcs;
+            if (crtc_mask & possible_crtcs) {
+                plane_group->set_current_crtc(crtc_mask, display_id);
+            }
+        }
+    }
+    for (auto& plane_group : all_plane_group) {
+        HWC2_ALOGI("name=%s cur_crtcs_mask=0x%x possible-display=%" PRIi64, plane_group->planes[0]->name(),
+                   plane_group->current_crtc_, plane_group->possible_display_);
+    }
+    return 0;
 }
 
-int Hwc3399::assignPlaneByPossibleCrtcs(DrmDevice* drm){
-  std::vector<PlaneGroup*> all_plane_group = drm->GetPlaneGroups();
-  // First, assign active display plane_mask
-  for (auto &conn : drm->connectors()) {
-    if(conn->state() != DRM_MODE_CONNECTED)
-      continue;
-    int display_id = conn->display();
-    DrmCrtc *crtc = drm->GetCrtcForDisplay(display_id);
-    if(!crtc){
-        ALOGE("%s,line=%d crtc is NULL.",__FUNCTION__,__LINE__);
-        continue;
+int Hwc3399::TryAssignPlane(DrmDevice* drm) {
+    int ret = -1;
+    for (auto& conn : drm->connectors()) {
+        if (conn->state() != DRM_MODE_CONNECTED) continue;
+        int display_id = conn->display();
+        DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
+        if (!crtc) {
+            ALOGE("%s,line=%d crtc is NULL.", __FUNCTION__, __LINE__);
+            continue;
+        }
     }
 
-    uint32_t crtc_mask = 1 << crtc->pipe();
-    for(auto &plane_group : all_plane_group){
-      uint64_t possible_crtcs = plane_group->possible_crtcs;
-      if(crtc_mask & possible_crtcs){
-        plane_group->set_current_crtc(crtc_mask, display_id);
-      }
-    }
-  }
-  for(auto &plane_group : all_plane_group){
-    HWC2_ALOGI("name=%s cur_crtcs_mask=0x%x possible-display=%" PRIi64 ,
-            plane_group->planes[0]->name(),plane_group->current_crtc_,plane_group->possible_display_);
+    ret = assignPlaneByPossibleCrtcs(drm);
 
-  }
-  return 0;
+    return ret;
 }
-
-int Hwc3399::TryAssignPlane(DrmDevice* drm){
-  int ret = -1;
-  for (auto &conn : drm->connectors()) {
-    if(conn->state() != DRM_MODE_CONNECTED)
-      continue;
-    int display_id = conn->display();
-    DrmCrtc *crtc = drm->GetCrtcForDisplay(display_id);
-    if(!crtc){
-      ALOGE("%s,line=%d crtc is NULL.",__FUNCTION__,__LINE__);
-      continue;
-    }
-  }
-
-  ret = assignPlaneByPossibleCrtcs(drm);
-
-  return ret;
-}
-}
-
+}  // namespace android

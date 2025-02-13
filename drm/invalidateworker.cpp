@@ -20,12 +20,12 @@
 #include "rockchip/invalidateworker.h"
 #include "utils/worker.h"
 
+#include <hardware/hardware.h>
+#include <log/log.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
 #include <utils/Trace.h>
-#include <hardware/hardware.h>
-#include <log/log.h>
 
 namespace android {
 
@@ -35,32 +35,28 @@ InvalidateWorker::InvalidateWorker()
       display_(-1),
       refresh_(0),
       refresh_cnt_(0),
-      last_timestamp_(-1){
-}
+      last_timestamp_(-1) {}
 
-InvalidateWorker::~InvalidateWorker() {
-}
+InvalidateWorker::~InvalidateWorker() {}
 
 int InvalidateWorker::Init(int display) {
-  display_ = display;
-  return InitWorker();
+    display_ = display;
+    return InitWorker();
 }
 
 void InvalidateWorker::RegisterCallback(std::shared_ptr<InvalidateCallback> callback) {
-  Lock();
-  callback_ = callback;
-  Unlock();
+    Lock();
+    callback_ = callback;
+    Unlock();
 }
 
 void InvalidateWorker::InvalidateControl(uint64_t refresh, int refresh_cnt) {
-  if(refresh_ == refresh &&
-     refresh_cnt_ == refresh_cnt)
-    return;
-  Lock();
-  refresh_ = refresh;
-  refresh_cnt_ = refresh_cnt;
-  Unlock();
-  Signal();
+    if (refresh_ == refresh && refresh_cnt_ == refresh_cnt) return;
+    Lock();
+    refresh_ = refresh;
+    refresh_cnt_ = refresh_cnt;
+    Unlock();
+    Signal();
 }
 
 /*
@@ -77,73 +73,65 @@ void InvalidateWorker::InvalidateControl(uint64_t refresh, int refresh_cnt) {
  *  timestamp.
  */
 int64_t InvalidateWorker::GetPhasedVSync(int64_t frame_ns, int64_t current) {
-  if (last_timestamp_ < 0)
-    return current + frame_ns;
+    if (last_timestamp_ < 0) return current + frame_ns;
 
-  return frame_ns * ((current - last_timestamp_) / frame_ns + 1) +
-         last_timestamp_;
+    return frame_ns * ((current - last_timestamp_) / frame_ns + 1) + last_timestamp_;
 }
 
 static const int64_t kOneSecondNs = 1 * 1000 * 1000 * 1000;
 
-int InvalidateWorker::SyntheticWaitVBlank(int64_t *timestamp) {
-  struct timespec vsync;
-  int ret = clock_gettime(CLOCK_MONOTONIC, &vsync);
+int InvalidateWorker::SyntheticWaitVBlank(int64_t* timestamp) {
+    struct timespec vsync;
+    int ret = clock_gettime(CLOCK_MONOTONIC, &vsync);
 
-  int64_t phased_timestamp = GetPhasedVSync(kOneSecondNs / refresh_,
-                                            vsync.tv_sec * kOneSecondNs +
-                                                vsync.tv_nsec);
-  vsync.tv_sec = phased_timestamp / kOneSecondNs;
-  vsync.tv_nsec = phased_timestamp - (vsync.tv_sec * kOneSecondNs);
-  do {
-    ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &vsync, NULL);
-  } while (ret == -1 && errno == EINTR);
-  if (ret)
-    return ret;
+    int64_t phased_timestamp = GetPhasedVSync(kOneSecondNs / refresh_, vsync.tv_sec * kOneSecondNs + vsync.tv_nsec);
+    vsync.tv_sec = phased_timestamp / kOneSecondNs;
+    vsync.tv_nsec = phased_timestamp - (vsync.tv_sec * kOneSecondNs);
+    do {
+        ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &vsync, NULL);
+    } while (ret == -1 && errno == EINTR);
+    if (ret) return ret;
 
-  *timestamp = (int64_t)vsync.tv_sec * kOneSecondNs + (int64_t)vsync.tv_nsec;
-  return 0;
+    *timestamp = (int64_t)vsync.tv_sec * kOneSecondNs + (int64_t)vsync.tv_nsec;
+    return 0;
 }
 
-
 void InvalidateWorker::Routine() {
-  ATRACE_CALL();
-  int ret;
+    ATRACE_CALL();
+    int ret;
 
-  Lock();
-  if (refresh_cnt_ == 0 || refresh_ == 0) {
-    ret = WaitForSignalOrExitLocked();
-    if (ret == -EINTR) {
-      Unlock();
-      return;
+    Lock();
+    if (refresh_cnt_ == 0 || refresh_ == 0) {
+        ret = WaitForSignalOrExitLocked();
+        if (ret == -EINTR) {
+            Unlock();
+            return;
+        }
     }
-  }
-  Unlock();
-
-  int64_t timestamp;
-  ret = SyntheticWaitVBlank(&timestamp);
-  if (ret < 0) {
-    ALOGE("Failed to wait for vblank: %d", ret);
     Unlock();
-    return;
-  }
 
-  Lock();
-  last_timestamp_ = timestamp;
+    int64_t timestamp;
+    ret = SyntheticWaitVBlank(&timestamp);
+    if (ret < 0) {
+        ALOGE("Failed to wait for vblank: %d", ret);
+        Unlock();
+        return;
+    }
 
-  bool enable = (refresh_cnt_ > 0 || refresh_cnt_ < 0);
+    Lock();
+    last_timestamp_ = timestamp;
 
-  if(refresh_cnt_ > 0)
-    refresh_cnt_--;
+    bool enable = (refresh_cnt_ > 0 || refresh_cnt_ < 0);
 
-  std::shared_ptr<InvalidateCallback> callback(callback_);
-  Unlock();
+    if (refresh_cnt_ > 0) refresh_cnt_--;
 
-  if (!enable)
-    return;
+    std::shared_ptr<InvalidateCallback> callback(callback_);
+    Unlock();
 
-  if (callback){
-    callback->Callback(display_);
-  }
+    if (!enable) return;
+
+    if (callback) {
+        callback->Callback(display_);
+    }
 }
 }  // namespace android

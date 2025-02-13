@@ -24,8 +24,7 @@ const sp<AcquireFence> AcquireFence::NO_FENCE = sp<AcquireFence>(new AcquireFenc
 // SyncTimeline:
 SyncTimeline::SyncTimeline() noexcept {
     int fd = sw_sync_timeline_create();
-    if (fd == -1)
-        return;
+    if (fd == -1) return;
     bFdInitialized_ = true;
     iFd_ = fd;
 }
@@ -46,8 +45,7 @@ bool SyncTimeline::isValid() const {
             return true;
         else
             return false;
-    }
-    else {
+    } else {
         return false;
     }
 }
@@ -58,38 +56,32 @@ int SyncTimeline::IncTimeline() {
     return ++iTimelineCnt_;
 }
 
-
 // Wrapper class for sync fence.
 // ReleaseFence
-ReleaseFence::~ReleaseFence(){
+ReleaseFence::~ReleaseFence() {
     destroy();
 }
 ReleaseFence::ReleaseFence(const int fd, std::string name) noexcept {
     int status = fcntl(fd, F_GETFD, 0);
-    if (status < 0)
-        return;
+    if (status < 0) return;
     setFd(fd, -1, name);
     bFdInitialized_ = true;
 }
-ReleaseFence::ReleaseFence(const SyncTimeline &timeline,
-          int value,
-          const char *name) noexcept {
+ReleaseFence::ReleaseFence(const SyncTimeline& timeline, int value, const char* name) noexcept {
     std::string autoName = "allocReleaseFence";
     autoName += s_fenceCount;
     s_fenceCount++;
     int fd = sw_sync_fence_create(timeline.getFd(), name ? name : autoName.c_str(), value);
-    if (fd == -1)
-        return;
+    if (fd == -1) return;
     setFd(fd, timeline.getFd(), name);
-
 }
 
-int ReleaseFence::merge(int fd, const char* name){
-    if(isValid()){
-      std::string autoName = "mergeReleaseFence";
-      autoName += s_fenceCount;
-      s_fenceCount++;
-      return sync_merge(name ? name : autoName.c_str(), getFd(), fd);
+int ReleaseFence::merge(int fd, const char* name) {
+    if (isValid()) {
+        std::string autoName = "mergeReleaseFence";
+        autoName += s_fenceCount;
+        s_fenceCount++;
+        return sync_merge(name ? name : autoName.c_str(), getFd(), fd);
     }
     return -1;
 }
@@ -111,8 +103,7 @@ bool ReleaseFence::isValid() const {
             return true;
         else
             return false;
-    }
-    else {
+    } else {
         return false;
     }
 }
@@ -122,30 +113,26 @@ int ReleaseFence::getFd() const {
 int ReleaseFence::getSyncTimelineFd() const {
     return iSyncTimelineFd_;
 }
-std::string ReleaseFence::getName() const{
+std::string ReleaseFence::getName() const {
     return sName_;
 }
 int ReleaseFence::wait(int timeout) {
     return sync_wait(iFd_, timeout);
 }
 int ReleaseFence::signal() {
-    if(iSyncTimelineFd_ < 0)
-      return -1;
+    if (iSyncTimelineFd_ < 0) return -1;
     return sw_sync_timeline_inc(iSyncTimelineFd_, 1);
 }
 std::vector<SyncPointInfo> ReleaseFence::getInfo() const {
     std::vector<SyncPointInfo> fenceInfo;
-    struct sync_file_info *info = sync_file_info(getFd());
+    struct sync_file_info* info = sync_file_info(getFd());
     if (!info) {
         return fenceInfo;
     }
     const auto fences = sync_get_fence_info(info);
     for (uint32_t i = 0; i < info->num_fences; i++) {
-        fenceInfo.push_back(SyncPointInfo{
-            fences[i].driver_name,
-            fences[i].obj_name,
-            fences[i].timestamp_ns,
-            fences[i].status});
+        fenceInfo.push_back(
+                SyncPointInfo{fences[i].driver_name, fences[i].obj_name, fences[i].timestamp_ns, fences[i].status});
     }
     sync_file_info_free(info);
     return fenceInfo;
@@ -165,8 +152,9 @@ int ReleaseFence::getErrorCount() const {
 
 std::string ReleaseFence::dump() const {
     std::string output;
-    for (auto &info : getInfo()) {
-      output += info.driverName + ":" + info.objectName + ":" + std::to_string(info.timeStampNs) + ":state=" + std::to_string(info.status) + "\n";
+    for (auto& info : getInfo()) {
+        output += info.driverName + ":" + info.objectName + ":" + std::to_string(info.timeStampNs) +
+                  ":state=" + std::to_string(info.status) + "\n";
     }
     return output;
 }
@@ -182,26 +170,23 @@ void ReleaseFence::setFd(int fd, int sync_timeline_fd, std::string name) {
 int ReleaseFence::countWithStatus(int status) const {
     auto fenceInfo = getInfo();
     return std::count_if(fenceInfo.begin(), fenceInfo.end(),
-                         [status](const auto info) {
-                            return info.status == status;
-                        });
+                         [status](const auto info) { return info.status == status; });
 }
 
 // AcquireFence
 AcquireFence::AcquireFence(const int fd) noexcept {
     int status = fcntl(fd, F_GETFD, 0);
-    if (status < 0)
-        return;
+    if (status < 0) return;
     setFd(fd);
     bFdInitialized_ = true;
 }
 
-int AcquireFence::merge(int fd, const char* name){
-    if(isValid()){
-      std::string autoName = "mergeAcquireFence";
-      autoName += s_fenceCount;
-      s_fenceCount++;
-      return sync_merge(name ? name : autoName.c_str(), getFd(), fd);
+int AcquireFence::merge(int fd, const char* name) {
+    if (isValid()) {
+        std::string autoName = "mergeAcquireFence";
+        autoName += s_fenceCount;
+        s_fenceCount++;
+        return sync_merge(name ? name : autoName.c_str(), getFd(), fd);
     }
     return -1;
 }
@@ -224,8 +209,7 @@ bool AcquireFence::isValid() const {
             return true;
         else
             return false;
-    }
-    else {
+    } else {
         return false;
     }
 }
@@ -234,24 +218,21 @@ int AcquireFence::getFd() const {
     return iFd_;
 }
 int AcquireFence::wait(int timeout) {
-    if(!isValid()){
-      return 0;
+    if (!isValid()) {
+        return 0;
     }
     return sync_wait(iFd_, timeout);
 }
 std::vector<SyncPointInfo> AcquireFence::getInfo() const {
     std::vector<SyncPointInfo> fenceInfo;
-    struct sync_file_info *info = sync_file_info(getFd());
+    struct sync_file_info* info = sync_file_info(getFd());
     if (!info) {
         return fenceInfo;
     }
     const auto fences = sync_get_fence_info(info);
     for (uint32_t i = 0; i < info->num_fences; i++) {
-        fenceInfo.push_back(SyncPointInfo{
-            fences[i].driver_name,
-            fences[i].obj_name,
-            fences[i].timestamp_ns,
-            fences[i].status});
+        fenceInfo.push_back(
+                SyncPointInfo{fences[i].driver_name, fences[i].obj_name, fences[i].timestamp_ns, fences[i].status});
     }
     sync_file_info_free(info);
     return fenceInfo;
@@ -279,12 +260,9 @@ void AcquireFence::clearFd() {
 }
 
 int AcquireFence::countWithStatus(int status) const {
-
     auto fenceInfo = getInfo();
     return std::count_if(fenceInfo.begin(), fenceInfo.end(),
-                         [status](const auto& info) {
-                            return info.status == status;
-                        });
+                         [status](const auto& info) { return info.status == status; });
 }
 
-}
+}  // namespace android

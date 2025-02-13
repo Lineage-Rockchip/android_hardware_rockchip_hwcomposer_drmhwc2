@@ -21,24 +21,24 @@
 
 #define HWC_DRM_BO_MAX_PLANES 4
 typedef struct hwc_drm_bo {
-  uint64_t buffer_id;
-  uint32_t fd;
-  uint32_t width;
-  uint32_t height;
-  uint32_t height_stride;
-  uint32_t format;        /* DRM_FORMAT_* from drm_fourcc.h */
-  uint32_t hal_format;    /* HAL_PIXEL_FORMAT_* */
-  uint64_t modifier;
-  uint64_t usage;
-  uint32_t pixel_stride;
-  uint32_t byte_stride;
-  uint32_t pitches[HWC_DRM_BO_MAX_PLANES];
-  uint32_t offsets[HWC_DRM_BO_MAX_PLANES];
-  uint32_t gem_handles[HWC_DRM_BO_MAX_PLANES];
-  uint32_t fb_id;
-  uint32_t layer_cnt;
-  int acquire_fence_fd;
-  void *priv;
+    uint64_t buffer_id;
+    uint32_t fd;
+    uint32_t width;
+    uint32_t height;
+    uint32_t height_stride;
+    uint32_t format;     /* DRM_FORMAT_* from drm_fourcc.h */
+    uint32_t hal_format; /* HAL_PIXEL_FORMAT_* */
+    uint64_t modifier;
+    uint64_t usage;
+    uint32_t pixel_stride;
+    uint32_t byte_stride;
+    uint32_t pitches[HWC_DRM_BO_MAX_PLANES];
+    uint32_t offsets[HWC_DRM_BO_MAX_PLANES];
+    uint32_t gem_handles[HWC_DRM_BO_MAX_PLANES];
+    uint32_t fb_id;
+    uint32_t layer_cnt;
+    int acquire_fence_fd;
+    void* priv;
 } hwc_drm_bo_t;
 
 #endif  // ANDROID_DRMHWCGRALLOC_H_

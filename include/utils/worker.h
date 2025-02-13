@@ -28,55 +28,45 @@
 namespace android {
 
 class Worker {
- public:
-  void Lock() {
-    mutex_.lock();
-  }
-  void Unlock() {
-    mutex_.unlock();
-  }
+  public:
+    void Lock() { mutex_.lock(); }
+    void Unlock() { mutex_.unlock(); }
 
-  void Signal() {
-    cond_.notify_all();
-  }
+    void Signal() { cond_.notify_all(); }
 
-  void Exit();
+    void Exit();
 
-  bool initialized() const {
-    return initialized_;
-  }
+    bool initialized() const { return initialized_; }
 
- protected:
-  Worker(const char *name, int priority);
-  virtual ~Worker();
+  protected:
+    Worker(const char* name, int priority);
+    virtual ~Worker();
 
-  int InitWorker();
-  virtual void Routine() = 0;
+    int InitWorker();
+    virtual void Routine() = 0;
 
-  /*
-   * Must be called with the lock acquired. max_nanoseconds may be negative to
-   * indicate infinite timeout, otherwise it indicates the maximum time span to
-   * wait for a signal before returning.
-   * Returns -EINTR if interrupted by exit request, or -ETIMEDOUT if timed out
-   */
-  int WaitForSignalOrExitLocked(int64_t max_nanoseconds = -1);
+    /*
+     * Must be called with the lock acquired. max_nanoseconds may be negative to
+     * indicate infinite timeout, otherwise it indicates the maximum time span to
+     * wait for a signal before returning.
+     * Returns -EINTR if interrupted by exit request, or -ETIMEDOUT if timed out
+     */
+    int WaitForSignalOrExitLocked(int64_t max_nanoseconds = -1);
 
-  bool should_exit() const {
-    return exit_;
-  }
+    bool should_exit() const { return exit_; }
 
-  std::mutex mutex_;
-  std::condition_variable cond_;
+    std::mutex mutex_;
+    std::condition_variable cond_;
 
- private:
-  void InternalRoutine();
+  private:
+    void InternalRoutine();
 
-  std::string name_;
-  int priority_;
+    std::string name_;
+    int priority_;
 
-  std::unique_ptr<std::thread> thread_;
-  bool exit_;
-  bool initialized_;
+    std::unique_ptr<std::thread> thread_;
+    bool exit_;
+    bool initialized_;
 };
 }  // namespace android
 #endif

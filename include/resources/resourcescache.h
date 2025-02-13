@@ -35,15 +35,15 @@ class GemHandle {
     ~GemHandle();
     GemHandle(const GemHandle&) = delete;
     GemHandle& operator=(const GemHandle&) = delete;
-    int InitGemHandle(const char *name, uint64_t buffer_fd, uint64_t buffer_id);
+    int InitGemHandle(const char* name, uint64_t buffer_fd, uint64_t buffer_id);
     uint32_t GetGemHandle();
     bool isValid();
 
   private:
-    DrmGralloc *drmGralloc_;
-    uint64_t uBufferId_=0;
-    uint32_t uGemHandle_=0;
-    const char *name_;
+    DrmGralloc* drmGralloc_;
+    uint64_t uBufferId_ = 0;
+    uint32_t uGemHandle_ = 0;
+    const char* name_;
 };
 
 class RgaHandle {
@@ -56,7 +56,7 @@ class RgaHandle {
     bool isValid();
 
   private:
-    rga_buffer_handle_t uRgaHandle_=0;
+    rga_buffer_handle_t uRgaHandle_ = 0;
     uint64_t uBufferId_ = 0;
     int iSize_ = 0;
     int iFd_ = -1;
@@ -64,38 +64,38 @@ class RgaHandle {
     mutable std::recursive_mutex mRecursiveMutex;
 };
 
-class LayerInfoCache{
+class LayerInfoCache {
   public:
-  LayerInfoCache();
-  ~LayerInfoCache();
-  LayerInfoCache(const LayerInfoCache&) = delete;
-  LayerInfoCache& operator=(const LayerInfoCache&) = delete;
+    LayerInfoCache();
+    ~LayerInfoCache();
+    LayerInfoCache(const LayerInfoCache&) = delete;
+    LayerInfoCache& operator=(const LayerInfoCache&) = delete;
 
-  bool NeedCacheBufferHandle(buffer_handle_t handle);
-  int CacheBufferHandle(buffer_handle_t handle);
+    bool NeedCacheBufferHandle(buffer_handle_t handle);
+    int CacheBufferHandle(buffer_handle_t handle);
 
-  base::unique_fd uniqueFd_;
-  buffer_handle_t buffer_ = NULL;
-  int iFormat_=0;
-  int iWidth_=0;
-  int iHeight_=0;
-  int iStride_=0;
-  int iHeightStride_=0;
-  int iSize_=0;
-  int iByteStride_=0;
-  std::vector<uint32_t> uByteStridePlanes_;
-  uint64_t iUsage_=0;
-  uint32_t uFourccFormat_=0;
-  uint32_t uGemHandle_=0;
-  uint64_t uModifier_=0;
-  uint64_t uBufferId_;
-  GemHandle gemHandle_;
-  std::string sLayerName_;
-  bool bFbIdCached_ = false;
-  bool bHasMetadata_ = false;
-  // RGA handle cache
-  RgaHandle rgaHandle_;
+    base::unique_fd uniqueFd_;
+    buffer_handle_t buffer_ = NULL;
+    int iFormat_ = 0;
+    int iWidth_ = 0;
+    int iHeight_ = 0;
+    int iStride_ = 0;
+    int iHeightStride_ = 0;
+    int iSize_ = 0;
+    int iByteStride_ = 0;
+    std::vector<uint32_t> uByteStridePlanes_;
+    uint64_t iUsage_ = 0;
+    uint32_t uFourccFormat_ = 0;
+    uint32_t uGemHandle_ = 0;
+    uint64_t uModifier_ = 0;
+    uint64_t uBufferId_;
+    GemHandle gemHandle_;
+    std::string sLayerName_;
+    bool bFbIdCached_ = false;
+    bool bHasMetadata_ = false;
+    // RGA handle cache
+    RgaHandle rgaHandle_;
 };
 
-};
+};  // namespace android
 #endif

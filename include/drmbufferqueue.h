@@ -24,30 +24,26 @@ namespace android {
 
 #define DRM_BUFFERQUEUE_MAX_SIZE 6
 
-class DrmBufferQueue{
-public:
-  DrmBufferQueue();
-  DrmBufferQueue(int size);
+class DrmBufferQueue {
+  public:
+    DrmBufferQueue();
+    DrmBufferQueue(int size);
 
-  ~DrmBufferQueue();
-  bool NeedsReallocation(int w, int h, int format);
-  std::shared_ptr<DrmBuffer> FrontDrmBuffer();
-  std::shared_ptr<DrmBuffer> BackDrmBuffer();
-  std::shared_ptr<DrmBuffer> GetLastBuffer(int parent_id);
-  std::shared_ptr<DrmBuffer> DequeueDrmBuffer(int w,
-                                              int h,
-                                              int format,
-                                              uint64_t usage,
-                                              std::string name,
-                                              int parent_id = 0);
-  int QueueBuffer(const std::shared_ptr<DrmBuffer> buffer);
+    ~DrmBufferQueue();
+    bool NeedsReallocation(int w, int h, int format);
+    std::shared_ptr<DrmBuffer> FrontDrmBuffer();
+    std::shared_ptr<DrmBuffer> BackDrmBuffer();
+    std::shared_ptr<DrmBuffer> GetLastBuffer(int parent_id);
+    std::shared_ptr<DrmBuffer> DequeueDrmBuffer(int w, int h, int format, uint64_t usage, std::string name,
+                                                int parent_id = 0);
+    int QueueBuffer(const std::shared_ptr<DrmBuffer> buffer);
 
-private:
-  std::string sName_;
-  int iMaxBufferSize_;
-  std::shared_ptr<DrmBuffer> currentBuffer_;
-  std::queue<std::shared_ptr<DrmBuffer>> bufferQueue_;
+  private:
+    std::string sName_;
+    int iMaxBufferSize_;
+    std::shared_ptr<DrmBuffer> currentBuffer_;
+    std::queue<std::shared_ptr<DrmBuffer>> bufferQueue_;
 };
 
-}// namespace android
-#endif // #ifndef _DRM_BUFFER_QUEUE_H_
+}  // namespace android
+#endif  // #ifndef _DRM_BUFFER_QUEUE_H_

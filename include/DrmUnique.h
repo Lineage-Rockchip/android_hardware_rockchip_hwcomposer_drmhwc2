@@ -23,65 +23,51 @@
 #include <memory>
 
 template <typename T>
-using DUniquePtr = std::unique_ptr<T, std::function<void(T *)>>;
+using DUniquePtr = std::unique_ptr<T, std::function<void(T*)>>;
 
 using DrmModeAtomicReqUnique = DUniquePtr<drmModeAtomicReq>;
 auto inline MakeDrmModeAtomicReqUnique() {
-  return DrmModeAtomicReqUnique(drmModeAtomicAlloc(), [](drmModeAtomicReq *it) {
-    drmModeAtomicFree(it);
-  });
+    return DrmModeAtomicReqUnique(drmModeAtomicAlloc(), [](drmModeAtomicReq* it) { drmModeAtomicFree(it); });
 };
 
 using DrmModeConnectorUnique = DUniquePtr<drmModeConnector>;
 auto inline MakeDrmModeConnectorUnique(int fd, uint32_t connector_id) {
-  return DrmModeConnectorUnique(drmModeGetConnector(fd, connector_id),
-                                [](drmModeConnector *it) {
-                                  drmModeFreeConnector(it);
-                                });
+    return DrmModeConnectorUnique(drmModeGetConnector(fd, connector_id),
+                                  [](drmModeConnector* it) { drmModeFreeConnector(it); });
 }
 
 using DrmModeCrtcUnique = DUniquePtr<drmModeCrtc>;
 auto inline MakeDrmModeCrtcUnique(int fd, uint32_t crtc_id) {
-  return DrmModeCrtcUnique(drmModeGetCrtc(fd, crtc_id),
-                           [](drmModeCrtc *it) { drmModeFreeCrtc(it); });
+    return DrmModeCrtcUnique(drmModeGetCrtc(fd, crtc_id), [](drmModeCrtc* it) { drmModeFreeCrtc(it); });
 }
 
 using DrmModeEncoderUnique = DUniquePtr<drmModeEncoder>;
 auto inline MakeDrmModeEncoderUnique(int fd, uint32_t encoder_id) {
-  return DrmModeEncoderUnique(drmModeGetEncoder(fd, encoder_id),
-                              [](drmModeEncoder *it) {
-                                drmModeFreeEncoder(it);
-                              });
+    return DrmModeEncoderUnique(drmModeGetEncoder(fd, encoder_id), [](drmModeEncoder* it) { drmModeFreeEncoder(it); });
 }
 
 using DrmModePlaneUnique = DUniquePtr<drmModePlane>;
 auto inline MakeDrmModePlaneUnique(int fd, uint32_t plane_id) {
-  return DrmModePlaneUnique(drmModeGetPlane(fd, plane_id),
-                            [](drmModePlane *it) { drmModeFreePlane(it); });
+    return DrmModePlaneUnique(drmModeGetPlane(fd, plane_id), [](drmModePlane* it) { drmModeFreePlane(it); });
 }
 
 using DrmModePlaneResUnique = DUniquePtr<drmModePlaneRes>;
 auto inline MakeDrmModePlaneResUnique(int fd) {
-  return DrmModePlaneResUnique(drmModeGetPlaneResources(fd),
-                               [](drmModePlaneRes *it) {
-                                 drmModeFreePlaneResources(it);
-                               });
+    return DrmModePlaneResUnique(drmModeGetPlaneResources(fd),
+                                 [](drmModePlaneRes* it) { drmModeFreePlaneResources(it); });
 }
 
 using DrmModeUserPropertyBlobUnique = DUniquePtr<uint32_t /*id*/>;
 
 using DrmModePropertyBlobUnique = DUniquePtr<drmModePropertyBlobRes>;
 auto inline MakeDrmModePropertyBlobUnique(int fd, uint32_t blob_id) {
-  return DrmModePropertyBlobUnique(drmModeGetPropertyBlob(fd, blob_id),
-                                   [](drmModePropertyBlobRes *it) {
-                                     drmModeFreePropertyBlob(it);
-                                   });
+    return DrmModePropertyBlobUnique(drmModeGetPropertyBlob(fd, blob_id),
+                                     [](drmModePropertyBlobRes* it) { drmModeFreePropertyBlob(it); });
 }
 
 using DrmModeResUnique = DUniquePtr<drmModeRes>;
 auto inline MakeDrmModeResUnique(int fd) {
-  return DrmModeResUnique(drmModeGetResources(fd),
-                          [](drmModeRes *it) { drmModeFreeResources(it); });
+    return DrmModeResUnique(drmModeGetResources(fd), [](drmModeRes* it) { drmModeFreeResources(it); });
 }
 
 #endif

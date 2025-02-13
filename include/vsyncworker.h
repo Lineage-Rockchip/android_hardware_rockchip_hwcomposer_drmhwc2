@@ -29,43 +29,42 @@
 namespace android {
 
 class VsyncCallback {
- public:
-  virtual ~VsyncCallback() {
-  }
-  virtual void Callback(int display, int64_t timestamp) = 0;
+  public:
+    virtual ~VsyncCallback() {}
+    virtual void Callback(int display, int64_t timestamp) = 0;
 // Only Android 14 Support
 #if PLATFORM_SDK_VERSION >= 34
-  virtual void Callback(int display, int64_t timestamp, hwc2_vsync_period_t vsyncPeriodNanos) = 0;
+    virtual void Callback(int display, int64_t timestamp, hwc2_vsync_period_t vsyncPeriodNanos) = 0;
 #endif
 };
 
 class VSyncWorker : public Worker {
- public:
-  VSyncWorker();
-  ~VSyncWorker() override;
+  public:
+    VSyncWorker();
+    ~VSyncWorker() override;
 
-  int Init(DrmDevice *drm, int display);
-  void RegisterCallback(std::shared_ptr<VsyncCallback> callback);
+    int Init(DrmDevice* drm, int display);
+    void RegisterCallback(std::shared_ptr<VsyncCallback> callback);
 
-  void VSyncControl(bool enabled);
+    void VSyncControl(bool enabled);
 
- protected:
-  void Routine() override;
+  protected:
+    void Routine() override;
 
- private:
-  int64_t GetPhasedVSync(int64_t frame_ns, int64_t current);
-  int SyntheticWaitVBlank(int64_t *timestamp);
+  private:
+    int64_t GetPhasedVSync(int64_t frame_ns, int64_t current);
+    int SyntheticWaitVBlank(int64_t* timestamp);
 
-  DrmDevice *drm_;
+    DrmDevice* drm_;
 
-  // shared_ptr since we need to use this outside of the thread lock (to
-  // actually call the hook) and we don't want the memory freed until we're
-  // done
-  std::shared_ptr<VsyncCallback> callback_ = NULL;
+    // shared_ptr since we need to use this outside of the thread lock (to
+    // actually call the hook) and we don't want the memory freed until we're
+    // done
+    std::shared_ptr<VsyncCallback> callback_ = NULL;
 
-  int display_;
-  bool enabled_;
-  int64_t last_timestamp_;
+    int display_;
+    bool enabled_;
+    int64_t last_timestamp_;
 };
 }  // namespace android
 

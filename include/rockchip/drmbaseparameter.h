@@ -20,20 +20,20 @@
 
 namespace android {
 
-class DrmBaseparameter{
-public:
-  DrmBaseparameter();
-  ~DrmBaseparameter();
-  int Init();
-  int UpdateConnectorBaseInfo(unsigned int connector_type,unsigned int connector_id,struct disp_info *info);
-  int DumpConnectorBaseInfo(unsigned int connector_type,unsigned int connector_id,struct disp_info *info);
-  int SetScreenInfo(unsigned int connector_type, unsigned int connector_id, int index, struct screen_info *info);
+class DrmBaseparameter {
+  public:
+    DrmBaseparameter();
+    ~DrmBaseparameter();
+    int Init();
+    int UpdateConnectorBaseInfo(unsigned int connector_type, unsigned int connector_id, struct disp_info* info);
+    int DumpConnectorBaseInfo(unsigned int connector_type, unsigned int connector_id, struct disp_info* info);
+    int SetScreenInfo(unsigned int connector_type, unsigned int connector_id, int index, struct screen_info* info);
 
-private:
-  mutable pthread_mutex_t lock_;
-  baseparameter_api api_;
-  bool init_success_;
+  private:
+    mutable pthread_mutex_t lock_;
+    baseparameter_api api_;
+    bool init_success_;
 };
-} // // namespace android
+}  // namespace android
 
-#endif // ANDROID_DRM_BASEPARAMETER_H_
+#endif  // ANDROID_DRM_BASEPARAMETER_H_

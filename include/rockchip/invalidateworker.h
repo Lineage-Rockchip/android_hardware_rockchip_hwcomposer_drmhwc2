@@ -28,38 +28,37 @@
 namespace android {
 
 class InvalidateCallback {
- public:
-  virtual ~InvalidateCallback() {
-  }
-  virtual void Callback(int display) = 0;
+  public:
+    virtual ~InvalidateCallback() {}
+    virtual void Callback(int display) = 0;
 };
 
 class InvalidateWorker : public Worker {
- public:
-  InvalidateWorker();
-  ~InvalidateWorker() override;
+  public:
+    InvalidateWorker();
+    ~InvalidateWorker() override;
 
-  int Init(int display);
-  void RegisterCallback(std::shared_ptr<InvalidateCallback> callback);
+    int Init(int display);
+    void RegisterCallback(std::shared_ptr<InvalidateCallback> callback);
 
-  void InvalidateControl(uint64_t refresh, int refresh_cnt);
+    void InvalidateControl(uint64_t refresh, int refresh_cnt);
 
- protected:
-  void Routine() override;
+  protected:
+    void Routine() override;
 
- private:
-  int64_t GetPhasedVSync(int64_t frame_ns, int64_t current);
-  int SyntheticWaitVBlank(int64_t *timestamp);
+  private:
+    int64_t GetPhasedVSync(int64_t frame_ns, int64_t current);
+    int SyntheticWaitVBlank(int64_t* timestamp);
 
-  // shared_ptr since we need to use this outside of the thread lock (to
-  // actually call the hook) and we don't want the memory freed until we're
-  // done
-  std::shared_ptr<InvalidateCallback> callback_ = NULL;
-  bool enable_;
-  int display_;
-  uint64_t refresh_;
-  int refresh_cnt_;
-  int64_t last_timestamp_;
+    // shared_ptr since we need to use this outside of the thread lock (to
+    // actually call the hook) and we don't want the memory freed until we're
+    // done
+    std::shared_ptr<InvalidateCallback> callback_ = NULL;
+    bool enable_;
+    int display_;
+    uint64_t refresh_;
+    int refresh_cnt_;
+    int64_t last_timestamp_;
 };
 }  // namespace android
 

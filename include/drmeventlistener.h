@@ -25,43 +25,40 @@ namespace android {
 class DrmDevice;
 
 class DrmEventHandler {
- public:
-  DrmEventHandler() {
-  }
-  virtual ~DrmEventHandler() {
-  }
+  public:
+    DrmEventHandler() {}
+    virtual ~DrmEventHandler() {}
 
-  virtual void HandleEvent(uint64_t timestamp_us) = 0;
-  virtual void HandleResolutionSwitchEvent(int display_id) = 0;
+    virtual void HandleEvent(uint64_t timestamp_us) = 0;
+    virtual void HandleResolutionSwitchEvent(int display_id) = 0;
 };
 
 class DrmEventListener : public Worker {
- public:
-  DrmEventListener(DrmDevice *drm);
-  virtual ~DrmEventListener() {
-  }
+  public:
+    DrmEventListener(DrmDevice* drm);
+    virtual ~DrmEventListener() {}
 
-  int Init();
+    int Init();
 
-  void RegisterHotplugHandler(DrmEventHandler *handler);
+    void RegisterHotplugHandler(DrmEventHandler* handler);
 
-  static void FlipHandler(int fd, unsigned int sequence, unsigned int tv_sec,
-                          unsigned int tv_usec, void *user_data);
-  void FlipResolutionSwitchHandler(int display_id);
-  void FlipHotplugEventForInit();
- protected:
-  virtual void Routine();
+    static void FlipHandler(int fd, unsigned int sequence, unsigned int tv_sec, unsigned int tv_usec, void* user_data);
+    void FlipResolutionSwitchHandler(int display_id);
+    void FlipHotplugEventForInit();
 
- private:
-  void UEventHandler();
+  protected:
+    virtual void Routine();
 
-  fd_set fds_;
-  UniqueFd uevent_fd_;
-  int max_fd_ = -1;
-  std::atomic<bool> is_pending_event_;
+  private:
+    void UEventHandler();
 
-  DrmDevice *drm_;
-  std::unique_ptr<DrmEventHandler> hotplug_handler_;
+    fd_set fds_;
+    UniqueFd uevent_fd_;
+    int max_fd_ = -1;
+    std::atomic<bool> is_pending_event_;
+
+    DrmDevice* drm_;
+    std::unique_ptr<DrmEventHandler> hotplug_handler_;
 };
 }  // namespace android
 

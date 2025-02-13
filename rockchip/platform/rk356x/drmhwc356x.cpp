@@ -17,9 +17,9 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #define LOG_TAG "hwc-drm-two"
 
-#include "platform.h"
 #include "rockchip/platform/drmhwc356x.h"
 #include "drmdevice.h"
+#include "platform.h"
 
 #include <log/log.h>
 
@@ -27,159 +27,157 @@ namespace android {
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-void Hwc356x::Init(){
+void Hwc356x::Init() {}
+
+bool Hwc356x::SupportPlatform(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3566:
+        case 0x3568:
+        // after ECO
+        case 0x3566a:
+        case 0x3568a:
+            return true;
+        default:
+            break;
+    }
+    return false;
 }
 
-bool Hwc356x::SupportPlatform(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3566:
-    case 0x3568:
-    // after ECO
-    case 0x3566a:
-    case 0x3568a:
-      return true;
-    default:
-      break;
-  }
-  return false;
-}
-
-struct assign_plane_group_356x{
-	int display_type;
-  uint64_t drm_type_mask;
-  bool have_assigin;
+struct assign_plane_group_356x {
+    int display_type;
+    uint64_t drm_type_mask;
+    bool have_assigin;
 };
 struct assign_plane_group_356x assign_mask_default_356x[] = {
-  { -1 , DRM_PLANE_TYPE_CLUSTER0_WIN0 | DRM_PLANE_TYPE_CLUSTER0_WIN1 | DRM_PLANE_TYPE_ESMART0_WIN0 | DRM_PLANE_TYPE_SMART0_WIN0, false},
-  { -1 , DRM_PLANE_TYPE_CLUSTER1_WIN0 | DRM_PLANE_TYPE_CLUSTER1_WIN1 | DRM_PLANE_TYPE_SMART1_WIN0, false},
-  { -1 , DRM_PLANE_TYPE_ESMART1_WIN0, false},
+        {-1,
+         DRM_PLANE_TYPE_CLUSTER0_WIN0 | DRM_PLANE_TYPE_CLUSTER0_WIN1 | DRM_PLANE_TYPE_ESMART0_WIN0 |
+                 DRM_PLANE_TYPE_SMART0_WIN0,
+         false},
+        {-1, DRM_PLANE_TYPE_CLUSTER1_WIN0 | DRM_PLANE_TYPE_CLUSTER1_WIN1 | DRM_PLANE_TYPE_SMART1_WIN0, false},
+        {-1, DRM_PLANE_TYPE_ESMART1_WIN0, false},
 };
 
-int Hwc356x::assignPlaneByHWC(DrmDevice* drm){
-  HWC2_ALOGW("Crtc PlaneMask not set, have to use HwcPlaneMask, please check Crtc::PlaneMask info.");
-  std::vector<PlaneGroup*> all_plane_group = drm->GetPlaneGroups();
-  for (auto &conn : drm->connectors()) {
-    if(conn->state() != DRM_MODE_CONNECTED)
-      continue;
-    int display_id = conn->display();
-    DrmCrtc *crtc = drm->GetCrtcForDisplay(display_id);
-    if(!crtc){
-        HWC2_ALOGE("display=%d crtc is NULL.",display_id);
-        continue;
-    }
-
-    uint64_t plane_mask=0;
-    for(int i = 0; i < ARRAY_SIZE(assign_mask_default_356x);i++){
-      if(display_id == assign_mask_default_356x[i].display_type){
-        plane_mask = assign_mask_default_356x[i].drm_type_mask;
-        break;
-      }
-    }
-
-    if(plane_mask == 0){
-      for(int i = 0; i < ARRAY_SIZE(assign_mask_default_356x);i++){
-        if(assign_mask_default_356x[i].have_assigin == false){
-          assign_mask_default_356x[i].display_type = display_id;
-          plane_mask = assign_mask_default_356x[i].drm_type_mask;
-          assign_mask_default_356x[i].have_assigin = true;
-          break;
+int Hwc356x::assignPlaneByHWC(DrmDevice* drm) {
+    HWC2_ALOGW("Crtc PlaneMask not set, have to use HwcPlaneMask, please check Crtc::PlaneMask info.");
+    std::vector<PlaneGroup*> all_plane_group = drm->GetPlaneGroups();
+    for (auto& conn : drm->connectors()) {
+        if (conn->state() != DRM_MODE_CONNECTED) continue;
+        int display_id = conn->display();
+        DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
+        if (!crtc) {
+            HWC2_ALOGE("display=%d crtc is NULL.", display_id);
+            continue;
         }
-      }
-    }
 
-    uint32_t crtc_mask = 1 << crtc->pipe();
-    ALOGI_IF(DBG_INFO,"%s,line=%d, crtc-id=%d mask=0x%x ,plane_mask=0x%" PRIx64 ,__FUNCTION__,__LINE__,
-             crtc->id(),crtc_mask,plane_mask);
-    for(auto &plane_group : all_plane_group){
-      uint64_t plane_group_win_type = plane_group->win_type;
-      if((plane_mask & plane_group_win_type) == plane_group_win_type){
-        plane_group->set_current_crtc(crtc_mask, display_id);
-      }
-    }
-  }
-
-  for(auto &plane_group : all_plane_group){
-    ALOGI_IF(DBG_INFO,"%s,line=%d, name=%s cur_crtcs_mask=0x%x",__FUNCTION__,__LINE__,
-             plane_group->planes[0]->name(),plane_group->current_crtc_);
-  }
-  return 0;
-}
-
-int Hwc356x::assignPlaneByPlaneMask(DrmDevice* drm){
-  std::vector<PlaneGroup*> all_plane_group = drm->GetPlaneGroups();
-  // First, assign active display plane_mask
-  for (auto &conn : drm->connectors()) {
-    if(conn->state() != DRM_MODE_CONNECTED)
-      continue;
-
-    int display_id = conn->display();
-    DrmCrtc *crtc = drm->GetCrtcForDisplay(display_id);
-    if(!crtc){
-        HWC2_ALOGE("display=%d crtc is NULL.", display_id);
-        continue;
-    }
-
-    // Connector SplitMode
-    if(conn->isHorizontalSplit()){
-      uint32_t crtc_mask = 1 << crtc->pipe();
-      uint64_t plane_mask = crtc->get_plane_mask();
-      HWC2_ALOGI("SplitDisplay id=%d crtc-id=%d mask=0x%x ,plane_mask=0x%" PRIx64,
-              display_id, crtc->id(), crtc_mask, plane_mask);
-      for(auto &plane_group : all_plane_group){
-        uint64_t plane_group_win_type = plane_group->win_type;
-        if(((plane_mask & plane_group_win_type) == plane_group_win_type)){
-          if((plane_group_win_type & DRM_PLANE_TYPE_ALL_CLUSTER_MASK) > 0)
-            plane_group->set_current_crtc(crtc_mask, display_id);
-          else if((plane_group_win_type & DRM_PLANE_TYPE_ALL_ESMART_MASK) > 0)
-            plane_group->set_current_crtc(crtc_mask, display_id + DRM_CONNECTOR_SPLIT_MODE_MASK);
+        uint64_t plane_mask = 0;
+        for (int i = 0; i < ARRAY_SIZE(assign_mask_default_356x); i++) {
+            if (display_id == assign_mask_default_356x[i].display_type) {
+                plane_mask = assign_mask_default_356x[i].drm_type_mask;
+                break;
+            }
         }
-      }
-    }else{ // Normal Mode
-      uint32_t crtc_mask = 1 << crtc->pipe();
-      uint64_t plane_mask = crtc->get_plane_mask();
-      HWC2_ALOGI("display-id=%d crtc-id=%d mask=0x%x ,plane_mask=0x%" PRIx64,
-              display_id, crtc->id(), crtc_mask, plane_mask);
-      for(auto &plane_group : all_plane_group){
-        uint64_t plane_group_win_type = plane_group->win_type;
-        if(((plane_mask & plane_group_win_type) == plane_group_win_type)){
-          plane_group->set_current_crtc(crtc_mask, display_id & 0xf);
+
+        if (plane_mask == 0) {
+            for (int i = 0; i < ARRAY_SIZE(assign_mask_default_356x); i++) {
+                if (assign_mask_default_356x[i].have_assigin == false) {
+                    assign_mask_default_356x[i].display_type = display_id;
+                    plane_mask = assign_mask_default_356x[i].drm_type_mask;
+                    assign_mask_default_356x[i].have_assigin = true;
+                    break;
+                }
+            }
         }
-      }
-    }
-  }
 
-  for(auto &plane_group : all_plane_group){
-    HWC2_ALOGI("name=%s cur_crtcs_mask=0x%x possible-display=%" PRIi64 ,
-            plane_group->planes[0]->name(),plane_group->current_crtc_,plane_group->possible_display_);
-
-  }
-  return 0;
-}
-
-int Hwc356x::TryAssignPlane(DrmDevice* drm){
-  int ret = -1;
-  bool exist_plane_mask = false;
-  for (auto &conn : drm->connectors()) {
-    if(conn->state() != DRM_MODE_CONNECTED)
-      continue;
-    int display_id = conn->display();
-    DrmCrtc *crtc = drm->GetCrtcForDisplay(display_id);
-    if(!crtc){
-      ALOGE("%s,line=%d crtc is NULL.",__FUNCTION__,__LINE__);
-      continue;
+        uint32_t crtc_mask = 1 << crtc->pipe();
+        ALOGI_IF(DBG_INFO, "%s,line=%d, crtc-id=%d mask=0x%x ,plane_mask=0x%" PRIx64, __FUNCTION__, __LINE__,
+                 crtc->id(), crtc_mask, plane_mask);
+        for (auto& plane_group : all_plane_group) {
+            uint64_t plane_group_win_type = plane_group->win_type;
+            if ((plane_mask & plane_group_win_type) == plane_group_win_type) {
+                plane_group->set_current_crtc(crtc_mask, display_id);
+            }
+        }
     }
 
-    if(crtc->get_plane_mask() > 0){
-      exist_plane_mask = true;
+    for (auto& plane_group : all_plane_group) {
+        ALOGI_IF(DBG_INFO, "%s,line=%d, name=%s cur_crtcs_mask=0x%x", __FUNCTION__, __LINE__,
+                 plane_group->planes[0]->name(), plane_group->current_crtc_);
     }
-  }
-
-  if(exist_plane_mask){
-    ret = assignPlaneByPlaneMask(drm);
-  }else{
-    ret = assignPlaneByHWC(drm);
-  }
-
-  return ret;
+    return 0;
 }
+
+int Hwc356x::assignPlaneByPlaneMask(DrmDevice* drm) {
+    std::vector<PlaneGroup*> all_plane_group = drm->GetPlaneGroups();
+    // First, assign active display plane_mask
+    for (auto& conn : drm->connectors()) {
+        if (conn->state() != DRM_MODE_CONNECTED) continue;
+
+        int display_id = conn->display();
+        DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
+        if (!crtc) {
+            HWC2_ALOGE("display=%d crtc is NULL.", display_id);
+            continue;
+        }
+
+        // Connector SplitMode
+        if (conn->isHorizontalSplit()) {
+            uint32_t crtc_mask = 1 << crtc->pipe();
+            uint64_t plane_mask = crtc->get_plane_mask();
+            HWC2_ALOGI("SplitDisplay id=%d crtc-id=%d mask=0x%x ,plane_mask=0x%" PRIx64, display_id, crtc->id(),
+                       crtc_mask, plane_mask);
+            for (auto& plane_group : all_plane_group) {
+                uint64_t plane_group_win_type = plane_group->win_type;
+                if (((plane_mask & plane_group_win_type) == plane_group_win_type)) {
+                    if ((plane_group_win_type & DRM_PLANE_TYPE_ALL_CLUSTER_MASK) > 0)
+                        plane_group->set_current_crtc(crtc_mask, display_id);
+                    else if ((plane_group_win_type & DRM_PLANE_TYPE_ALL_ESMART_MASK) > 0)
+                        plane_group->set_current_crtc(crtc_mask, display_id + DRM_CONNECTOR_SPLIT_MODE_MASK);
+                }
+            }
+        } else {  // Normal Mode
+            uint32_t crtc_mask = 1 << crtc->pipe();
+            uint64_t plane_mask = crtc->get_plane_mask();
+            HWC2_ALOGI("display-id=%d crtc-id=%d mask=0x%x ,plane_mask=0x%" PRIx64, display_id, crtc->id(), crtc_mask,
+                       plane_mask);
+            for (auto& plane_group : all_plane_group) {
+                uint64_t plane_group_win_type = plane_group->win_type;
+                if (((plane_mask & plane_group_win_type) == plane_group_win_type)) {
+                    plane_group->set_current_crtc(crtc_mask, display_id & 0xf);
+                }
+            }
+        }
+    }
+
+    for (auto& plane_group : all_plane_group) {
+        HWC2_ALOGI("name=%s cur_crtcs_mask=0x%x possible-display=%" PRIi64, plane_group->planes[0]->name(),
+                   plane_group->current_crtc_, plane_group->possible_display_);
+    }
+    return 0;
 }
+
+int Hwc356x::TryAssignPlane(DrmDevice* drm) {
+    int ret = -1;
+    bool exist_plane_mask = false;
+    for (auto& conn : drm->connectors()) {
+        if (conn->state() != DRM_MODE_CONNECTED) continue;
+        int display_id = conn->display();
+        DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
+        if (!crtc) {
+            ALOGE("%s,line=%d crtc is NULL.", __FUNCTION__, __LINE__);
+            continue;
+        }
+
+        if (crtc->get_plane_mask() > 0) {
+            exist_plane_mask = true;
+        }
+    }
+
+    if (exist_plane_mask) {
+        ret = assignPlaneByPlaneMask(drm);
+    } else {
+        ret = assignPlaneByHWC(drm);
+    }
+
+    return ret;
+}
+}  // namespace android

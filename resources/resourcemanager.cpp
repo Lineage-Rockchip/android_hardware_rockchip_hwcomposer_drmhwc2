@@ -37,15 +37,15 @@
 
 namespace android {
 
-#define hwcMIN(x, y)			(((x) <= (y)) ?  (x) :  (y))
-#define hwcMAX(x, y)			(((x) >= (y)) ?  (x) :  (y))
+#define hwcMIN(x, y) (((x) <= (y)) ? (x) : (y))
+#define hwcMAX(x, y) (((x) >= (y)) ? (x) : (y))
 
 #ifndef IS_ALIGN
 #define IS_ALIGN(val, align) (((val) & (align - 1)) == 0)
 #endif
 
 #ifndef ALIGN
-#define ALIGN(value, base) (((value) + ((base)-1)) & ~((base)-1))
+#define ALIGN(value, base) (((value) + ((base) - 1)) & ~((base) - 1))
 #endif
 
 #ifndef ALIGN_DOWN
@@ -62,862 +62,797 @@ namespace android {
 #endif
 
 /* Gralloc 4.0 中, 表征 "调用 alloc() 的 client 要求分配的 buffer 不是 AFBC 格式".
-*/
+ */
 #ifndef MALI_GRALLOC_USAGE_NO_AFBC
 #define MALI_GRALLOC_USAGE_NO_AFBC (1ULL << 29)
 #endif
 
 #define WB_BUFFERQUEUE_MAX_SIZE 4
 
-ResourceManager::ResourceManager() :
-  num_displays_(0) {
-  drmGralloc_ = DrmGralloc::getInstance();
+ResourceManager::ResourceManager() : num_displays_(0) {
+    drmGralloc_ = DrmGralloc::getInstance();
 }
 
-int ResourceManager::Init(DrmHwcTwo *hwc2) {
-  hwc2_ = hwc2;
-  int ret = AddDrmDevice();
-  if(ret){
-    ALOGE("Failed to AddDrmDevice ");
-  }
+int ResourceManager::Init(DrmHwcTwo* hwc2) {
+    hwc2_ = hwc2;
+    int ret = AddDrmDevice();
+    if (ret) {
+        ALOGE("Failed to AddDrmDevice ");
+    }
 
-  if (!num_displays_) {
-    ALOGE("Failed to initialize any displays");
-    return ret ? -EINVAL : ret;
-  }
+    if (!num_displays_) {
+        ALOGE("Failed to initialize any displays");
+        return ret ? -EINVAL : ret;
+    }
 
+    fb0_fd = open("/dev/graphics/fb0", O_RDWR, 0);
+    if (fb0_fd < 0) {
+        ALOGE("Open fb0 fail in %s", __FUNCTION__);
+    }
 
-  fb0_fd = open("/dev/graphics/fb0", O_RDWR, 0);
-  if(fb0_fd < 0){
-    ALOGE("Open fb0 fail in %s",__FUNCTION__);
-  }
+    DrmDevice* drm = drms_.front().get();
+    for (auto& crtc : drm->crtcs()) {
+        mapDrmDisplayCompositor_.insert(std::pair<int, std::shared_ptr<DrmDisplayCompositor>>(
+                crtc->id(), std::make_shared<DrmDisplayCompositor>()));
+        HWC2_ALOGI("Create DrmDisplayCompositor crtc=%d", crtc->id());
+    }
 
-  DrmDevice *drm = drms_.front().get();
-  for(auto &crtc : drm->crtcs()){
-    mapDrmDisplayCompositor_.insert(
-      std::pair<int, std::shared_ptr<DrmDisplayCompositor>>(crtc->id(),std::make_shared<DrmDisplayCompositor>()));
-    HWC2_ALOGI("Create DrmDisplayCompositor crtc=%d",crtc->id());
-  }
+    displays_ = drm->GetDisplays();
+    if (displays_.size() == 0) {
+        ALOGE("Failed to initialize any displays");
+        return ret ? -EINVAL : ret;
+    }
 
-  displays_ = drm->GetDisplays();
-  if(displays_.size() == 0){
-    ALOGE("Failed to initialize any displays");
-    return ret ? -EINVAL : ret;
-  }
-
-  // 更新全局平台版本信息
-  gSetSocId(drm->getSocId());
-  // 更新全局 kernel drm 版本信息
-  gSetDrmVersion(drm->getDrmVersion());
+    // 更新全局平台版本信息
+    gSetSocId(drm->getSocId());
+    // 更新全局 kernel drm 版本信息
+    gSetDrmVersion(drm->getDrmVersion());
 
 #ifdef USE_HWC_PROXY_SERVICE
-  ret = hwc_proxy_client_worker_.Init(drm->fd());
-  if (ret) {
-    HWC2_ALOGE("Failed to create hw_output worker for %d\n", ret);
-    return ret;
-  }
+    ret = hwc_proxy_client_worker_.Init(drm->fd());
+    if (ret) {
+        HWC2_ALOGE("Failed to create hw_output worker for %d\n", ret);
+        return ret;
+    }
 #endif
 
-  // 更新配置
-  InitProperty();
-  return 0;
+    // 更新配置
+    InitProperty();
+    return 0;
 }
 
 int ResourceManager::AddDrmDevice() {
-  std::unique_ptr<DrmDevice> drm = std::make_unique<DrmDevice>();
-  int displays_added, ret;
-  std::tie(ret, displays_added) = drm->Init(num_displays_);
-  if (ret < 0)
+    std::unique_ptr<DrmDevice> drm = std::make_unique<DrmDevice>();
+    int displays_added, ret;
+    std::tie(ret, displays_added) = drm->Init(num_displays_);
+    if (ret < 0) return ret;
+
+    //Get soc id
+    soc_id_ = drm->getSocId();
+    //DrmVersion
+    drmVersion_ = drm->getDrmVersion();
+    drmGralloc_->set_drm_version(dup(drm->fd()), drmVersion_);
+
+    std::shared_ptr<Importer> importer;
+    importer.reset(Importer::CreateInstance(drm.get()));
+    if (!importer) {
+        ALOGE("Failed to create importer instance");
+        return -ENODEV;
+    }
+    importers_.push_back(std::move(importer));
+    drms_.push_back(std::move(drm));
+    num_displays_ += displays_added;
     return ret;
-
-  //Get soc id
-  soc_id_ = drm->getSocId();
-  //DrmVersion
-  drmVersion_ = drm->getDrmVersion();
-  drmGralloc_->set_drm_version(dup(drm->fd()),drmVersion_);
-
-  std::shared_ptr<Importer> importer;
-  importer.reset(Importer::CreateInstance(drm.get()));
-  if (!importer) {
-    ALOGE("Failed to create importer instance");
-    return -ENODEV;
-  }
-  importers_.push_back(std::move(importer));
-  drms_.push_back(std::move(drm));
-  num_displays_ += displays_added;
-  return ret;
 }
 
-DrmConnector *ResourceManager::AvailableWritebackConnector(int display) {
-  DrmDevice *drm_device = GetDrmDevice(display);
-  DrmConnector *writeback_conn = NULL;
-  if (drm_device) {
-    writeback_conn = drm_device->AvailableWritebackConnector(display);
-    if (writeback_conn)
-      return writeback_conn;
-  }
-  for (auto &drm : drms_) {
-    if (drm.get() == drm_device)
-      continue;
-    writeback_conn = drm->AvailableWritebackConnector(display);
-    if (writeback_conn)
-      return writeback_conn;
-  }
-  return writeback_conn;
+DrmConnector* ResourceManager::AvailableWritebackConnector(int display) {
+    DrmDevice* drm_device = GetDrmDevice(display);
+    DrmConnector* writeback_conn = NULL;
+    if (drm_device) {
+        writeback_conn = drm_device->AvailableWritebackConnector(display);
+        if (writeback_conn) return writeback_conn;
+    }
+    for (auto& drm : drms_) {
+        if (drm.get() == drm_device) continue;
+        writeback_conn = drm->AvailableWritebackConnector(display);
+        if (writeback_conn) return writeback_conn;
+    }
+    return writeback_conn;
 }
 
 int ResourceManager::InitProperty() {
-  char property_value[PROPERTY_VALUE_MAX];
-  property_get("vendor.hwc.enable_composition_drop_mode", property_value, "0");
-  mCompositionDropMode_ = atoi(property_value) != 0;
+    char property_value[PROPERTY_VALUE_MAX];
+    property_get("vendor.hwc.enable_composition_drop_mode", property_value, "0");
+    mCompositionDropMode_ = atoi(property_value) != 0;
 
-  property_get("vendor.hwc.enable_dynamic_display_mode", property_value, "0");
-  mDynamicDisplayMode_ = atoi(property_value) > 0;
+    property_get("vendor.hwc.enable_dynamic_display_mode", property_value, "0");
+    mDynamicDisplayMode_ = atoi(property_value) > 0;
 
-  property_get("vendor.hwc.enable_sideband_stream_2_mode", property_value, "0");
-  mSidebandStream2Mode_ = atoi(property_value) > 0;
+    property_get("vendor.hwc.enable_sideband_stream_2_mode", property_value, "0");
+    mSidebandStream2Mode_ = atoi(property_value) > 0;
 
-  property_get("vendor.hwc.video_buf_cache_max_size", property_value, "0");
-  mCacheBufferLimitSize_ = atoi(property_value);
+    property_get("vendor.hwc.video_buf_cache_max_size", property_value, "0");
+    mCacheBufferLimitSize_ = atoi(property_value);
 
-  // RGA驱动版本为1.3.5及之前，在使用HDMI-in传递的AcquireFence输入时，可能会出现内核崩溃问题。
-  // 若确认内核驱动已支持，可设置vendor.hwc.enable_rga_acquire_fence=1启用RGA的AcquireFence.
-  property_get("vendor.hwc.enable_rga_acquire_fence", property_value, "0");
-  mEnableRgaAcquireFence = atoi(property_value);
+    // RGA驱动版本为1.3.5及之前，在使用HDMI-in传递的AcquireFence输入时，可能会出现内核崩溃问题。
+    // 若确认内核驱动已支持，可设置vendor.hwc.enable_rga_acquire_fence=1启用RGA的AcquireFence.
+    property_get("vendor.hwc.enable_rga_acquire_fence", property_value, "0");
+    mEnableRgaAcquireFence = atoi(property_value);
 
-  // Enable Edid report by GetDisplayIdentificationData
-  // 上报EDID之后Surfaceflinger会生成不规则的Display ID
-  // RK车机和投影平台需要0，1，2，3这样的顺序ID，因此默认不开启EDID上报
-  property_get("vendor.hwc.enable_edid_report", property_value, "0");
-  mEnableEdidReport_ = atoi(property_value) > 0;
-  // 使能 SingelDisplay 后，HWC仅向SurfaceFlinger注册主屏
-  // 所有的热插拔时间都会进行优先级仲裁，重新指定主屏上报SurfaceFlinger
-  // RK3528要求HDMI和TV互斥，默认开启singleDisplay模式
-  bool enableSingleDispDefault = gIsRK3528();
-  property_get("vendor.hwc.enable_single_display_mode", property_value, enableSingleDispDefault? "1" : "0");
-  mEnableSingleDisplayMode_ = atoi(property_value) > 0;
+    // Enable Edid report by GetDisplayIdentificationData
+    // 上报EDID之后Surfaceflinger会生成不规则的Display ID
+    // RK车机和投影平台需要0，1，2，3这样的顺序ID，因此默认不开启EDID上报
+    property_get("vendor.hwc.enable_edid_report", property_value, "0");
+    mEnableEdidReport_ = atoi(property_value) > 0;
+    // 使能 SingelDisplay 后，HWC仅向SurfaceFlinger注册主屏
+    // 所有的热插拔时间都会进行优先级仲裁，重新指定主屏上报SurfaceFlinger
+    // RK3528要求HDMI和TV互斥，默认开启singleDisplay模式
+    bool enableSingleDispDefault = gIsRK3528();
+    property_get("vendor.hwc.enable_single_display_mode", property_value, enableSingleDispDefault ? "1" : "0");
+    mEnableSingleDisplayMode_ = atoi(property_value) > 0;
 
-  // 使能 solid color 支持开关
-  property_get("vendor.hwc.enable_solid_color_support", property_value, "1");
-  mEnableSolidColorSupport_ = atoi(property_value) > 0;
+    // 使能 solid color 支持开关
+    property_get("vendor.hwc.enable_solid_color_support", property_value, "1");
+    mEnableSolidColorSupport_ = atoi(property_value) > 0;
 
-  return 0;
+    return 0;
 }
 
 bool ResourceManager::IsCompositionDropMode() const {
-  return mCompositionDropMode_;
+    return mCompositionDropMode_;
 }
 
 bool ResourceManager::IsDynamicDisplayMode() const {
-  return mDynamicDisplayMode_;
+    return mDynamicDisplayMode_;
 }
 
 bool ResourceManager::IsSidebandStream2Mode() const {
-  // RK3528 默认开启 Sideband2.0支持
-  if(gIsRK3528()){
-    return true;
-  }
-  return mSidebandStream2Mode_;
+    // RK3528 默认开启 Sideband2.0支持
+    if (gIsRK3528()) {
+        return true;
+    }
+    return mSidebandStream2Mode_;
 }
 
-int ResourceManager::GetCacheBufferLimitSize() const{
-  return mCacheBufferLimitSize_;
+int ResourceManager::GetCacheBufferLimitSize() const {
+    return mCacheBufferLimitSize_;
 }
 
-bool ResourceManager::GetEnableEdidReport() const{
-  return mEnableEdidReport_;
+bool ResourceManager::GetEnableEdidReport() const {
+    return mEnableEdidReport_;
 }
 
-bool ResourceManager::GetEnableRgaAcquireFence() const{
-  return mEnableRgaAcquireFence;
+bool ResourceManager::GetEnableRgaAcquireFence() const {
+    return mEnableRgaAcquireFence;
 }
 
-bool ResourceManager::IsSingleDisplayMode() const{
-  return mEnableSingleDisplayMode_;
+bool ResourceManager::IsSingleDisplayMode() const {
+    return mEnableSingleDisplayMode_;
 }
 
-bool ResourceManager::IsSupportSolidColor() const{
-  return mEnableSolidColorSupport_;
+bool ResourceManager::IsSupportSolidColor() const {
+    return mEnableSolidColorSupport_;
 }
-std::shared_ptr<SolidColorBuffer> ResourceManager::GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h){
-  // 如果输入的尺寸为0，则默认取Primary的UI渲染分辨率
-  if(w == 0 || h == 0 || rgba == 0){
-    HWC2_ALOGE("rgba=0x%x w=%d h=%d, get SolidColorBuffer fail!", rgba, w, h);
+std::shared_ptr<SolidColorBuffer> ResourceManager::GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h) {
+    // 如果输入的尺寸为0，则默认取Primary的UI渲染分辨率
+    if (w == 0 || h == 0 || rgba == 0) {
+        HWC2_ALOGE("rgba=0x%x w=%d h=%d, get SolidColorBuffer fail!", rgba, w, h);
+        return NULL;
+    }
+
+    // 根据 rgba / w / h 获取 drmbuffer
+    std::shared_ptr<SolidColorBuffer> buffer = mSolidColorManager_.getOrCreate(rgba, w, h);
+    if (!buffer) {  // 添加返回值判断
+        HWC2_ALOGE("Failed to create SolidColorBuffer for rgba=0x%x w=%d h=%d", rgba, w, h);
+        return NULL;
+    }
+
+    return buffer;  // 返回创建的缓冲区
+}
+
+bool ResourceManager::GetRgaSupportAbove4GB() const {
+    if (gIsRK3588() || gIsRK3576())
+        return true;
+    else
+        return false;
+}
+
+DrmDevice* ResourceManager::GetDrmDevice(int display) {
+    for (auto& drm : drms_) {
+        if (drm->HandlesDisplay(display & ~DRM_CONNECTOR_SPLIT_MODE_MASK)) return drm.get();
+    }
     return NULL;
-  }
-
-  // 根据 rgba / w / h 获取 drmbuffer
-  std::shared_ptr<SolidColorBuffer> buffer = mSolidColorManager_.getOrCreate(rgba, w, h);
-  if (!buffer) {  // 添加返回值判断
-    HWC2_ALOGE("Failed to create SolidColorBuffer for rgba=0x%x w=%d h=%d", rgba, w, h);
-    return NULL;
-  }
-
-  return buffer;  // 返回创建的缓冲区
-}
-
-bool ResourceManager::GetRgaSupportAbove4GB() const{
-  if(gIsRK3588() || gIsRK3576())
-    return true;
-  else
-    return false;
-}
-
-DrmDevice *ResourceManager::GetDrmDevice(int display) {
-  for (auto &drm : drms_) {
-    if (drm->HandlesDisplay(display & ~DRM_CONNECTOR_SPLIT_MODE_MASK))
-      return drm.get();
-  }
-  return NULL;
 }
 
 std::shared_ptr<Importer> ResourceManager::GetImporter(int display) {
-  for (unsigned int i = 0; i < drms_.size(); i++) {
-    if (drms_[i]->HandlesDisplay(display & ~DRM_CONNECTOR_SPLIT_MODE_MASK))
-      return importers_[i];
-  }
-  return NULL;
+    for (unsigned int i = 0; i < drms_.size(); i++) {
+        if (drms_[i]->HandlesDisplay(display & ~DRM_CONNECTOR_SPLIT_MODE_MASK)) return importers_[i];
+    }
+    return NULL;
 }
 
-std::shared_ptr<DrmDisplayCompositor> ResourceManager::GetDrmDisplayCompositor(DrmCrtc* crtc){
-  if(!crtc){
-    HWC2_ALOGE("crtc is null");
-    return NULL;
-  }
+std::shared_ptr<DrmDisplayCompositor> ResourceManager::GetDrmDisplayCompositor(DrmCrtc* crtc) {
+    if (!crtc) {
+        HWC2_ALOGE("crtc is null");
+        return NULL;
+    }
 
-  if(mapDrmDisplayCompositor_.size() == 0){
-    HWC2_ALOGE("mapDrmDisplayCompositor_.size()=0");
-    return NULL;
-  }
+    if (mapDrmDisplayCompositor_.size() == 0) {
+        HWC2_ALOGE("mapDrmDisplayCompositor_.size()=0");
+        return NULL;
+    }
 
-  auto pairDrmDisplayCompositor = mapDrmDisplayCompositor_.find(crtc->id());
-  return pairDrmDisplayCompositor->second;
+    auto pairDrmDisplayCompositor = mapDrmDisplayCompositor_.find(crtc->id());
+    return pairDrmDisplayCompositor->second;
 }
 
 int ResourceManager::GetWBDisplay() const {
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return iWriteBackDisplayId_;
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return iWriteBackDisplayId_;
 }
 
 bool ResourceManager::isWBMode() const {
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return bEnableWriteBackRef_ > 0;
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return bEnableWriteBackRef_ > 0;
 }
 
 const DrmMode& ResourceManager::GetWBMode() const {
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return mWBMode_;
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return mWBMode_;
 }
 
-bool ResourceManager::IsDisableHwVirtualDisplay(){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return mVDMode_ == HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
+bool ResourceManager::IsDisableHwVirtualDisplay() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return mVDMode_ == HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
 }
 
-bool ResourceManager::IsWriteBackByVop(){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return mVDMode_ == HWC2_HW_VIRTUAL_DISPLAY_USE_VOP;
+bool ResourceManager::IsWriteBackByVop() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return mVDMode_ == HWC2_HW_VIRTUAL_DISPLAY_USE_VOP;
 }
 
-bool ResourceManager::IsWriteBackByRga(){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return mVDMode_ == HWC2_HW_VIRTUAL_DISPLAY_USE_RGA;
+bool ResourceManager::IsWriteBackByRga() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return mVDMode_ == HWC2_HW_VIRTUAL_DISPLAY_USE_RGA;
 }
 
-HwVirtualDisplayMode_t ResourceManager::ChooseWriteBackMode(int display){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  // 2. 获取待 WriteBack display状态，状态异常则直接关闭 WriteBack 模式
-  DrmDevice *drmDevice = GetDrmDevice(display);
-  DrmConnector *writeBackConn = drmDevice->GetConnectorForDisplay(display);
-  if(!writeBackConn){
-    HWC2_ALOGE("display=%d WriteBackConn is NULL", display);
-    return HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
-  }
+HwVirtualDisplayMode_t ResourceManager::ChooseWriteBackMode(int display) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    // 2. 获取待 WriteBack display状态，状态异常则直接关闭 WriteBack 模式
+    DrmDevice* drmDevice = GetDrmDevice(display);
+    DrmConnector* writeBackConn = drmDevice->GetConnectorForDisplay(display);
+    if (!writeBackConn) {
+        HWC2_ALOGE("display=%d WriteBackConn is NULL", display);
+        return HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
+    }
 
-  if(writeBackConn->state() != DRM_MODE_CONNECTED){
-    HWC2_ALOGE("display=%d WriteBackConn state isn't connected(%d)",
-                display, writeBackConn->state());
-    return HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
-  }
+    if (writeBackConn->state() != DRM_MODE_CONNECTED) {
+        HWC2_ALOGE("display=%d WriteBackConn state isn't connected(%d)", display, writeBackConn->state());
+        return HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
+    }
 
-  // 3. 获取待 WriteBack 当前分辨率，用于申请 WriteBackBuffer
-  // 4. WriteBack 硬件要求 16对齐，否则超出部分会直接丢弃
-  mWBMode_ = writeBackConn->current_mode();
-  if(mWBMode_.width() > 4096 || mWBMode_.height() > 2160){
-    HWC2_ALOGI("Primary resolution=%dx%d, use WriteBack by RGA", mWBMode_.width(), mWBMode_.height());
-    return HWC2_HW_VIRTUAL_DISPLAY_USE_RGA;
-  }
+    // 3. 获取待 WriteBack 当前分辨率，用于申请 WriteBackBuffer
+    // 4. WriteBack 硬件要求 16对齐，否则超出部分会直接丢弃
+    mWBMode_ = writeBackConn->current_mode();
+    if (mWBMode_.width() > 4096 || mWBMode_.height() > 2160) {
+        HWC2_ALOGI("Primary resolution=%dx%d, use WriteBack by RGA", mWBMode_.width(), mWBMode_.height());
+        return HWC2_HW_VIRTUAL_DISPLAY_USE_RGA;
+    }
 
-  HWC2_ALOGI("Primary resolution=%dx%d, use WriteBack by Vop WriteBack", mWBMode_.width(), mWBMode_.height());
-  return HWC2_HW_VIRTUAL_DISPLAY_USE_VOP;
+    HWC2_ALOGI("Primary resolution=%dx%d, use WriteBack by Vop WriteBack", mWBMode_.width(), mWBMode_.height());
+    return HWC2_HW_VIRTUAL_DISPLAY_USE_VOP;
 }
 
 // 使用 Vop 作为 WriteBack 内容输出单元
-int ResourceManager::WriteBackUseVop(int display){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  iWBWidth_  = ALIGN_DOWN(mWBMode_.width(),16);
-  iWBHeight_ = mWBMode_.height();
-  iWBFormat_ = HAL_PIXEL_FORMAT_YCrCb_NV12;
+int ResourceManager::WriteBackUseVop(int display) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    iWBWidth_ = ALIGN_DOWN(mWBMode_.width(), 16);
+    iWBHeight_ = mWBMode_.height();
+    iWBFormat_ = HAL_PIXEL_FORMAT_YCrCb_NV12;
 
-  // 5. 创建 WriteBackBuffer BufferQueue，并且申请 WB Buffer.
-  if(mWriteBackBQ_ == NULL){
-    mWriteBackBQ_ = std::make_shared<DrmBufferQueue>(WB_BUFFERQUEUE_MAX_SIZE);
-  }
+    // 5. 创建 WriteBackBuffer BufferQueue，并且申请 WB Buffer.
+    if (mWriteBackBQ_ == NULL) {
+        mWriteBackBQ_ = std::make_shared<DrmBufferQueue>(WB_BUFFERQUEUE_MAX_SIZE);
+    }
 
-  mNextWriteBackBuffer_
-    = mWriteBackBQ_->DequeueDrmBuffer(iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_,
-                                      RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
-                                      MALI_GRALLOC_USAGE_NO_AFBC,
-                                      "WriteBackBuffer");
-  if(mNextWriteBackBuffer_ != NULL &&
-     !mNextWriteBackBuffer_->initCheck()){
-    HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d",
-                                      display,
-                                      iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_);
-    return -1;
-  }
+    mNextWriteBackBuffer_ = mWriteBackBQ_->DequeueDrmBuffer(
+            iWBWidth_, iWBHeight_, iWBFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
+            "WriteBackBuffer");
+    if (mNextWriteBackBuffer_ != NULL && !mNextWriteBackBuffer_->initCheck()) {
+        HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d", display, iWBWidth_, iWBHeight_, iWBFormat_);
+        return -1;
+    }
 
-  if(mWriteBackBQ_->QueueBuffer(mNextWriteBackBuffer_)){
-    HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d",
-                                      iWriteBackDisplayId_,
-                                      iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_);
-    return -1;
-  }
-  bEnableWriteBackRef_++;
-  iWriteBackDisplayId_ = display;
-  return 0;
+    if (mWriteBackBQ_->QueueBuffer(mNextWriteBackBuffer_)) {
+        HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d", iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
+                   iWBFormat_);
+        return -1;
+    }
+    bEnableWriteBackRef_++;
+    iWriteBackDisplayId_ = display;
+    return 0;
 }
 
 // 使用 Rga 作为 WriteBack 内容输出单元
-int ResourceManager::WriteBackUseRga(int display){
-  // 利用 RGA 进行 WriteBack, RGA alpha blend 要求点对点，不允许缩放
-  // 故要求申请内存与系统UI分辨率一致
-  if(hwc2_->GetDisplayCtxPtr(display) != NULL){
-    hwc2_drm_display_t* dpy_ctx = hwc2_->GetDisplayCtxPtr(display);
-    iWBWidth_ = dpy_ctx->framebuffer_width;
-    iWBHeight_ = dpy_ctx->framebuffer_height;
-    iWBFormat_ = HAL_PIXEL_FORMAT_RGBA_8888;
-  }else{
-    iWBWidth_  = mWBMode_.h_display();
-    iWBHeight_ = mWBMode_.v_display();
-    iWBFormat_ = HAL_PIXEL_FORMAT_RGBA_8888;
-  }
-
-  // 5. 创建 WriteBackBuffer BufferQueue，并且申请 WB Buffer.
-  if(mWriteBackBQ_ == NULL){
-    mWriteBackBQ_ = std::make_shared<DrmBufferQueue>();
-  }
-  mNextWriteBackBuffer_
-    = mWriteBackBQ_->DequeueDrmBuffer(iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_,
-                                      RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
-                                      MALI_GRALLOC_USAGE_NO_AFBC,
-                                      "WriteBackBuffer");
-  if(mNextWriteBackBuffer_ != NULL &&
-     !mNextWriteBackBuffer_->initCheck()){
-    HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d",
-                                      display,
-                                      iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_);
-    return -1;
-  }
-
-  if(mWriteBackBQ_->QueueBuffer(mNextWriteBackBuffer_)){
-    HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d",
-                                      iWriteBackDisplayId_,
-                                      iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_);
-    return -1;
-  }
-
-  bEnableWriteBackRef_++;
-  iWriteBackDisplayId_ = display;
-  return 0;
-}
-
-int ResourceManager::EnableWriteBackMode(int display){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-
-  // 1. 检查 WB 模块是否已经被绑定
-  if(bEnableWriteBackRef_ > 0){
-    if(iWriteBackDisplayId_ != display){
-      HWC2_ALOGE("WriteBack has bind display %d, so display=%d WB request can't handle.",
-                iWriteBackDisplayId_, display);
-      return -1;
-    }else{
-      bEnableWriteBackRef_++;
-      return 0;
+int ResourceManager::WriteBackUseRga(int display) {
+    // 利用 RGA 进行 WriteBack, RGA alpha blend 要求点对点，不允许缩放
+    // 故要求申请内存与系统UI分辨率一致
+    if (hwc2_->GetDisplayCtxPtr(display) != NULL) {
+        hwc2_drm_display_t* dpy_ctx = hwc2_->GetDisplayCtxPtr(display);
+        iWBWidth_ = dpy_ctx->framebuffer_width;
+        iWBHeight_ = dpy_ctx->framebuffer_height;
+        iWBFormat_ = HAL_PIXEL_FORMAT_RGBA_8888;
+    } else {
+        iWBWidth_ = mWBMode_.h_display();
+        iWBHeight_ = mWBMode_.v_display();
+        iWBFormat_ = HAL_PIXEL_FORMAT_RGBA_8888;
     }
-  }
 
-  // 2. 根据 primary 分辨率模式选择 WriteBack 模式
-  mVDMode_ = ChooseWriteBackMode(display);
-  switch(mVDMode_){
-    case HWC2_HW_VIRTUAL_DISPLAY_USE_VOP:
-      return WriteBackUseVop(display);
-    case HWC2_HW_VIRTUAL_DISPLAY_USE_RGA:
-      return WriteBackUseRga(display);
-    case HWC2_DISABLE_HW_VIRTUAL_DISPLAY:
-    default:
-      HWC2_ALOGE("display=%d can't find any suitable WriteBack mode, roll back to GLES display, VDMode=%d",
-                 display, mVDMode_);
-      return -1;
-  }
-
-  return -1;
-}
-
-
-int ResourceManager::UpdateWriteBackResolutionUseVop(int display){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-
-  // 2. 获取待 WriteBack display状态，状态异常则直接关闭 WriteBack 模式
-  DrmDevice *drmDevice = GetDrmDevice(display);
-  DrmConnector *writeBackConn = drmDevice->GetConnectorForDisplay(display);
-  if(!writeBackConn){
-    HWC2_ALOGE("display=%d WriteBackConn is NULL", display);
-    return -1;
-  }
-
-  if(writeBackConn->state() != DRM_MODE_CONNECTED){
-    HWC2_ALOGE("display=%d WriteBackConn state isn't connected(%d)",
-                display, writeBackConn->state());
-    return -1;
-  }
-
-  // 3. 获取待 WriteBack 当前分辨率，用于申请 WriteBackBuffer
-  DrmMode currentMode = writeBackConn->current_mode();
-  mWBMode_ = currentMode;
-  int tempWBWidth  = ALIGN_DOWN(mWBMode_.width(),16);
-  int tempWBHeight = mWBMode_.height();
-  if(tempWBWidth == iWBWidth_ &&
-     tempWBHeight == iWBHeight_){
-    return 0;
-  }else{
-    HWC2_ALOGI("display=%d update WriteBack resolution(%dx%d)=>(%dx%d)",
-                display, iWBWidth_, iWBHeight_,
-                currentMode.width(), currentMode.height());
-  }
-
-  iWBWidth_  = tempWBWidth;
-  iWBHeight_ = tempWBHeight;
-  iWBFormat_ = HAL_PIXEL_FORMAT_YCrCb_NV12;
-
-  // 4. 创建 WriteBackBuffer BufferQueue，并且申请 WB Buffer.
-  if(mWriteBackBQ_ == NULL){
-    mWriteBackBQ_ = std::make_shared<DrmBufferQueue>(WB_BUFFERQUEUE_MAX_SIZE);
-  }
-
-  mNextWriteBackBuffer_
-    = mWriteBackBQ_->DequeueDrmBuffer(iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_,
-                                      RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
-                                      MALI_GRALLOC_USAGE_NO_AFBC,
-                                      "WriteBackBuffer");
-  if(mNextWriteBackBuffer_ != NULL &&
-     !mNextWriteBackBuffer_->initCheck()){
-    HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d",
-                display, iWBWidth_, iWBHeight_, iWBFormat_);
-    return -1;
-  }
-
-  if(mWriteBackBQ_->QueueBuffer(mNextWriteBackBuffer_)){
-    HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d",
-                                      iWriteBackDisplayId_,
-                                      iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_);
-    return -1;
-  }
-  return 0;
-}
-
-int ResourceManager::UpdateWriteBackResolution(int display){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-
-  // 1. 检查 WB 模块是否已经被绑定
-  if(bEnableWriteBackRef_ > 0){
-    if(iWriteBackDisplayId_ != display){
-      HWC2_ALOGE("WriteBack has bind display %d, so display=%d WB request can't handle.",
-                iWriteBackDisplayId_, display);
-      return -1;
+    // 5. 创建 WriteBackBuffer BufferQueue，并且申请 WB Buffer.
+    if (mWriteBackBQ_ == NULL) {
+        mWriteBackBQ_ = std::make_shared<DrmBufferQueue>();
     }
-  }
+    mNextWriteBackBuffer_ = mWriteBackBQ_->DequeueDrmBuffer(
+            iWBWidth_, iWBHeight_, iWBFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
+            "WriteBackBuffer");
+    if (mNextWriteBackBuffer_ != NULL && !mNextWriteBackBuffer_->initCheck()) {
+        HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d", display, iWBWidth_, iWBHeight_, iWBFormat_);
+        return -1;
+    }
 
-  // 根据 WriteBack mode 处理 update WriteBack resolution 请求
-  switch(mVDMode_){
-    case HWC2_HW_VIRTUAL_DISPLAY_USE_VOP:
-      return UpdateWriteBackResolutionUseVop(display);
-    case HWC2_HW_VIRTUAL_DISPLAY_USE_RGA:
-      // RGA 模式不需要考虑分辨率切换的场景
-      return 0;
-    case HWC2_DISABLE_HW_VIRTUAL_DISPLAY:
-    default:
-      HWC2_ALOGE("display=%d can't find any suitable WriteBack mode, VDMode=%d ", display, mVDMode_);
-      return -1;
-  }
-  return 0;
-}
+    if (mWriteBackBQ_->QueueBuffer(mNextWriteBackBuffer_)) {
+        HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d", iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
+                   iWBFormat_);
+        return -1;
+    }
 
-int ResourceManager::DisableWriteBackMode(int display){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  if(display != iWriteBackDisplayId_)
+    bEnableWriteBackRef_++;
+    iWriteBackDisplayId_ = display;
     return 0;
-
-  bEnableWriteBackRef_--;
-  if(bEnableWriteBackRef_ <= 0){
-    mVDMode_ = HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
-    iWriteBackDisplayId_ = -1;
-    mFinishBufferQueue_.clear();
-    mDrawingWriteBackBuffer_ = NULL;
-    mNextWriteBackBuffer_ = NULL;
-  }
-  return 0;
 }
 
-std::shared_ptr<DrmBuffer> ResourceManager::GetResetWBBuffer(){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  if(mResetBackBuffer_ == NULL){
-    mResetBackBuffer_ =  std::make_shared<DrmBuffer>(640,
-                                                     360,
-                                                     HAL_PIXEL_FORMAT_YCrCb_NV12,
-                                                     RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
-                                                     RK_GRALLOC_USAGE_WITHIN_4G,
-                                                     "WBResetBuffer");
-    if(mResetBackBuffer_->Init()){
-      HWC2_ALOGE("DrmBuffer Init fail, w=%d h=%d format=%d name=%s",
-                  640, 360, HAL_PIXEL_FORMAT_YCrCb_NV12, "WBResetBuffer");
-      mResetBackBuffer_ = NULL;
-      return NULL;
+int ResourceManager::EnableWriteBackMode(int display) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+
+    // 1. 检查 WB 模块是否已经被绑定
+    if (bEnableWriteBackRef_ > 0) {
+        if (iWriteBackDisplayId_ != display) {
+            HWC2_ALOGE("WriteBack has bind display %d, so display=%d WB request can't handle.", iWriteBackDisplayId_,
+                       display);
+            return -1;
+        } else {
+            bEnableWriteBackRef_++;
+            return 0;
+        }
+    }
+
+    // 2. 根据 primary 分辨率模式选择 WriteBack 模式
+    mVDMode_ = ChooseWriteBackMode(display);
+    switch (mVDMode_) {
+        case HWC2_HW_VIRTUAL_DISPLAY_USE_VOP:
+            return WriteBackUseVop(display);
+        case HWC2_HW_VIRTUAL_DISPLAY_USE_RGA:
+            return WriteBackUseRga(display);
+        case HWC2_DISABLE_HW_VIRTUAL_DISPLAY:
+        default:
+            HWC2_ALOGE("display=%d can't find any suitable WriteBack mode, roll back to GLES display, VDMode=%d",
+                       display, mVDMode_);
+            return -1;
+    }
+
+    return -1;
+}
+
+int ResourceManager::UpdateWriteBackResolutionUseVop(int display) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+
+    // 2. 获取待 WriteBack display状态，状态异常则直接关闭 WriteBack 模式
+    DrmDevice* drmDevice = GetDrmDevice(display);
+    DrmConnector* writeBackConn = drmDevice->GetConnectorForDisplay(display);
+    if (!writeBackConn) {
+        HWC2_ALOGE("display=%d WriteBackConn is NULL", display);
+        return -1;
+    }
+
+    if (writeBackConn->state() != DRM_MODE_CONNECTED) {
+        HWC2_ALOGE("display=%d WriteBackConn state isn't connected(%d)", display, writeBackConn->state());
+        return -1;
+    }
+
+    // 3. 获取待 WriteBack 当前分辨率，用于申请 WriteBackBuffer
+    DrmMode currentMode = writeBackConn->current_mode();
+    mWBMode_ = currentMode;
+    int tempWBWidth = ALIGN_DOWN(mWBMode_.width(), 16);
+    int tempWBHeight = mWBMode_.height();
+    if (tempWBWidth == iWBWidth_ && tempWBHeight == iWBHeight_) {
+        return 0;
+    } else {
+        HWC2_ALOGI("display=%d update WriteBack resolution(%dx%d)=>(%dx%d)", display, iWBWidth_, iWBHeight_,
+                   currentMode.width(), currentMode.height());
+    }
+
+    iWBWidth_ = tempWBWidth;
+    iWBHeight_ = tempWBHeight;
+    iWBFormat_ = HAL_PIXEL_FORMAT_YCrCb_NV12;
+
+    // 4. 创建 WriteBackBuffer BufferQueue，并且申请 WB Buffer.
+    if (mWriteBackBQ_ == NULL) {
+        mWriteBackBQ_ = std::make_shared<DrmBufferQueue>(WB_BUFFERQUEUE_MAX_SIZE);
+    }
+
+    mNextWriteBackBuffer_ = mWriteBackBQ_->DequeueDrmBuffer(
+            iWBWidth_, iWBHeight_, iWBFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
+            "WriteBackBuffer");
+    if (mNextWriteBackBuffer_ != NULL && !mNextWriteBackBuffer_->initCheck()) {
+        HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d", display, iWBWidth_, iWBHeight_, iWBFormat_);
+        return -1;
+    }
+
+    if (mWriteBackBQ_->QueueBuffer(mNextWriteBackBuffer_)) {
+        HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d", iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
+                   iWBFormat_);
+        return -1;
+    }
+    return 0;
+}
+
+int ResourceManager::UpdateWriteBackResolution(int display) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+
+    // 1. 检查 WB 模块是否已经被绑定
+    if (bEnableWriteBackRef_ > 0) {
+        if (iWriteBackDisplayId_ != display) {
+            HWC2_ALOGE("WriteBack has bind display %d, so display=%d WB request can't handle.", iWriteBackDisplayId_,
+                       display);
+            return -1;
+        }
+    }
+
+    // 根据 WriteBack mode 处理 update WriteBack resolution 请求
+    switch (mVDMode_) {
+        case HWC2_HW_VIRTUAL_DISPLAY_USE_VOP:
+            return UpdateWriteBackResolutionUseVop(display);
+        case HWC2_HW_VIRTUAL_DISPLAY_USE_RGA:
+            // RGA 模式不需要考虑分辨率切换的场景
+            return 0;
+        case HWC2_DISABLE_HW_VIRTUAL_DISPLAY:
+        default:
+            HWC2_ALOGE("display=%d can't find any suitable WriteBack mode, VDMode=%d ", display, mVDMode_);
+            return -1;
+    }
+    return 0;
+}
+
+int ResourceManager::DisableWriteBackMode(int display) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (display != iWriteBackDisplayId_) return 0;
+
+    bEnableWriteBackRef_--;
+    if (bEnableWriteBackRef_ <= 0) {
+        mVDMode_ = HWC2_DISABLE_HW_VIRTUAL_DISPLAY;
+        iWriteBackDisplayId_ = -1;
+        mFinishBufferQueue_.clear();
+        mDrawingWriteBackBuffer_ = NULL;
+        mNextWriteBackBuffer_ = NULL;
+    }
+    return 0;
+}
+
+std::shared_ptr<DrmBuffer> ResourceManager::GetResetWBBuffer() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mResetBackBuffer_ == NULL) {
+        mResetBackBuffer_ = std::make_shared<DrmBuffer>(640, 360, HAL_PIXEL_FORMAT_YCrCb_NV12,
+                                                        RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | RK_GRALLOC_USAGE_WITHIN_4G,
+                                                        "WBResetBuffer");
+        if (mResetBackBuffer_->Init()) {
+            HWC2_ALOGE("DrmBuffer Init fail, w=%d h=%d format=%d name=%s", 640, 360, HAL_PIXEL_FORMAT_YCrCb_NV12,
+                       "WBResetBuffer");
+            mResetBackBuffer_ = NULL;
+            return NULL;
+        }
+
+        rga_buffer_t src;
+        im_rect src_rect;
+
+        memset(&src, 0x0, sizeof(rga_buffer_t));
+        memset(&src_rect, 0x0, sizeof(im_rect));
+
+        // Set src buffer info
+        src.fd = mResetBackBuffer_->GetFd();
+        src.width = mResetBackBuffer_->GetWidth();
+        src.height = mResetBackBuffer_->GetHeight();
+        src.wstride = mResetBackBuffer_->GetStride();
+        src.hstride = mResetBackBuffer_->GetHeightStride();
+        src.format = mResetBackBuffer_->GetFormat();
+
+        // Set src rect info
+        src_rect.x = 0;
+        src_rect.y = 0;
+        src_rect.width = src.width;
+        src_rect.height = src.height;
+
+        src.color_space_mode = IM_RGB_TO_YUV_BT601_LIMIT;
+
+        // Set Dataspace
+        // if((buffer.mBufferInfo_.uDataSpace_ & HAL_DATASPACE_STANDARD_BT709) == HAL_DATASPACE_STANDARD_BT709){
+        //   dst.color_space_mode = IM_YUV_TO_RGB_BT709_LIMIT;
+        //   SVEP_ALOGD_IF("color_space_mode = BT709 dataspace=0x%" PRIx64,buffer.mBufferInfo_.uDataSpace_);
+        // }else{
+        //   SVEP_ALOGD_IF("color_space_mode = BT601 dataspace=0x%" PRIx64,buffer.mBufferInfo_.uDataSpace_);
+        // }
+
+        IM_STATUS im_state;
+
+        // Call Im2d 格式转换
+        im_state = imfill(src, src_rect, 0x0);
+
+        if (im_state != IM_STATUS_SUCCESS) {
+            HWC2_ALOGE("call im2d reset Fail!");
+        }
+    }
+    return mResetBackBuffer_;
+}
+std::shared_ptr<DrmBuffer> ResourceManager::GetNextWBBuffer() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return mNextWriteBackBuffer_;
+}
+
+std::shared_ptr<DrmBuffer> ResourceManager::GetDrawingWBBuffer() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return mDrawingWriteBackBuffer_;
+    ;
+}
+
+int ResourceManager::GetFinishWBBufferSize() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return mFinishBufferQueue_.size();
+}
+
+int ResourceManager::OutputWBBuffer(int display_id, rga_buffer_t& dst, im_rect& dst_rect, int32_t* retire_fence,
+                                    uint64_t* last_frame_no) {
+    ATRACE_CALL();
+
+    // 第一帧需要等待WriteBack返回
+    if (*last_frame_no == 0) {
+        // 最多等待 100ms
+        for (int wait_cnt = 0; wait_cnt < 20; wait_cnt++) {
+            // mDrawingWriteBackBuffer_ 非空则表示开始回写第一帧
+            if (mDrawingWriteBackBuffer_.get() == NULL) {
+                // 每次等待 5ms
+                usleep(5 * 1000);
+                continue;
+            }
+            break;
+        }
+    }
+
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+
+    if (mFinishBufferQueue_.size() == 0 && mDrawingWriteBackBuffer_.get() == NULL) {
+        HWC2_ALOGE("mFinishBufferQueue_ size is 0, mDrawingWriteBackBuffer_=%p", mDrawingWriteBackBuffer_.get());
+        return -1;
+    }
+
+    std::shared_ptr<DrmBuffer> output_buffer = NULL;
+    uint64_t output_frame_no = 0;
+    std::queue<PAIR_ID_BUFFER> tmp_bufferqueue;
+    for (auto& FinishBufferPair : mFinishBufferQueue_) {
+        if (FinishBufferPair.first > *last_frame_no) {
+            output_buffer = FinishBufferPair.second;
+            output_frame_no = FinishBufferPair.first;
+            break;
+        }
+    }
+
+    // 从已经 WriteBack 完成的缓冲池获取下一帧 WriteBack 图像
+    if (output_buffer == NULL && mFinishBufferQueue_.size() > 0) {
+        output_buffer = mFinishBufferQueue_.back().second;
+        output_frame_no = mFinishBufferQueue_.back().first;
+        HWC2_ALOGW("VDS may output a same image frame_no=%" PRIu64 " Last_frame_no=%" PRIu64, output_frame_no,
+                   *last_frame_no);
+    }
+
+    // 若已经完成的WriteBack均无法找到正常图像，则设置vop正在写的Buffer作为输出
+    if (output_buffer == NULL && mDrawingWriteBackBuffer_.get() != NULL) {
+        output_buffer = mDrawingWriteBackBuffer_;
+    }
+
+    if (output_buffer == NULL) {
+        HWC2_ALOGE("output_buffer is NULL");
+        return -1;
+    }
+
+    HWC2_ALOGD_IF_DEBUG("WB: display=%d frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu", display_id,
+                        output_frame_no, output_buffer->GetId(), mFinishBufferQueue_.size());
+
+    output_buffer->WaitFinishFence();
+    // 添加调试接口，抓打印WriteBack Buffer
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.wb.dump", value, "0");
+    if (atoi(value) > 0) {
+        output_buffer->DumpData();
     }
 
     rga_buffer_t src;
+    rga_buffer_t pat;
     im_rect src_rect;
+    im_rect pat_rect;
 
     memset(&src, 0x0, sizeof(rga_buffer_t));
+    memset(&pat, 0x0, sizeof(rga_buffer_t));
+    memset(&src_rect, 0x0, sizeof(im_rect));
     memset(&src_rect, 0x0, sizeof(im_rect));
 
     // Set src buffer info
-    src.fd      = mResetBackBuffer_->GetFd();
-    src.width   = mResetBackBuffer_->GetWidth();
-    src.height  = mResetBackBuffer_->GetHeight();
-    src.wstride = mResetBackBuffer_->GetStride();
-    src.hstride = mResetBackBuffer_->GetHeightStride();
-    src.format  = mResetBackBuffer_->GetFormat();
+    src.fd = output_buffer->GetFd();
+    src.width = output_buffer->GetWidth();
+    src.height = output_buffer->GetHeight();
+    src.wstride = output_buffer->GetStride();
+    src.hstride = output_buffer->GetHeightStride();
+    src.format = output_buffer->GetFormat();
+
+    bool srcIsRgb = false;
+    switch (src.format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+        case HAL_PIXEL_FORMAT_RGB_888:
+        case HAL_PIXEL_FORMAT_RGB_565:
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            srcIsRgb = true;
+            break;
+        default:
+            srcIsRgb = false;
+            break;
+    }
+
+    // 由于WriteBack仅支持BGR888(B:G:R little endian)，故需要使用RGA做格式转换
+    if (src.format == HAL_PIXEL_FORMAT_RGB_888) src.format = RK_FORMAT_BGR_888;
+    // 由于WriteBack仅支持BGR565(B:G:R little endian)，故需要使用RGA做格式转换
+    if (src.format == HAL_PIXEL_FORMAT_RGB_565) src.format = RK_FORMAT_BGR_565;
 
     // Set src rect info
     src_rect.x = 0;
     src_rect.y = 0;
-    src_rect.width  = src.width ;
-    src_rect.height = src.height;
+    src_rect.width = output_buffer->GetWidth();
+    src_rect.height = output_buffer->GetHeight();
 
-    src.color_space_mode = IM_RGB_TO_YUV_BT601_LIMIT;
+    // dst is rgb?
+    // WriteBack 默认格式为NV12，故调用RGA CSC转换模式完全取决于dst的数据格式，如果存在 YUV2RGB 转换
+    // 则需要指定色彩空间转换公式
+    bool dstIsRgb = false;
+    switch (dst.format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+        case HAL_PIXEL_FORMAT_RGB_888:
+        case HAL_PIXEL_FORMAT_RGB_565:
+        case HAL_PIXEL_FORMAT_BGRA_8888:
+            dstIsRgb = true;
+            break;
+        default:
+            dstIsRgb = false;
+            break;
+    }
 
     // Set Dataspace
-    // if((buffer.mBufferInfo_.uDataSpace_ & HAL_DATASPACE_STANDARD_BT709) == HAL_DATASPACE_STANDARD_BT709){
-    //   dst.color_space_mode = IM_YUV_TO_RGB_BT709_LIMIT;
-    //   SVEP_ALOGD_IF("color_space_mode = BT709 dataspace=0x%" PRIx64,buffer.mBufferInfo_.uDataSpace_);
-    // }else{
-    //   SVEP_ALOGD_IF("color_space_mode = BT601 dataspace=0x%" PRIx64,buffer.mBufferInfo_.uDataSpace_);
-    // }
+    if (dstIsRgb && !srcIsRgb) {
+        if ((output_buffer->GetDataspace() & android_dataspace_t::HAL_DATASPACE_RANGE_FULL) != 0) {
+            dst.color_space_mode = IM_YUV_TO_RGB_BT601_FULL;
+            HWC2_ALOGD_IF_DEBUG("VDS : output_dataspace is bt601-full, src_format=%d dst_format=%d", src.format,
+                                dst.format);
+        } else {
+            dst.color_space_mode = IM_YUV_TO_RGB_BT601_LIMIT;
+            HWC2_ALOGD_IF_DEBUG("VDS : output_dataspace is bt601-limit, src_format=%d dst_format=%d", src.format,
+                                dst.format);
+        }
+    }
 
     IM_STATUS im_state;
 
+    im_opt_t imOpt;
+    memset(&imOpt, 0x00, sizeof(im_opt_t));
+    // 只有RK3588需要指定RGA3核心，因为RGA3支持4G以上地址，以及由于RGA2/RGA3放大算法差异，
+    // 所以需要指定RGA3完成后级放大处理
+    if (gIsRK3588()) {
+        imOpt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;
+    }
+
     // Call Im2d 格式转换
-    im_state = imfill(src, src_rect, 0x0);
+    im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, 0, NULL, &imOpt, IM_SYNC);
 
-    if(im_state != IM_STATUS_SUCCESS){
-      HWC2_ALOGE("call im2d reset Fail!");
+    if (im_state == IM_STATUS_SUCCESS) {
+        HWC2_ALOGD_IF_VERBOSE("call im2d convert to rgb888 Success");
+        *retire_fence = -1;
+    } else {
+        HWC2_ALOGD_IF_DEBUG("call im2d fail, ret=%d Error=%s", im_state, imStrError(im_state));
+        *retire_fence = -1;
+        return -1;
     }
-  }
-  return mResetBackBuffer_;
-}
-std::shared_ptr<DrmBuffer> ResourceManager::GetNextWBBuffer(){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return mNextWriteBackBuffer_;
-}
 
-std::shared_ptr<DrmBuffer> ResourceManager::GetDrawingWBBuffer(){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return mDrawingWriteBackBuffer_;;
+    *last_frame_no = output_frame_no;
+
+    return 0;
 }
 
-int ResourceManager::GetFinishWBBufferSize(){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  return mFinishBufferQueue_.size();
-}
-
-int ResourceManager::OutputWBBuffer(int display_id,
-                                    rga_buffer_t &dst,
-                                    im_rect &dst_rect,
-                                    int32_t *retire_fence,
-                                    uint64_t *last_frame_no){
-
-  ATRACE_CALL();
-
-  // 第一帧需要等待WriteBack返回
-  if(*last_frame_no == 0){
-    // 最多等待 100ms
-    for(int wait_cnt = 0; wait_cnt < 20; wait_cnt++){
-      // mDrawingWriteBackBuffer_ 非空则表示开始回写第一帧
-      if(mDrawingWriteBackBuffer_.get() == NULL){
-        // 每次等待 5ms
-        usleep(5*1000);
-        continue;
-      }
-      break;
+int ResourceManager::SwapWBBuffer(uint64_t frame_no) {
+    ATRACE_CALL();
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (bEnableWriteBackRef_ <= 0) {
+        HWC2_ALOGE("");
+        return -1;
     }
-  }
 
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-
-  if(mFinishBufferQueue_.size() == 0 &&
-     mDrawingWriteBackBuffer_.get() == NULL){
-    HWC2_ALOGE("mFinishBufferQueue_ size is 0, mDrawingWriteBackBuffer_=%p", mDrawingWriteBackBuffer_.get());
-    return -1;
-  }
-
-
-  std::shared_ptr<DrmBuffer> output_buffer = NULL;
-  uint64_t output_frame_no = 0;
-  std::queue<PAIR_ID_BUFFER> tmp_bufferqueue;
-  for(auto &FinishBufferPair : mFinishBufferQueue_){
-    if(FinishBufferPair.first > *last_frame_no){
-      output_buffer = FinishBufferPair.second;
-      output_frame_no = FinishBufferPair.first;
-      break;
+    // 1. Drawing 切换为 Finish 状态, 并 push 进队列
+    if (mDrawingWriteBackBuffer_ != NULL) {
+        mFinishBufferQueue_.push_back(PAIR_ID_BUFFER{frame_no, mDrawingWriteBackBuffer_});
+        HWC2_ALOGD_IF_DEBUG("WB: frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu", frame_no,
+                            mDrawingWriteBackBuffer_->GetId(), mFinishBufferQueue_.size());
+        // 环形缓冲区，若达到环形缓冲区最大尺寸，则需要丢掉最旧的一帧缓存
+        if (mFinishBufferQueue_.size() > (WB_BUFFERQUEUE_MAX_SIZE - 1)) {
+            auto last_buffer_pair = mFinishBufferQueue_.begin();
+            mFinishBufferQueue_.erase(last_buffer_pair);
+            HWC2_ALOGD_IF_WARN("WB: lost frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu", last_buffer_pair->first,
+                               ((last_buffer_pair->second != NULL) ? last_buffer_pair->second->GetId() : -1),
+                               mFinishBufferQueue_.size());
+        }
     }
-  }
+    // 2. Next 切换为 Drawing 状态
+    mDrawingWriteBackBuffer_ = mNextWriteBackBuffer_;
 
-  // 从已经 WriteBack 完成的缓冲池获取下一帧 WriteBack 图像
-  if(output_buffer == NULL && mFinishBufferQueue_.size() > 0){
-    output_buffer = mFinishBufferQueue_.back().second;
-    output_frame_no = mFinishBufferQueue_.back().first;
-    HWC2_ALOGW("VDS may output a same image frame_no=%" PRIu64 " Last_frame_no=%" PRIu64 , output_frame_no, *last_frame_no);
-  }
-
-  // 若已经完成的WriteBack均无法找到正常图像，则设置vop正在写的Buffer作为输出
-  if(output_buffer == NULL && mDrawingWriteBackBuffer_.get() != NULL){
-    output_buffer = mDrawingWriteBackBuffer_;
-  }
-
-  if(output_buffer == NULL){
-    HWC2_ALOGE("output_buffer is NULL");
-    return -1;
-  }
-
-  HWC2_ALOGD_IF_DEBUG("WB: display=%d frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu" ,
-                        display_id, output_frame_no, output_buffer->GetId(),mFinishBufferQueue_.size());
-
-  output_buffer->WaitFinishFence();
-  // 添加调试接口，抓打印WriteBack Buffer
-  char value[PROPERTY_VALUE_MAX];
-  property_get("debug.wb.dump", value, "0");
-  if(atoi(value) > 0){
-    output_buffer->DumpData();
-  }
-
-  rga_buffer_t src;
-  rga_buffer_t pat;
-  im_rect src_rect;
-  im_rect pat_rect;
-
-  memset(&src, 0x0, sizeof(rga_buffer_t));
-  memset(&pat, 0x0, sizeof(rga_buffer_t));
-  memset(&src_rect, 0x0, sizeof(im_rect));
-  memset(&src_rect, 0x0, sizeof(im_rect));
-
-  // Set src buffer info
-  src.fd      = output_buffer->GetFd();
-  src.width   = output_buffer->GetWidth();
-  src.height  = output_buffer->GetHeight();
-  src.wstride = output_buffer->GetStride();
-  src.hstride = output_buffer->GetHeightStride();
-  src.format  = output_buffer->GetFormat();
-
-  bool srcIsRgb = false;
-  switch (src.format)
-  {
-      case HAL_PIXEL_FORMAT_RGBA_8888:
-      case HAL_PIXEL_FORMAT_RGBX_8888:
-      case HAL_PIXEL_FORMAT_RGB_888:
-      case HAL_PIXEL_FORMAT_RGB_565:
-      case HAL_PIXEL_FORMAT_BGRA_8888:srcIsRgb = true; break;
-      default: srcIsRgb = false; break;
-  }
-
-  // 由于WriteBack仅支持BGR888(B:G:R little endian)，故需要使用RGA做格式转换
-  if(src.format == HAL_PIXEL_FORMAT_RGB_888)
-    src.format = RK_FORMAT_BGR_888;
-  // 由于WriteBack仅支持BGR565(B:G:R little endian)，故需要使用RGA做格式转换
-  if(src.format == HAL_PIXEL_FORMAT_RGB_565)
-    src.format = RK_FORMAT_BGR_565;
-
-
-  // Set src rect info
-  src_rect.x = 0;
-  src_rect.y = 0;
-  src_rect.width  = output_buffer->GetWidth();
-  src_rect.height = output_buffer->GetHeight();
-
-  // dst is rgb?
-  // WriteBack 默认格式为NV12，故调用RGA CSC转换模式完全取决于dst的数据格式，如果存在 YUV2RGB 转换
-  // 则需要指定色彩空间转换公式
-  bool dstIsRgb = false;
-  switch (dst.format)
-  {
-      case HAL_PIXEL_FORMAT_RGBA_8888:
-      case HAL_PIXEL_FORMAT_RGBX_8888:
-      case HAL_PIXEL_FORMAT_RGB_888:
-      case HAL_PIXEL_FORMAT_RGB_565:
-      case HAL_PIXEL_FORMAT_BGRA_8888:dstIsRgb = true; break;
-      default: dstIsRgb = false; break;
-  }
-
-  // Set Dataspace
-  if(dstIsRgb && !srcIsRgb){
-    if((output_buffer->GetDataspace() & android_dataspace_t::HAL_DATASPACE_RANGE_FULL) != 0){
-      dst.color_space_mode = IM_YUV_TO_RGB_BT601_FULL;
-      HWC2_ALOGD_IF_DEBUG("VDS : output_dataspace is bt601-full, src_format=%d dst_format=%d", src.format, dst.format);
-    }else{
-      dst.color_space_mode = IM_YUV_TO_RGB_BT601_LIMIT;
-      HWC2_ALOGD_IF_DEBUG("VDS : output_dataspace is bt601-limit, src_format=%d dst_format=%d", src.format, dst.format);
+    // 3. 申请 Next Buffer
+    std::shared_ptr<DrmBuffer> next = mWriteBackBQ_->DequeueDrmBuffer(
+            iWBWidth_, iWBHeight_, iWBFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
+            "WriteBackBuffer");
+    if (next != NULL && !next->initCheck()) {
+        HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d", iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
+                   iWBFormat_);
+        return -1;
     }
-  }
 
-  IM_STATUS im_state;
-
-  im_opt_t imOpt;
-  memset(&imOpt, 0x00, sizeof(im_opt_t));
-  // 只有RK3588需要指定RGA3核心，因为RGA3支持4G以上地址，以及由于RGA2/RGA3放大算法差异，
-  // 所以需要指定RGA3完成后级放大处理
-  if(gIsRK3588()){
-    imOpt.core = IM_SCHEDULER_RGA3_CORE0 | IM_SCHEDULER_RGA3_CORE1;
-  }
-
-  // Call Im2d 格式转换
-  im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, 0, NULL, &imOpt, IM_SYNC);
-
-  if(im_state == IM_STATUS_SUCCESS){
-    HWC2_ALOGD_IF_VERBOSE("call im2d convert to rgb888 Success");
-    *retire_fence = -1;
-  }else{
-    HWC2_ALOGD_IF_DEBUG("call im2d fail, ret=%d Error=%s", im_state, imStrError(im_state));
-    *retire_fence = -1;
-    return -1;
-  }
-
-  *last_frame_no = output_frame_no;
-
-  return 0;
-}
-
-int ResourceManager::SwapWBBuffer(uint64_t frame_no){
-
-  ATRACE_CALL();
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  if(bEnableWriteBackRef_ <= 0){
-    HWC2_ALOGE("");
-    return -1;
-  }
-
-  // 1. Drawing 切换为 Finish 状态, 并 push 进队列
-  if(mDrawingWriteBackBuffer_ != NULL){
-    mFinishBufferQueue_.push_back(PAIR_ID_BUFFER{frame_no, mDrawingWriteBackBuffer_});
-    HWC2_ALOGD_IF_DEBUG("WB: frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu" ,frame_no, mDrawingWriteBackBuffer_->GetId(),mFinishBufferQueue_.size());
-    // 环形缓冲区，若达到环形缓冲区最大尺寸，则需要丢掉最旧的一帧缓存
-    if(mFinishBufferQueue_.size() > (WB_BUFFERQUEUE_MAX_SIZE - 1)){
-      auto last_buffer_pair = mFinishBufferQueue_.begin();
-      mFinishBufferQueue_.erase(last_buffer_pair);
-      HWC2_ALOGD_IF_WARN("WB: lost frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu" ,
-                 last_buffer_pair->first,
-                 ((last_buffer_pair->second != NULL) ? last_buffer_pair->second->GetId() : -1),
-                 mFinishBufferQueue_.size());
-
+    if (mWriteBackBQ_->QueueBuffer(next)) {
+        HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d", iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
+                   iWBFormat_);
+        return -1;
     }
-  }
-  // 2. Next 切换为 Drawing 状态
-  mDrawingWriteBackBuffer_ = mNextWriteBackBuffer_;
 
-  // 3. 申请 Next Buffer
-  std::shared_ptr<DrmBuffer> next
-    = mWriteBackBQ_->DequeueDrmBuffer(iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_,
-                                      RK_GRALLOC_USAGE_STRIDE_ALIGN_16 |
-                                      MALI_GRALLOC_USAGE_NO_AFBC,
-                                      "WriteBackBuffer");
-  if(next != NULL && !next->initCheck()){
-    HWC2_ALOGE("display=%d WBBuffer Dequeue fail, w=%d h=%d format=%d",
-                                      iWriteBackDisplayId_,
-                                      iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_);
-    return -1;
-  }
+    HWC2_ALOGD_IF_INFO("display=%d success, w=%d h=%d format=%d", iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
+                       iWBFormat_);
 
-  if(mWriteBackBQ_->QueueBuffer(next)){
-    HWC2_ALOGE("display=%d WBBuffer Queue fail, w=%d h=%d format=%d",
-                                      iWriteBackDisplayId_,
-                                      iWBWidth_,
-                                      iWBHeight_,
-                                      iWBFormat_);
-    return -1;
-  }
-
-  HWC2_ALOGD_IF_INFO("display=%d success, w=%d h=%d format=%d",
-                                    iWriteBackDisplayId_,
-                                    iWBWidth_,
-                                    iWBHeight_,
-                                    iWBFormat_);
-
-  mNextWriteBackBuffer_ = next;
-  return 0;
+    mNextWriteBackBuffer_ = next;
+    return 0;
 }
 
 // 更新WriteBack Display的图层信息，以便判断是否可以开启WriteBack
-void ResourceManager::AddWBDisplayLayerInfo(std::map<uint32_t, MirrorDisplayInfo_t> &Info){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  mWBDisplayLayerInfo_.clear();
-  mWBDisplayLayerInfo_ = Info;
+void ResourceManager::AddWBDisplayLayerInfo(std::map<uint32_t, MirrorDisplayInfo_t>& Info) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    mWBDisplayLayerInfo_.clear();
+    mWBDisplayLayerInfo_ = Info;
 }
 
 // 检查是否是WriteBack Display 的 Mirror Dispaly
-bool ResourceManager::IsWBMirrorDisplay(uint64_t display_id, uint32_t zorder, MirrorDisplayInfo_t info){
-  std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-  auto layer_info = mWBDisplayLayerInfo_.find(zorder);
-  if(layer_info == mWBDisplayLayerInfo_.end()){
-    return false;
-  }
+bool ResourceManager::IsWBMirrorDisplay(uint64_t display_id, uint32_t zorder, MirrorDisplayInfo_t info) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    auto layer_info = mWBDisplayLayerInfo_.find(zorder);
+    if (layer_info == mWBDisplayLayerInfo_.end()) {
+        return false;
+    }
 
-  // 检查对应 z 坐标图层的BufferId是否匹配
-  if(layer_info->second.buffer_id != info.buffer_id){
-    HWC2_ALOGD_IF_INFO("display-id=%" PRIu64 ": z=%d buffer_id=0x%" PRIu64 " not compare WBDisplay-id=%d buffer_id=0x%" PRIu64,
-      display_id, zorder, layer_info->second.buffer_id,
-      iWriteBackDisplayId_, info.buffer_id);
-    return false;
-  }
+    // 检查对应 z 坐标图层的BufferId是否匹配
+    if (layer_info->second.buffer_id != info.buffer_id) {
+        HWC2_ALOGD_IF_INFO("display-id=%" PRIu64 ": z=%d buffer_id=0x%" PRIu64
+                           " not compare WBDisplay-id=%d buffer_id=0x%" PRIu64,
+                           display_id, zorder, layer_info->second.buffer_id, iWriteBackDisplayId_, info.buffer_id);
+        return false;
+    }
 
-  // 检查对应 z 坐标图层的图层名称是否匹配
-  if(layer_info->second.name.compare(info.name) != 0){
-    HWC2_ALOGD_IF_INFO("display-id=%" PRIu64 ": z=%d name=%s not compare WBDisplay-id=%d name=%s",
-      display_id, zorder, info.name.c_str(),
-      iWriteBackDisplayId_, layer_info->second.name.c_str());
-    return false;
-  }
+    // 检查对应 z 坐标图层的图层名称是否匹配
+    if (layer_info->second.name.compare(info.name) != 0) {
+        HWC2_ALOGD_IF_INFO("display-id=%" PRIu64 ": z=%d name=%s not compare WBDisplay-id=%d name=%s", display_id,
+                           zorder, info.name.c_str(), iWriteBackDisplayId_, layer_info->second.name.c_str());
+        return false;
+    }
 
-  // 该层满足WriteBack使能需求
-  return true;
+    // 该层满足WriteBack使能需求
+    return true;
 }
 
 }  // namespace android

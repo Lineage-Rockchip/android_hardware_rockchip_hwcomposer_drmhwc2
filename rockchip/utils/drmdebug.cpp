@@ -35,8 +35,8 @@
  */
 
 #define LOG_TAG "hwc-drm-debug"
-#include <log/log.h>
 #include <cutils/properties.h>
+#include <log/log.h>
 
 #include "rockchip/utils/drmdebug.h"
 
@@ -45,52 +45,51 @@ namespace android {
 unsigned int g_log_level;
 unsigned int g_frame;
 
-void InitDebugModule()
-{
-  g_log_level = 0;
-  g_frame = 0;
-  UpdateLogLevel();
-  InitHwcVersion();
+void InitDebugModule() {
+    g_log_level = 0;
+    g_frame = 0;
+    UpdateLogLevel();
+    InitHwcVersion();
 }
 
-void InitHwcVersion()
-{
-  char acVersion[50] = {0};
-  sprintf(acVersion,"%s%s",GHWC_VERSION,GHWC_VERSION_NOTES);
-  property_set("vendor.ghwc.version", acVersion);
-  ALOGD("DrmHwcTwo version : %s", acVersion);
-  return;
+void InitHwcVersion() {
+    char acVersion[50] = {0};
+    sprintf(acVersion, "%s%s", GHWC_VERSION, GHWC_VERSION_NOTES);
+    property_set("vendor.ghwc.version", acVersion);
+    ALOGD("DrmHwcTwo version : %s", acVersion);
+    return;
 }
-int UpdateLogLevel()
-{
-  char value[PROPERTY_VALUE_MAX];
-  property_get("vendor.hwc.log", value, "0");
-  if(!strcmp(value,"info"))
-    g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO;
-  else if(!strcmp(value,"debug"))
-    g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO | DBG_DEBUG;
-  else if(!strcmp(value,"verbose"))
-    g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO | DBG_DEBUG | DBG_VERBOSE;
-  else if(!strcmp(value,"all"))
-    g_log_level = DBG_MARSK;
-  else
-    g_log_level = atoi(value);
-  return 0;
+int UpdateLogLevel() {
+    char value[PROPERTY_VALUE_MAX];
+    property_get("vendor.hwc.log", value, "0");
+    if (!strcmp(value, "info"))
+        g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO;
+    else if (!strcmp(value, "debug"))
+        g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO | DBG_DEBUG;
+    else if (!strcmp(value, "verbose"))
+        g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO | DBG_DEBUG | DBG_VERBOSE;
+    else if (!strcmp(value, "all"))
+        g_log_level = DBG_MARSK;
+    else
+        g_log_level = atoi(value);
+    return 0;
 }
-bool LogLevel(LOG_LEVEL log_level){
-  return (g_log_level & log_level) > 0;
+bool LogLevel(LOG_LEVEL log_level) {
+    return (g_log_level & log_level) > 0;
 }
 
-void IncFrameCnt() { g_frame++; }
-int GetFrameCnt(){ return g_frame;}
+void IncFrameCnt() {
+    g_frame++;
+}
+int GetFrameCnt() {
+    return g_frame;
+}
 
-int hwc_get_int_property(const char* pcProperty,const char* default_value)
-{
+int hwc_get_int_property(const char* pcProperty, const char* default_value) {
     char value[PROPERTY_VALUE_MAX];
     int new_value = 0;
 
-    if(pcProperty == NULL || default_value == NULL)
-    {
+    if (pcProperty == NULL || default_value == NULL) {
         ALOGE("hwc_get_int_property: invalid param");
         return -1;
     }
@@ -101,19 +100,17 @@ int hwc_get_int_property(const char* pcProperty,const char* default_value)
     return new_value;
 }
 
-bool hwc_get_bool_property(const char* pcProperty,const char* default_value)
-{
+bool hwc_get_bool_property(const char* pcProperty, const char* default_value) {
     char value[PROPERTY_VALUE_MAX];
     bool result = false;
 
-    if(pcProperty == NULL || default_value == NULL)
-    {
+    if (pcProperty == NULL || default_value == NULL) {
         ALOGE("hwc_get_int_property: invalid param");
         return false;
     }
 
     property_get(pcProperty, value, default_value);
-    if(!strcmp(value,"true"))
+    if (!strcmp(value, "true"))
         result = true;
     else
         result = false;
@@ -121,11 +118,8 @@ bool hwc_get_bool_property(const char* pcProperty,const char* default_value)
     return result;
 }
 
-
-int hwc_get_string_property(const char* pcProperty,const char* default_value,char* retult)
-{
-    if(pcProperty == NULL || default_value == NULL || retult == NULL)
-    {
+int hwc_get_string_property(const char* pcProperty, const char* default_value, char* retult) {
+    if (pcProperty == NULL || default_value == NULL || retult == NULL) {
         ALOGE("hwc_get_string_property: invalid param");
         return -1;
     }
@@ -134,151 +128,150 @@ int hwc_get_string_property(const char* pcProperty,const char* default_value,cha
     return 0;
 }
 
-bool isRK356x(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3566:
-    case 0x3566a:
-    case 0x3568:
-    case 0x3568a:
-      return true;
-    default:
-      return false;
-  }
+bool isRK356x(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3566:
+        case 0x3566a:
+        case 0x3568:
+        case 0x3568a:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isRK3566(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3566:
-    case 0x3566a:
-      return true;
-    default:
-      return false;
-  }
+bool isRK3566(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3566:
+        case 0x3566a:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isRK3399(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3399:
-      return true;
-    default:
-      return false;
-  }
+bool isRK3399(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3399:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isRK3326(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3326:
-      return true;
-    default:
-      return false;
-  }
+bool isRK3326(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3326:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isRK3588(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3588:
-      return true;
-    default:
-      return false;
-  }
+bool isRK3588(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3588:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isRK3528(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3528:
-      return true;
-    default:
-      return false;
-  }
+bool isRK3528(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3528:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isRK3562(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3562:
-      return true;
-    default:
-      return false;
-  }
+bool isRK3562(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3562:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isRK3576(uint32_t soc_id){
-  switch(soc_id){
-    case 0x3576:
-      return true;
-    default:
-      return false;
-  }
+bool isRK3576(uint32_t soc_id) {
+    switch (soc_id) {
+        case 0x3576:
+            return true;
+        default:
+            return false;
+    }
 }
 
-bool isDrmVerison44(uint32_t drm_version){
-  return drm_version == 1;
+bool isDrmVerison44(uint32_t drm_version) {
+    return drm_version == 1;
 }
-bool isDrmVerison419(uint32_t drm_version){
-  return drm_version == 2;
+bool isDrmVerison419(uint32_t drm_version) {
+    return drm_version == 2;
 }
-bool isDrmVerison510(uint32_t drm_version){
-  return drm_version == 3;
+bool isDrmVerison510(uint32_t drm_version) {
+    return drm_version == 3;
 }
-bool isDrmVerison6_1(uint32_t drm_version){
-  return drm_version == 4;
+bool isDrmVerison6_1(uint32_t drm_version) {
+    return drm_version == 4;
 }
 
 static uint32_t g_soc_id = 0;
 static uint32_t g_drm_version = 0;
-void gSetSocId(uint32_t soc_id){
-  g_soc_id = soc_id;
+void gSetSocId(uint32_t soc_id) {
+    g_soc_id = soc_id;
 }
 
-void gSetDrmVersion(uint32_t drm_version){
-  g_drm_version = drm_version;
+void gSetDrmVersion(uint32_t drm_version) {
+    g_drm_version = drm_version;
 }
 
-bool gIsRK356x(){
-  return isRK356x(g_soc_id);
+bool gIsRK356x() {
+    return isRK356x(g_soc_id);
 }
 
-bool gIsRK3566(){
-  return isRK3566(g_soc_id);
+bool gIsRK3566() {
+    return isRK3566(g_soc_id);
 }
 
-bool gIsRK3399(){
-  return isRK3399(g_soc_id);
+bool gIsRK3399() {
+    return isRK3399(g_soc_id);
 }
 
-bool gIsRK3326(){
-  return isRK3326(g_soc_id);
+bool gIsRK3326() {
+    return isRK3326(g_soc_id);
 }
 
-bool gIsRK3588(){
-  return isRK3588(g_soc_id);
+bool gIsRK3588() {
+    return isRK3588(g_soc_id);
 }
 
-bool gIsRK3528(){
-  return isRK3528(g_soc_id);
+bool gIsRK3528() {
+    return isRK3528(g_soc_id);
 }
 
-bool gIsRK3562(){
-  return isRK3562(g_soc_id);
+bool gIsRK3562() {
+    return isRK3562(g_soc_id);
 }
 
-bool gIsRK3576(){
-  return isRK3576(g_soc_id);
+bool gIsRK3576() {
+    return isRK3576(g_soc_id);
 }
 
-bool gIsDrmVerison44(){
-  return g_drm_version == 1;
+bool gIsDrmVerison44() {
+    return g_drm_version == 1;
 }
-bool gIsDrmVerison419(){
-  return g_drm_version == 2;
-}
-
-bool gIsDrmVerison510(){
-  return g_drm_version == 3;
+bool gIsDrmVerison419() {
+    return g_drm_version == 2;
 }
 
-bool gIsDrmVerison6_1(){
-  return g_drm_version == 4;
+bool gIsDrmVerison510() {
+    return g_drm_version == 3;
 }
 
+bool gIsDrmVerison6_1() {
+    return g_drm_version == 4;
 }
 
+}  // namespace android

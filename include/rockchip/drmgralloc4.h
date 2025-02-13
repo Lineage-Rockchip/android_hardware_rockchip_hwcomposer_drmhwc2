@@ -32,15 +32,13 @@
  *
  *  Log:
  *      init.
-	----Fri Aug 28 10:10:14 2020
+    ----Fri Aug 28 10:10:14 2020
  *
  *  --------------------------------------------------------------------------------------------------------
  */
 
-
 #ifndef __DRM_GRALLOC4_H__
 #define __DRM_GRALLOC4_H__
-
 
 /* ---------------------------------------------------------------------------------------------------------
  *  Include Files
@@ -59,7 +57,6 @@
  *  Macros Definition
  * ---------------------------------------------------------------------------------------------------------
  */
-
 
 namespace gralloc4 {
 /*
@@ -92,7 +89,6 @@ void init_env_property();
  * ---------------------------------------------------------------------------------------------------------
  */
 
-
 /* ---------------------------------------------------------------------------------------------------------
  *  Global Functions' Prototype
  * ---------------------------------------------------------------------------------------------------------
@@ -119,7 +115,7 @@ int get_byte_stride(buffer_handle_t handle, int* byte_stride);
 
 int get_byte_stride_workround(buffer_handle_t handle, int* byte_stride);
 
-int get_plane_bytes_tride(buffer_handle_t handle, std::vector<uint32_t> &byte_strides);
+int get_plane_bytes_tride(buffer_handle_t handle, std::vector<uint32_t>& byte_strides);
 
 int get_format_requested(buffer_handle_t handle, int* format_requested);
 
@@ -129,7 +125,7 @@ int get_allocation_size(buffer_handle_t handle, uint64_t* usage);
 
 int get_share_fd(buffer_handle_t handle, int* share_fd);
 
-int get_name(buffer_handle_t handle, std::string &name);
+int get_name(buffer_handle_t handle, std::string& name);
 
 int get_buffer_id(buffer_handle_t handle, uint64_t* buffer_id);
 
@@ -143,13 +139,7 @@ status_t importBuffer(buffer_handle_t rawHandle, buffer_handle_t* outHandle);
 
 status_t freeBuffer(buffer_handle_t handle);
 
-status_t lock(buffer_handle_t bufferHandle,
-              uint64_t usage,
-              int x,
-              int y,
-              int w,
-              int h,
-              void** outData);
+status_t lock(buffer_handle_t bufferHandle, uint64_t usage, int x, int y, int w, int h, void** outData);
 
 void unlock(buffer_handle_t bufferHandle);
 
@@ -158,7 +148,6 @@ void unlock(buffer_handle_t bufferHandle);
  * ---------------------------------------------------------------------------------------------------------
  */
 
-}
+}  // namespace gralloc4
 
 #endif /* __PLATFORM_GRALLOC4_H__ */
-

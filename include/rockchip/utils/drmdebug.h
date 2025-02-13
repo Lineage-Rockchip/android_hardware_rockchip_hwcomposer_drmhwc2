@@ -40,8 +40,8 @@
 #include <utils/CallStack.h>
 
 /*hwc version*/
-#define GHWC_VERSION                    "HWC2-1.5.176"
-#define GHWC_VERSION_NOTES              ""
+#define GHWC_VERSION "HWC2-1.5.176"
+#define GHWC_VERSION_NOTES ""
 
 //Print call statck when you call ALOGD_CALLSTACK.
 #define ALOGD_CALLSTACK(...)                             \
@@ -50,48 +50,40 @@
         android::CallStack callstack;                    \
         callstack.update();                              \
         callstack.log(LOG_TAG, ANDROID_LOG_DEBUG, "  "); \
-    }while (false)
+    } while (false)
 
 namespace android {
 
-#define UN_USED(arg)     (arg=arg)
+#define UN_USED(arg) (arg = arg)
 
-#define HWC2_ALOGD_IF_VERBOSE(x, ...)  \
-    ALOGD_IF(LogLevel(DBG_VERBOSE),"%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGD_IF_VERBOSE(x, ...) \
+    ALOGD_IF(LogLevel(DBG_VERBOSE), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_DEBUG(x, ...)  \
-    ALOGD_IF(LogLevel(DBG_DEBUG),"%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGD_IF_DEBUG(x, ...) \
+    ALOGD_IF(LogLevel(DBG_DEBUG), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_INFO(x, ...)  \
-    ALOGI_IF(LogLevel(DBG_INFO),"%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGD_IF_INFO(x, ...) ALOGI_IF(LogLevel(DBG_INFO), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_ERR(x, ...)  \
-    ALOGE_IF(LogLevel(DBG_ERROR),"%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGD_IF_ERR(x, ...) ALOGE_IF(LogLevel(DBG_ERROR), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_WARN(x, ...)  \
-    ALOGW_IF(LogLevel(DBG_WARN),"%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGD_IF_WARN(x, ...) ALOGW_IF(LogLevel(DBG_WARN), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGE(x, ...)  \
-    ALOGE("%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGE(x, ...) ALOGE("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGI(x, ...)  \
-    ALOGI("%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGI(x, ...) ALOGI("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGW(x, ...)  \
-    ALOGW("%s,line=%d " x ,__FUNCTION__,__LINE__, ##__VA_ARGS__)
+#define HWC2_ALOGW(x, ...) ALOGW("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-
-enum LOG_LEVEL
-{
+enum LOG_LEVEL {
     //Log level flag
     /*1*/
     DBG_FETAL = 1 << 0,
     /*2*/
     DBG_ERROR = 1 << 1,
     /*4*/
-    DBG_WARN  = 1 << 2,
+    DBG_WARN = 1 << 2,
     /*8*/
-    DBG_INFO  = 1 << 3,
+    DBG_INFO = 1 << 3,
     /*16*/
     DBG_DEBUG = 1 << 4,
     /*32*/
@@ -101,15 +93,15 @@ enum LOG_LEVEL
 };
 
 /* print time macros. */
-#define PRINT_TIME_START        \
-    struct timeval tpend1, tpend2;\
-    long usec1 = 0;\
-    gettimeofday(&tpend1,NULL);\
+#define PRINT_TIME_START           \
+    struct timeval tpend1, tpend2; \
+    long usec1 = 0;                \
+    gettimeofday(&tpend1, NULL);
 
-#define PRINT_TIME_END(tag)        \
-    gettimeofday(&tpend2,NULL);\
-    usec1 = 1000*(tpend2.tv_sec - tpend1.tv_sec) + (tpend2.tv_usec- tpend1.tv_usec)/1000;\
-    ALOGD("%s use time=%ld ms",tag,usec1);
+#define PRINT_TIME_END(tag)                                                                    \
+    gettimeofday(&tpend2, NULL);                                                               \
+    usec1 = 1000 * (tpend2.tv_sec - tpend1.tv_sec) + (tpend2.tv_usec - tpend1.tv_usec) / 1000; \
+    ALOGD("%s use time=%ld ms", tag, usec1);
 
 void InitDebugModule();
 void InitHwcVersion();
@@ -117,9 +109,9 @@ int UpdateLogLevel();
 bool LogLevel(LOG_LEVEL log_level);
 void IncFrameCnt();
 int GetFrameCnt();
-int hwc_get_int_property(const char* pcProperty,const char* default_value);
-bool hwc_get_bool_property(const char* pcProperty,const char* default_value);
-int hwc_get_string_property(const char* pcProperty,const char* default_value,char* retult);
+int hwc_get_int_property(const char* pcProperty, const char* default_value);
+bool hwc_get_bool_property(const char* pcProperty, const char* default_value);
+int hwc_get_string_property(const char* pcProperty, const char* default_value, char* retult);
 
 bool isRK356x(uint32_t soc_id);
 bool isRK3566(uint32_t soc_id);
@@ -150,5 +142,5 @@ bool gIsDrmVerison419();
 bool gIsDrmVerison510();
 bool gIsDrmVerison6_1();
 
-}
+}  // namespace android
 #endif

@@ -44,44 +44,44 @@
 #define DRM_XML_VENDOR_UPDATE "vendor.hwc.display_pipeline_timeline"
 
 enum DrmDisplayMode {
-  DRM_DISPLAY_MODE_NORMAL = 0,
-  DRM_DISPLAY_MODE_SPLICE,  // 拼接模式
-  DRM_DISPLAY_MODE_HORIZONTAL_SPLIT, // 异显模式
+    DRM_DISPLAY_MODE_NORMAL = 0,
+    DRM_DISPLAY_MODE_SPLICE,            // 拼接模式
+    DRM_DISPLAY_MODE_HORIZONTAL_SPLIT,  // 异显模式
 };
 
-struct DrmXmlVersion{
-  int Major = -1;
-  int Minor = -1;
-  int PatchLevel = -1;
+struct DrmXmlVersion {
+    int Major = -1;
+    int Minor = -1;
+    int PatchLevel = -1;
 };
 
 // ConnectorInfoXml
-struct ConnectorInfoXml{
-  char Type[20];
-  int32_t TypeId = -1;
-  int32_t SrcX = -1;
-  int32_t SrcY = -1;
-  int32_t SrcW = -1;
-  int32_t SrcH = -1;
-  int32_t DstX = -1;
-  int32_t DstY = -1;
-  int32_t DstW = -1;
-  int32_t DstH = -1;
-  int32_t Transform = -1;
-  int32_t Primary = -1;
-  int32_t Extend = -1;
+struct ConnectorInfoXml {
+    char Type[20];
+    int32_t TypeId = -1;
+    int32_t SrcX = -1;
+    int32_t SrcY = -1;
+    int32_t SrcW = -1;
+    int32_t SrcH = -1;
+    int32_t DstX = -1;
+    int32_t DstY = -1;
+    int32_t DstW = -1;
+    int32_t DstH = -1;
+    int32_t Transform = -1;
+    int32_t Primary = -1;
+    int32_t Extend = -1;
 };
 
 // DisplayMode
-struct DisplayModeXml{
-  DrmXmlVersion Version;
-  bool Enable = false;
-  bool Valid = false;
-  int32_t Mode = -1;
-  int32_t FbWidth = -1;
-  int32_t FbHeight = -1;
-  int32_t ConnectorCnt = 0;
-  ConnectorInfoXml ConnectorInfo[10];
+struct DisplayModeXml {
+    DrmXmlVersion Version;
+    bool Enable = false;
+    bool Valid = false;
+    int32_t Mode = -1;
+    int32_t FbWidth = -1;
+    int32_t FbHeight = -1;
+    int32_t ConnectorCnt = 0;
+    ConnectorInfoXml ConnectorInfo[10];
 };
 
-#endif // _DRM_XML_H_
+#endif  // _DRM_XML_H_

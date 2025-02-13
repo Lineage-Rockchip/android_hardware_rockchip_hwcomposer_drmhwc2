@@ -27,30 +27,30 @@
 namespace android {
 
 int AutoLock::Lock() {
-  if (locked_) {
-    ALOGE("Invalid attempt to double lock AutoLock %s", name_);
-    return -EINVAL;
-  }
-  int ret = pthread_mutex_lock(mutex_);
-  if (ret) {
-    ALOGE("Failed to acquire %s lock %d", name_, ret);
-    return ret;
-  }
-  locked_ = true;
-  return 0;
+    if (locked_) {
+        ALOGE("Invalid attempt to double lock AutoLock %s", name_);
+        return -EINVAL;
+    }
+    int ret = pthread_mutex_lock(mutex_);
+    if (ret) {
+        ALOGE("Failed to acquire %s lock %d", name_, ret);
+        return ret;
+    }
+    locked_ = true;
+    return 0;
 }
 
 int AutoLock::Unlock() {
-  if (!locked_) {
-    ALOGE("Invalid attempt to unlock unlocked AutoLock %s", name_);
-    return -EINVAL;
-  }
-  int ret = pthread_mutex_unlock(mutex_);
-  if (ret) {
-    ALOGE("Failed to release %s lock %d", name_, ret);
-    return ret;
-  }
-  locked_ = false;
-  return 0;
+    if (!locked_) {
+        ALOGE("Invalid attempt to unlock unlocked AutoLock %s", name_);
+        return -EINVAL;
+    }
+    int ret = pthread_mutex_unlock(mutex_);
+    if (ret) {
+        ALOGE("Failed to release %s lock %d", name_, ret);
+        return ret;
+    }
+    locked_ = false;
+    return 0;
 }
 }  // namespace android
