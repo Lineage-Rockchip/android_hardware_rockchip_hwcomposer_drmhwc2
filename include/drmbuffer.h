@@ -76,7 +76,7 @@ class DrmBuffer {
     int GetReleaseFence();
     int SetReleaseFence(int fence);
     int WaitReleaseFence();
-    int DumpData();
+    int DumpData(uint32_t frame_no, int zpos, const char* tag);
 
     void SetDataspace(android_dataspace_t dataspace);
     android_dataspace_t GetDataspace();

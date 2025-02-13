@@ -19,11 +19,13 @@
 #include <drm_fourcc.h>
 #include <drmbuffer.h>
 #include <rockchip/utils/drmdebug.h>
+#include "utils/hwc2_dumper.h"
 
 #include <cutils/atomic.h>
 #include <inttypes.h>
 #include <libsync/sw_sync.h>
 #include <sync/sync.h>
+#include <regex>
 namespace android {
 
 #define ALIGN_DOWN(value, base) (value & (~(base - 1)))
@@ -570,7 +572,7 @@ int DrmBuffer::WaitReleaseFence() {
     return ret;
 }
 
-int DrmBuffer::DumpData() {
+int DrmBuffer::DumpData(uint32_t frame_no, int zpos, const char* tag) {
     std::lock_guard<std::mutex> lk(mtx_);
     if (!buffer_) HWC2_ALOGI("LayerId=%" PRIu64 " Buffer is null.", uId);
 
@@ -593,24 +595,11 @@ int DrmBuffer::DumpData() {
         return -1;
     }
 
-    FILE* pfile = NULL;
-    char data_name[100];
-    system("mkdir /data/dump/ && chmod /data/dump/ 777 ");
-    sprintf(data_name, "/data/dump/%d_%5.5s_id-%" PRIu64 "_%dx%d.bin", frame_cnt++,
-            sName_.size() < 5 ? "unset" : sName_.c_str(), uId, iStride_, iHeight_);
+    std::string dump_file_name = HwcDumper::GetInstance()->GetDumpName(
+            tag, frame_no, zpos, iStride_, iHeightStride_ > 0 ? iHeightStride_ : iHeight_, iByteStride_, uFourccFormat_,
+            uModifier_, sName_, uBufferId_);
 
-    pfile = fopen(data_name, "wb");
-    if (pfile) {
-        fwrite((const void*)cpu_addr, (size_t)(iSize_), 1, pfile);
-        fflush(pfile);
-        fclose(pfile);
-        HWC2_ALOGI("dump surface layer_id=%" PRIu64 " ,data_name %s,w:%d,h:%d,stride :%d,size=%d,cpu_addr=%p", uId,
-                   data_name, iWidth_, iStride_, iByteStride_, iSize_, cpu_addr);
-    } else {
-        HWC2_ALOGE("Open %s fail", data_name);
-        HWC2_ALOGI("dump surface layer_id=%" PRIu64 " ,data_name %s,w:%d,h:%d,stride :%d,size=%d,cpu_addr=%p", uId,
-                   data_name, iWidth_, iStride_, iByteStride_, iSize_, cpu_addr);
-    }
+    HwcDumper::GetInstance()->DumpData(cpu_addr, iSize_, dump_file_name.c_str());
 
     ret = ptrDrmGralloc_->hwc_get_handle_unlock(buffer_);
     if (ret) {

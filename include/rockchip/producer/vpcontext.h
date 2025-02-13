@@ -259,6 +259,8 @@ class VpContext {
 
     android_dataspace_t iDataSpace_ = HAL_DATASPACE_UNKNOWN;
 
+    uint64_t GetFrameNo() { return uFrameNo_; }
+
   private:
     DrmGralloc* mDrmGralloc_;
     int iTunnelId_;

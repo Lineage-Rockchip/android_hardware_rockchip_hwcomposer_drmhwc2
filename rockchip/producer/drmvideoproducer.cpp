@@ -415,7 +415,7 @@ std::shared_ptr<DrmBuffer> DrmVideoProducer::DoHwPq(std::shared_ptr<VpContext> c
         if (!strcmp(value, "true")) {
             ctx->WaitAcquireFence(buffer->GetExternalId(), 3000);
             ctx->WaitPqAcquireFence(buffer->GetExternalId(), 3000);
-            dst_buffer->DumpData();
+            dst_buffer->DumpData(ctx->GetFrameNo(), 0, "S");
         }
         //Update Crop form Query Result
         dst_buffer->SetCrop(dst.mCrop_.iLeft_, dst.mCrop_.iTop_, dst.mCrop_.iRight_, dst.mCrop_.iBottom_);
@@ -898,7 +898,7 @@ int DrmVideoProducer::DoTransform(std::shared_ptr<VpContext> ctx, std::shared_pt
         char value[PROPERTY_VALUE_MAX];
         property_get("vendor.dump", value, "false");
         if (!strcmp(value, "true")) {
-            dst_buffer->DumpData();
+            dst_buffer->DumpData(ctx->GetFrameNo(), 0, "S");
         }
 
         bufferQueue->QueueBuffer(dst_buffer);

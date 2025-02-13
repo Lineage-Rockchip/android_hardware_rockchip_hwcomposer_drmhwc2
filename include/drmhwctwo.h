@@ -535,7 +535,7 @@ class DrmHwcTwo : public hwc2_device_t {
         const std::shared_ptr<LayerInfoCache> GetBufferInfo() { return pBufferInfo_; };
         void DumpLayerInfo(String8& output);
 
-        int DumpData();
+        int DumpData(int frame_no, const char* tag);
 
         void EnableAfbc() { is_afbc_ = true; };
         void DisableAfbc() { is_afbc_ = false; };
@@ -893,6 +893,7 @@ class DrmHwcTwo : public hwc2_device_t {
         bool force_full_once_ = false;
 #endif
         mutable std::recursive_mutex mDisplayMutex_;
+        int iDumpCnt = -1;
     };
 
     enum PLUG_EVENT_TYPE {

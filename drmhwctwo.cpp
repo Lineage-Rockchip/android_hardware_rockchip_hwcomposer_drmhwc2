@@ -26,11 +26,11 @@
 #include "platform.h"
 #include "rockchip/drmgralloc.h"
 #include "rockchip/utils/drmdebug.h"
+#include "utils/hwc2_dumper.h"
 #include "vsyncworker.h"
 
 #include <inttypes.h>
 #include <iomanip>
-#include <string>
 
 #include <cutils/properties.h>
 #include <hardware/hardware.h>
@@ -2241,9 +2241,9 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentVirtualDisplay(int32_t* retire_fence) 
 
             // 添加调试接口，抓打印传递给SurfaceFlinger的 Buffer
             char value[PROPERTY_VALUE_MAX];
-            property_get("debug.wb.dump", value, "0");
-            if (atoi(value) > 0) {
-                output_layer_.DumpData();
+            property_get("vendor.dump", value, "0");
+            if (!strcmp(value, "true")) {
+                output_layer_.DumpData(frame_no_, "W");
             }
         }
     } else {
@@ -3359,7 +3359,7 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayInfo(String8& output) {
     }
 
     // clang-format off
-  output.append(
+    output.append(
               "------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n"
               "  id  |  z  |  sf-type  |  hwc-type |       handle       |  transform  |    blnd    |     source crop (l,t,r,b)      |          frame         | dataspace  |  mFps  | name       \n"
               "------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
@@ -3376,7 +3376,7 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayInfo(String8& output) {
 
     // clang-format off
   output.append("------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
-  output.append("DrmHwcLayer Dump:\n");
+    output.append("DrmHwcLayer Dump:\n");
     // clang-format on
     for (auto& drmHwcLayer : drm_hwc_layers_) drmHwcLayer.DumpInfo(output);
 
@@ -3391,7 +3391,7 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayLayersInfo(String8& output) {
                         frame_no_);
 
     // clang-format off
-  output.append(
+    output.append(
               "------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n"
               "  id  |  z  |  req-type | fina-type |       handle       |  transform  |    blnd    |     source crop (l,t,r,b)      |          frame         | dataspace  |  mFps  | name       \n"
               "------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
@@ -3421,7 +3421,7 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayLayersInfo() {
                         frame_no_);
 
     // clang-format off
-  output.append(
+    output.append(
               "------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n"
               "  id  |  z  |  sf-type  |  hwc-type |       handle       |  transform  |    blnd    |     source crop (l,t,r,b)      |          frame         | dataspace  |  mFps  | name       \n"
               "------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
@@ -3447,24 +3447,46 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayLayersInfo() {
 }
 int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
     char pro_value[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_TYPE ".dump", pro_value, 0);
+    property_get("vendor.dump", pro_value, 0);
+
     if (!strcmp(pro_value, "true")) {
+        bool use_client_layer = false;
         for (auto& map_layer : layers_) {
             HwcLayer& layer = map_layer.second;
-            layer.DumpData();
+            layer.DumpData(frame_no_, "M");
+            if (layer.validated_type() == HWC2::Composition::Client) {
+                use_client_layer = true;
+            }
         }
-        if (client_layer_.buffer() != NULL) client_layer_.DumpData();
+
+        if (use_client_layer && client_layer_.buffer() != NULL) client_layer_.DumpData(frame_no_, "M");
 
         for (auto& drm_layer : drm_hwc_layers_) {
             if (drm_layer.bUseSr_ && drm_layer.pSrBuffer_) {
-                drm_layer.pSrBuffer_->DumpData();
+                drm_layer.pSrBuffer_->DumpData(frame_no_, drm_layer.iZpos_, "M");
             }
         }
         for (auto& drm_layer : drm_hwc_layers_) {
             if (drm_layer.bUseRga_ && drm_layer.pRgaBuffer_) {
-                drm_layer.pRgaBuffer_->DumpData();
+                drm_layer.pRgaBuffer_->DumpData(frame_no_, drm_layer.iZpos_, "M");
             }
         }
+
+        if (iDumpCnt <= 0) {
+            int framecnt = hwc_get_int_property("vendor.dump.cnt", "-1");
+            if (framecnt > 0) {
+                iDumpCnt = framecnt;
+            }
+        }
+
+        if (iDumpCnt > 0) {
+            iDumpCnt--;
+            if (iDumpCnt == 0) {
+                property_set("vendor.dump", "false");
+            }
+        }
+    } else {
+        iDumpCnt = -1;
     }
 
     return 0;
@@ -5282,7 +5304,7 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 property_get("vendor.dump", value, "false");
                 if (!strcmp(value, "true")) {
                     drmHwcLayer->acquire_fence->wait();
-                    dst_buffer->DumpData();
+                    dst_buffer->DumpData(drm_layer->uFrameNo_, drm_layer->iZpos_);
                 }
                 bufferQueue_->QueueBuffer(dst_buffer);
             }
@@ -5474,7 +5496,7 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 property_get("vendor.dump", value, "false");
                 if (!strcmp(value, "true") && dst_buffer != NULL) {
                     dst_buffer->WaitFinishFence();
-                    dst_buffer->DumpData();
+                    dst_buffer->DumpData(drm_layer->uFrameNo_, drm_layer->iZpos_);
                 }
                 if (dst_buffer != NULL) bufferQueue_->QueueBuffer(dst_buffer);
             }
@@ -5511,18 +5533,26 @@ void DrmHwcTwo::HwcLayer::DumpLayerInfo(String8& output) {
             layer_name_.c_str(), pBufferInfo_ != NULL ? pBufferInfo_->uBufferId_ : -1);
     return;
 }
-int DrmHwcTwo::HwcLayer::DumpData() {
+int DrmHwcTwo::HwcLayer::DumpData(int frame_no, const char* tag) {
+    ATRACE_CALL();
     if (!buffer_) ALOGI_IF(LogLevel(DBG_INFO), "%s,line=%d LayerId=%u Buffer is null.", __FUNCTION__, __LINE__, id_);
 
     void* cpu_addr = NULL;
     static int frame_cnt = 0;
-    int width, height, stride, byte_stride, size;
+    int width, height, stride, byte_stride, height_stride, size;
+    uint32_t fourcc_format;
+    uint64_t modifier;
+    uint64_t buffer_id = 0;
     int ret = 0;
     width = drmGralloc_->hwc_get_handle_attibute(buffer_, ATT_WIDTH);
     height = drmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT);
     stride = drmGralloc_->hwc_get_handle_attibute(buffer_, ATT_STRIDE);
     size = drmGralloc_->hwc_get_handle_attibute(buffer_, ATT_SIZE);
     byte_stride = drmGralloc_->hwc_get_handle_attibute(buffer_, ATT_BYTE_STRIDE);
+    height_stride = drmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT_STRIDE);
+    fourcc_format = drmGralloc_->hwc_get_handle_fourcc_format(buffer_);
+    modifier = drmGralloc_->hwc_get_handle_format_modifier(buffer_);
+    ret = drmGralloc_->hwc_get_handle_buffer_id(buffer_, &buffer_id);
 
     cpu_addr = drmGralloc_->hwc_get_handle_lock(buffer_, width, height);
     if (cpu_addr == NULL) {
@@ -5530,24 +5560,11 @@ int DrmHwcTwo::HwcLayer::DumpData() {
         return -1;
     }
 
-    FILE* pfile = NULL;
-    char data_name[100];
-    system("mkdir /data/dump/ && chmod /data/dump/ 777 ");
-    sprintf(data_name, "/data/dump/%d_%5.5s_id-%d_%dx%d_z-%d.bin", frame_cnt++,
-            layer_name_.size() < 5 ? "unset" : layer_name_.c_str(), id_, stride, height, mCurrentState.z_order_);
+    std::string dump_file_name = HwcDumper::GetInstance()->GetDumpName(
+            tag, frame_no, mCurrentState.z_order_, mCurrentState.validated_type_, stride,
+            height_stride > 0 ? height_stride : height, byte_stride, fourcc_format, modifier, layer_name_, buffer_id);
 
-    pfile = fopen(data_name, "wb");
-    if (pfile) {
-        fwrite((const void*)cpu_addr, (size_t)(size), 1, pfile);
-        fflush(pfile);
-        fclose(pfile);
-        ALOGD(" dump surface layer_id=%d ,data_name %s,w:%d,h:%d,stride :%d,size=%d,cpu_addr=%p", id_, data_name, width,
-              height, byte_stride, size, cpu_addr);
-    } else {
-        ALOGE("Open %s fail", data_name);
-        ALOGD(" dump surface layer_id=%d ,data_name %s,w:%d,h:%d,stride :%d,size=%d,cpu_addr=%p", id_, data_name, width,
-              height, byte_stride, size, cpu_addr);
-    }
+    HwcDumper::GetInstance()->DumpData(cpu_addr, size, dump_file_name.c_str());
 
     ret = drmGralloc_->hwc_get_handle_unlock(buffer_);
     if (ret) {

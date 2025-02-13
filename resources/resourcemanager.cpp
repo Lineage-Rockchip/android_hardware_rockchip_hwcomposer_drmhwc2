@@ -668,9 +668,9 @@ int ResourceManager::OutputWBBuffer(int display_id, rga_buffer_t& dst, im_rect& 
     output_buffer->WaitFinishFence();
     // 添加调试接口，抓打印WriteBack Buffer
     char value[PROPERTY_VALUE_MAX];
-    property_get("debug.wb.dump", value, "0");
-    if (atoi(value) > 0) {
-        output_buffer->DumpData();
+    property_get("vendor.dump", value, "0");
+    if (!strcmp(value, "true")) {
+        output_buffer->DumpData(output_frame_no, 0, "W");
     }
 
     rga_buffer_t src;

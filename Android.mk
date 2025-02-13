@@ -114,6 +114,7 @@ LOCAL_SRC_FILES := \
   drm/vsyncworker.cpp \
   drm/invalidateworker.cpp \
   utils/autolock.cpp \
+  utils/hwc2_dumper.cpp \
   rockchip/compositor/drmdisplaycomposition.cpp \
   rockchip/compositor/drmdisplaycompositor.cpp \
   rockchip/utils/drmdebug.cpp \

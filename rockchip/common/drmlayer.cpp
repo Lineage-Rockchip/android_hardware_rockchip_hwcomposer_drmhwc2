@@ -17,6 +17,8 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #define LOG_TAG "hwc-drm-utils"
 
+#include <regex>
+
 #include "drmlayer.h"
 #include "platform.h"
 
@@ -25,6 +27,7 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <ui/GraphicBufferMapper.h>
+#include "utils/hwc2_dumper.h"
 
 #define hwcMIN(x, y) (((x) <= (y)) ? (x) : (y))
 #define hwcMAX(x, y) (((x) >= (y)) ? (x) : (y))
@@ -1168,7 +1171,7 @@ int DrmHwcLayer::DumpInfo(String8& out) {
     return 0;
 }
 
-int DrmHwcLayer::DumpData() {
+int DrmHwcLayer::DumpData(const char* tag) {
     if (!sf_handle) {
         ALOGI_IF(LogLevel(DBG_INFO), "%s,line=%d LayerId=%u Buffer is null.", __FUNCTION__, __LINE__, uId_);
         return -1;
@@ -1181,14 +1184,19 @@ int DrmHwcLayer::DumpData() {
     }
     void* cpu_addr = NULL;
     static int frame_cnt = 0;
-    int width, height, stride, byte_stride, format, size;
+    int width, height, stride, byte_stride, height_stride, fourcc_format, size;
+    uint64_t modifier;
+    uint64_t buffer_id = 0;
     int ret = 0;
     width = drm_gralloc->hwc_get_handle_attibute(sf_handle, ATT_WIDTH);
     height = drm_gralloc->hwc_get_handle_attibute(sf_handle, ATT_HEIGHT);
     stride = drm_gralloc->hwc_get_handle_attibute(sf_handle, ATT_STRIDE);
-    format = drm_gralloc->hwc_get_handle_attibute(sf_handle, ATT_FORMAT);
     size = drm_gralloc->hwc_get_handle_attibute(sf_handle, ATT_SIZE);
     byte_stride = drm_gralloc->hwc_get_handle_attibute(sf_handle, ATT_BYTE_STRIDE);
+    height_stride = drm_gralloc->hwc_get_handle_attibute(sf_handle, ATT_HEIGHT_STRIDE);
+    modifier = drm_gralloc->hwc_get_handle_format_modifier(sf_handle);
+    fourcc_format = drm_gralloc->hwc_get_handle_fourcc_format(sf_handle);
+    ret = drm_gralloc->hwc_get_handle_buffer_id(sf_handle, &buffer_id);
 
     cpu_addr = drm_gralloc->hwc_get_handle_lock(sf_handle, width, height);
     if (cpu_addr == NULL) {
@@ -1196,24 +1204,11 @@ int DrmHwcLayer::DumpData() {
         return -1;
     }
 
-    FILE* pfile = NULL;
-    char data_name[100];
-    system("mkdir /data/dump/ && chmod /data/dump/ 777 ");
-    sprintf(data_name, "/data/dump/%d_%15.15s_id-%d_%dx%d_f-%d.bin", frame_cnt++,
-            sLayerName_.size() < 5 ? "unset" : sLayerName_.c_str(), uId_, stride, height, format);
+    std::string dump_file_name = HwcDumper::GetInstance()->GetDumpName(
+            tag, uFrameNo_, iZpos_, stride, height_stride > 0 ? iHeightStride_ : height, byte_stride, fourcc_format,
+            modifier, sLayerName_, modifier);
 
-    pfile = fopen(data_name, "wb");
-    if (pfile) {
-        fwrite((const void*)cpu_addr, (size_t)(size), 1, pfile);
-        fflush(pfile);
-        fclose(pfile);
-        ALOGD(" dump surface layer_id=%d ,data_name %s,w:%d,h:%d,stride :%d,size=%d,cpu_addr=%p", uId_, data_name,
-              width, height, byte_stride, size, cpu_addr);
-    } else {
-        ALOGE("Open %s fail", data_name);
-        ALOGD(" dump surface layer_id=%d ,data_name %s,w:%d,h:%d,stride :%d,size=%d,cpu_addr=%p", uId_, data_name,
-              width, height, byte_stride, size, cpu_addr);
-    }
+    HwcDumper::GetInstance()->DumpData(cpu_addr, size, dump_file_name.c_str());
 
     ret = drm_gralloc->hwc_get_handle_unlock(sf_handle);
     if (ret) {

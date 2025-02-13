@@ -369,7 +369,7 @@ struct DrmHwcLayer {
     std::string TransformToString(uint32_t transform) const;
     std::string BlendingToString(DrmHwcBlending blending) const;
     int DumpInfo(String8& out);
-    int DumpData();
+    int DumpData(const char* tag);
 };
 
 struct DrmHwcDisplayContents {

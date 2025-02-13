@@ -2563,7 +2563,7 @@ int Vop3576::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
                 property_get("vendor.dump", value, "false");
                 if (!strcmp(value, "true")) {
                     dst_buffer->WaitFinishFence();
-                    dst_buffer->DumpData();
+                    dst_buffer->DumpData(ctx.request.frame_no_, drmLayer->iZpos_, "M");
                 }
             } else {
                 lastHwPqUseNewBuffer = false;
