@@ -148,12 +148,12 @@ Dump文件命名规则如下，根据数据来源的不同，其中部分参数�
 ### 4.1 Luncher 界面显示异常问题（应用原始图像数据异常问题：GPU渲染异常问题）
 1. 尝试复现 Luncher 界面显示异常问题，观察异常图像发生可能发生在哪个图层，图层信息可以通过以下命令获取：
     ```shell
-    $ adb shell dumpsys SurfaceFlinger | grep -C 10 mFps 
+    $ adb shell dumpsys SurfaceFlinger | grep -C 10 mFps
     # 输出如下（裁剪了部分信息）：
     DisplayId=0, Connector 417, Type = DSI-1, Connector state = DRM_MODE_CONNECTED
     NumHwLayers=4, activeModeId=3, 1080x1920p60.00, colorMode = -1, bStandardSwitchResolution=0
     ------+-----+-----------+-----------+--------------------------------+------------------------+--------+------------
-    id  |  z  |  sf-type  |  hwc-type |     source crop (l,t,r,b)      |          frame         |  mFps  | name       
+    id  |  z  |  sf-type  |  hwc-type |     source crop (l,t,r,b)      |          frame         |  mFps  | name
     ------+-----+-----------+-----------+--------------------------------+------------------------+--------+------------
     0007 | 000 |    Device |    Device |   27.0,   48.0,  693.0, 1232.0 |    0,    0, 1080, 1920 |   0.0  | Wallpaper#0(BLAST Consumer)0 | 0x1070000023b
     0011 | 001 |    Device |    Device |    0.0,    0.0, 1080.0, 1920.0 |    0,    0, 1080, 1920 |  60.1  | VRI[Launcher3QuickStepGo]#2(BLAST Consumer)2 | 0x10700000268
@@ -192,12 +192,12 @@ Dump文件命名规则如下，根据数据来源的不同，其中部分参数�
 
 1. 尝试复现 视频旋转场景画面显示异常问题，图层信息可以通过以下命令获取：
     ```shell
-    $ adb shell dumpsys SurfaceFlinger | grep -C 10 mFps 
+    $ adb shell dumpsys SurfaceFlinger | grep -C 10 mFps
     # 输出如下（裁剪了部分信息）：
     DisplayId=0, Connector 417, Type = DSI-1, Connector state = DRM_MODE_CONNECTED
     NumHwLayers=2, activeModeId=3, 1080x1920p60.00, colorMode = -1, bStandardSwitchResolution=0
     ------+-----+-----------+-----------+-------------+--------+------------
-    id  |  z  |  sf-type  |  hwc-type |  transform  |  mFps  | name       
+    id  |  z  |  sf-type  |  hwc-type |  transform  |  mFps  | name
     ------+-----+-----------+-----------+-------------+--------+------------
     0027 | 000 |    Device |    Device | Rotate90    |  23.8  | SurfaceView[android.rk.RockVideoPlayer | 0x10700000112
     0034 | 001 |    Device |    Device | None        |   3.5  | VRI[VideoPlayActivity]#1(BLAST Consumer)1 | 0x1070000009f
@@ -230,7 +230,7 @@ Dump文件命名规则如下，根据数据来源的不同，其中部分参数�
     # HWC 创建 WriteBack 屏幕成功
     I hwc-drm-two: CreateVirtualDisplay,line=252 Support VDS: w=1080,h=1920,f=1 display-id=3
 
-    $ adb shell cat /d/dri/0/summary 
+    $ adb shell cat /d/dri/0/summary
     # Video Port1 挂载 Writeback-1 成功，则系统开始使用 Writeback 录制屏幕内容
     Video Port0: DISABLED
     Video Port1: ACTIVE
@@ -260,3 +260,13 @@ Dump文件命名规则如下，根据数据来源的不同，其中部分参数�
     ```
 5. 利用 YUView/7YUV查看 原始图像数据与WriteBack图像数据即可定位录屏输出的图像数据是否异常问题，最终确认为 HWC利用RGA将WriteBack图像数据转换为上层SurfaceFlinger 请求的图像数据转换过程存在问题，导致录屏图像异常；
 
+## 工具推荐
+
+### YUView
+可以解析 Raster非压缩格式的多种 YUV/RGB 格式
+
+官方主页：https://ient.github.io/YUView/
+
+源码地址：https://github.com/IENT/YUView
+
+发布版本下载地址： https://github.com/IENT/YUView/releases
