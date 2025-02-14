@@ -17,6 +17,7 @@
 #ifndef DRM_UNIQUE_H_
 #define DRM_UNIQUE_H_
 
+#include <stdint.h>
 #include <xf86drmMode.h>
 
 #include <functional>

@@ -29,11 +29,10 @@
 #include <log/log.h>
 #include <sync/sync.h>
 #include <utils/Trace.h>
-#include "drm/drm_mode.h"
-
 // System property
 #include <cutils/properties.h>
 
+#include "drm/drm_mode.h"
 #include "drmcrtc.h"
 #include "drmdevice.h"
 #include "drmplane.h"

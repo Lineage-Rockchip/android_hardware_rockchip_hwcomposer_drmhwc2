@@ -19,7 +19,6 @@
 #include <mutex>
 #include <queue>
 
-#include <drm/drm_mode.h>
 #include <rga.h>
 #include "drmbuffer.h"
 #include "rockchip/producer/videotunnel/video_tunnel.h"
