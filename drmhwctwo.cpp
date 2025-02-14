@@ -205,6 +205,26 @@ HWC2::Error DrmHwcTwo::Init() {
     }
 #endif
 
+    //Ensure all display except primary are disabled in SingleDisplay mode
+    if (resource_manager_->IsSingleDisplayMode()) {
+        auto drm = resource_manager_->GetDrmDevice(0);
+        if (drm) {
+            for (auto& conn : drm->connectors()) {
+                if (conn->display() != 0) {
+                    HWC2_ALOGI("SingleDisplayMode disable display %d (%s-%d).", conn->display(),
+                               drm->connector_type_str(conn->type()), conn->type_id());
+
+                    int ret = drm->ReleaseDpyRes(conn->display());
+                    if (ret) {
+                        HWC2_ALOGE("Failed to disable Display %d, ret=%d", conn->display(), ret);
+                    }
+                }
+            }
+        } else {
+            HWC2_ALOGE("Failed to get DrmDevice for Display 0");
+        }
+    }
+
     return ret;
 }
 
@@ -5670,7 +5690,7 @@ void DrmHwcTwo::HandleInitialHotplugState(DrmDevice* drmDevice) {
 }
 
 void DrmHwcTwo::EventWorker::HdmiTvOnlyOne(PLUG_EVENT_TYPE hdmi_hotplug_state) {
-    if (!gIsRK3528()) return;
+    if (!gIsRK3528() || ResourceManager::getInstance()->IsSingleDisplayMode()) return;
     ResourceManager* rm = ResourceManager::getInstance();
     int primary_id = 0;
     DrmDevice* drm_ = rm->GetDrmDevice(primary_id);
