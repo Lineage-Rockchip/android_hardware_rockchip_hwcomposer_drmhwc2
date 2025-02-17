@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <log/log.h>
+#include <sys/mman.h>
 
 #if USE_GRALLOC_4
 #include "rockchip/drmgralloc4.h"
@@ -1215,8 +1216,8 @@ int DrmGralloc::hwc_buf_unmap_flushcache_readonly(int fd, void* vaddr, int size)
     ret = munmap(vaddr, size);
 
     if (ret != 0) {
-        HWC2_ALOGE("dma-buffer unmap fd=%d vaddr=%p size=%d failed with code %d: %s",
-                   fd, vaddr, size, errno, strerror(errno));
+        HWC2_ALOGE("dma-buffer unmap fd=%d vaddr=%p size=%d failed with code %d: %s", fd, vaddr, size, errno,
+                   strerror(errno));
     }
 
     return ret;
