@@ -5324,7 +5324,7 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 property_get("vendor.dump", value, "false");
                 if (!strcmp(value, "true")) {
                     drmHwcLayer->acquire_fence->wait();
-                    dst_buffer->DumpData(drm_layer->uFrameNo_, drm_layer->iZpos_);
+                    dst_buffer->DumpData(drmHwcLayer->uFrameNo_, drmHwcLayer->iZpos_, "M");
                 }
                 bufferQueue_->QueueBuffer(dst_buffer);
             }
@@ -5516,7 +5516,7 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 property_get("vendor.dump", value, "false");
                 if (!strcmp(value, "true") && dst_buffer != NULL) {
                     dst_buffer->WaitFinishFence();
-                    dst_buffer->DumpData(drm_layer->uFrameNo_, drm_layer->iZpos_);
+                    dst_buffer->DumpData(drmHwcLayer->uFrameNo_, drmHwcLayer->iZpos_, "M");
                 }
                 if (dst_buffer != NULL) bufferQueue_->QueueBuffer(dst_buffer);
             }
