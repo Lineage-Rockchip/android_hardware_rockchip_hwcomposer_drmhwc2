@@ -1523,6 +1523,16 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
         if (!ret) {  // Match sucess, to call im2d interface
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseSr_) {
+                    if (drmLayer->acquire_fence->isValid()) {
+                        if (drmLayer->acquire_fence->wait(500)) {
+                            HWC2_ALOGE(
+                                    "Wait AcquireFence 500ms failed! Info: size=%d act=%d signal=%d err=%d "
+                                    ",LayerName=%s ",
+                                    drmLayer->acquire_fence->getSize(), drmLayer->acquire_fence->getActiveCount(),
+                                    drmLayer->acquire_fence->getSignaledCount(),
+                                    drmLayer->acquire_fence->getErrorCount(), drmLayer->sLayerName_.c_str());
+                        }
+                    }
                     int output_fence = 0;
                     // 13. RunAsync
                     SrError error = svep_sr_->RunAsync(&sr_src_, &sr_dst_, &output_fence);
