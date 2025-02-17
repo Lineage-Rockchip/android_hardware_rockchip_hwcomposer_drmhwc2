@@ -3158,11 +3158,6 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
         }
     }
 
-    // 如果　memc 不是连续的帧，则需要清空Memc内部队列
-    if (ctx.request.frame_no_ - uMemcFrameNo_ != 1) {
-        ClearMemcJob();
-    }
-
     bool memc_layer_ready = false;
     bool memc_new_buffer = false;
 
@@ -3183,6 +3178,27 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     for (auto& drmLayer : layers) {
         if (SvepMemcAllowedByLocalPolicy(drmLayer) && SvepMemcAllowedByBlacklist(drmLayer)) {
             ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d", __FUNCTION__, __LINE__);
+            // 如果不是连续的帧，则需要清空Memc内部队列
+            static int skip_memc_cnt = 0;
+            static uint32_t last_layer_uid = 0;
+            const int skip_memc_num = 10;
+            if ((ctx.request.frame_no_ - uMemcFrameNo_ != 1) || (last_layer_uid != drmLayer->uId_)) {
+                ClearMemcJob();
+                HWC2_ALOGD_IF_DEBUG("skip memc success, last_uid=%u uid=%u.", last_layer_uid, drmLayer->uId_);
+                uMemcFrameNo_ = ctx.request.frame_no_;
+                last_layer_uid = drmLayer->uId_;
+                skip_memc_cnt = 0;
+            }
+
+            // 为了避免Memc影响视频切换过渡, 暂不执行Memc
+            skip_memc_cnt++;
+            if (skip_memc_cnt <= skip_memc_num) {
+                HWC2_ALOGD_IF_DEBUG("skip memc success.");
+                uMemcFrameNo_ = ctx.request.frame_no_;
+                last_layer_uid = drmLayer->uId_;
+                continue;
+            }
+
             // set src info
             memcSrcInfo.mBufferInfo_.iFd_ = drmLayer->iFd_;
             memcSrcInfo.mBufferInfo_.iWidth_ = drmLayer->iWidth_;
