@@ -2700,6 +2700,29 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
             return HWC2::Error::BadParameter;
     };
 
+    //这里使用析构函数，确保eventWorker_恢复event处理的操作在SetPowerMode流程执行完成后执行
+    struct signalScope_t {
+        ~signalScope_t() {
+            g_ctx->eventWorker_.SetEventBlockState(false, "Display 0 Powered on");
+            g_ctx->eventWorker_.Signal();
+        }
+    };
+    std::shared_ptr<signalScope_t> signalScope = nullptr;
+
+    ResourceManager* rm = ResourceManager::getInstance();
+    if (!rm) {
+        HWC2_ALOGE("EventWorker::Routine: Can not get ResourceManager");
+    } else {
+        //Check if hotplug need to block in sleep
+        if (rm->GetBlockHotplugInPowerOff() && handle_ == 0) {
+            if (mPowerMode_ == HWC2::PowerMode::Off) {
+                g_ctx->eventWorker_.SetEventBlockState(true, "Display 0 Powered off");
+            }
+            if (mPowerMode_ == HWC2::PowerMode::On) {
+                signalScope = std::make_shared<signalScope_t>();
+            }
+        }
+    }
     if (!init_success_) {
         bNeedSyncPMState_ = true;
         HWC2_ALOGE("init_success_=%d skip.", init_success_);
@@ -6276,6 +6299,12 @@ void DrmHwcTwo::EventWorker::Start() {
     Signal();
 }
 
+//this function cannot be locked or it may dead lock.
+void DrmHwcTwo::EventWorker::SetEventBlockState(bool isBlock, std::string reason) {
+    bBlockHotplugCallBack_ = isBlock;
+    HWC2_ALOGD_IF_DEBUG("%s EventWorker for %s", isBlock ? "Block" : "Resume", reason.c_str());
+}
+
 int DrmHwcTwo::EventWorker::SendDrmEvent(DrmEvent event) {
     Lock();
     HWC2_ALOGD_IF_INFO("hwc_hotplug : add event display-id=%d type=%d connection=%s timestamp=%" PRIu64,
@@ -6616,7 +6645,7 @@ void DrmHwcTwo::EventWorker::Routine() {
     Lock();
     int ret = 0;
 
-    if (!bCanHotplugCallBack_) {
+    if (!bCanHotplugCallBack_ || bBlockHotplugCallBack_) {
         ret = WaitForSignalOrExitLocked();
         Unlock();
         return;
@@ -6629,6 +6658,11 @@ void DrmHwcTwo::EventWorker::Routine() {
             Unlock();
             return;
         }
+    }
+
+    if (bBlockHotplugCallBack_) {
+        Unlock();
+        return;
     }
 
     //将 Pending 的事件打包成 queue 队列进行处理

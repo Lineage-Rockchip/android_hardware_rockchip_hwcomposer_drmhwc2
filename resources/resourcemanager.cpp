@@ -195,6 +195,11 @@ int ResourceManager::InitProperty() {
     property_get("vendor.hwc.enable_solid_color_support", property_value, "1");
     mEnableSolidColorSupport_ = atoi(property_value) > 0;
 
+    // 是否在主屏休眠时阻塞热插拔处理
+    // 默认在一级休眠下，HDMI插入会将屏幕点亮，3528盒子设备中此场景不应该被点亮。
+    property_get("vendor.hwc.block_hotplug_in_poweroff", property_value, "1");
+    mBlockHotplugInPowerOff_ = atoi(property_value) > 0;
+
     return 0;
 }
 
@@ -248,6 +253,10 @@ std::shared_ptr<SolidColorBuffer> ResourceManager::GetSolidColorBuffer(uint32_t 
     }
 
     return buffer;  // 返回创建的缓冲区
+}
+
+bool ResourceManager::GetBlockHotplugInPowerOff() const{
+  return mBlockHotplugInPowerOff_;
 }
 
 bool ResourceManager::GetRgaSupportAbove4GB() const {

@@ -123,6 +123,7 @@ class ResourceManager {
     bool IsSingleDisplayMode() const;
     bool IsSupportSolidColor() const;
     std::shared_ptr<SolidColorBuffer> GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h);
+    bool GetBlockHotplugInPowerOff() const;
 
   private:
     ResourceManager();
@@ -198,6 +199,8 @@ class ResourceManager {
     bool mEnableSingleDisplayMode_ = false;
     // Enable signal display
     bool mEnableSolidColorSupport_ = false;
+    // Block hotplug if primary display is powered off
+    bool mBlockHotplugInPowerOff_ = false;
 
     mutable std::recursive_mutex mRecursiveMutex;
 };

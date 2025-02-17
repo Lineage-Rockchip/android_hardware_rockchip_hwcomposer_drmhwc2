@@ -937,6 +937,7 @@ class DrmHwcTwo : public hwc2_device_t {
 
         int Init(DrmHwcTwo* hwc2);
         void Start();
+        void SetEventBlockState(bool isBlock, std::string reason = "unknown");
         int SendDrmEvent(DrmEvent event);
 
       protected:
@@ -960,7 +961,8 @@ class DrmHwcTwo : public hwc2_device_t {
         // RK3528 的 TV 处理逻辑
         void HdmiTvOnlyOne(PLUG_EVENT_TYPE hdmi_hotplug_state);
         DrmHwcTwo* hwc2_;
-        bool bCanHotplugCallBack_;
+        bool bCanHotplugCallBack_ = false;
+        bool bBlockHotplugCallBack_ = false;
         std::map<int /* displayid */, std::map<DrmEventType, DrmEvent>> mMapPendingEvent_;
     };
 
