@@ -3958,16 +3958,36 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
                 hwc_get_int_property("persist.sys.vivid.max_brightness", "100") * 100;
     }
 
+    bool usemmap = false;
+    int64_t mmap_size = 0;
+    int mmap_fd = -1;
     void* cpu_addr = NULL;
     if (codec_meta_exist) {
-        // 获取Medata地址
-        cpu_addr = gralloc->hwc_get_handle_lock(hdr_handle, hdr_width, hdr_height);
+        // 获取Medata地址，优先使用mmap
+        int64_t lock_size = gralloc->hwc_get_handle_size(hdr_handle) - offset;
+        int fd = gralloc->hwc_get_handle_primefd(hdr_handle);
+        if (lock_size > 0 && fd > 0) {
+            cpu_addr = DrmGralloc::hwc_buf_mmap_flushcache_readonly(fd, lock_size, offset);
+            if (cpu_addr) {
+                mmap_size = lock_size;
+                mmap_fd = fd;
+                usemmap = true;
+            }
+        }
+        // 若mmap失败，则使用gralloc
+        if (cpu_addr == NULL) {
+            cpu_addr = gralloc->hwc_get_handle_lock(hdr_handle, hdr_width, hdr_height);
+        }
         if (cpu_addr == NULL) {
             HWC2_ALOGD_IF_ERR("Fail to lock dma buffer, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
             hdrLayer.metadataHdrParam_.codec_meta_exist = false;
             hdrLayer.metadataHdrParam_.p_hdr_codec_meta = NULL;
         } else {
-            uint16_t* u16_cpu_metadata = (uint16_t*)((uint8_t*)cpu_addr + offset);
+            uint16_t* u16_cpu_metadata;
+            if (usemmap)
+                u16_cpu_metadata = (uint16_t*)((uint8_t*)cpu_addr);
+            else
+                u16_cpu_metadata = (uint16_t*)((uint8_t*)cpu_addr + offset);
             hdrLayer.metadataHdrParam_.codec_meta_exist = codec_meta_exist;
             hdrLayer.metadataHdrParam_.p_hdr_codec_meta = (RkMetaHdrHeader*)u16_cpu_metadata;
 
@@ -4121,12 +4141,21 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
     if (ret) {
         HWC2_ALOGD_IF_ERR("Fail to call MetadataHdrParser ret=%d Id=%d Name=%s ", ret, hdrLayer.uId_,
                           hdrLayer.sLayerName_.c_str());
-        if (cpu_addr != NULL) gralloc->hwc_get_handle_unlock(hdr_handle);
+        if (cpu_addr != NULL) {
+            if (usemmap)
+                DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
+            else
+                gralloc->hwc_get_handle_unlock(hdr_handle);
+        }
         return ret;
     }
 
-    if (cpu_addr != NULL) gralloc->hwc_get_handle_unlock(hdr_handle);
-
+    if (cpu_addr != NULL) {
+        if (usemmap)
+            DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
+        else
+            gralloc->hwc_get_handle_unlock(hdr_handle);
+    }
     hdrLayer.IsMetadataHdr_ = true;
     ctx_.hdr_mode = DRM_HWC_METADATA_HDR;
     ctx_.dataspace = hdrLayer.eDataSpace_;

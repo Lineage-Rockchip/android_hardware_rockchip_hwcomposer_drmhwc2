@@ -206,7 +206,8 @@ class DrmGralloc {
     int hwc_fbid_rm_cache(int fd, uint32_t fb_id);
     int hwc_fbid_add_layer_ref_count(uint64_t buffer_id);
     int hwc_fbid_dec_layer_ref_count(uint64_t buffer_id);
-
+    static void* hwc_buf_mmap_flushcache_readonly(int fd, int size, int offset);
+    static int hwc_buf_unmap_flushcache_readonly(int fd, void* vaddr, int size);
   private:
     DrmGralloc();
     ~DrmGralloc();
