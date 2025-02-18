@@ -3251,9 +3251,24 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetContentType(int32_t contentType) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetProperty(hwc_client_target_property_t* outClientTargetProperty) {
-    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
-    supported(__func__);
-
+    if (outClientTargetProperty) {
+        auto pixelFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+#ifdef USE_LIBPQ_HWPQ
+        // If HWPQ is enabled, use RGB_888 instead of RGBA_8888 for better quality.
+        if (gIsRK3576()){
+            if(crtc_->get_port_id() == 0){
+                if (ctx_.use_pq_fb)
+                    pixelFormat = HAL_PIXEL_FORMAT_RGB_888;
+            }
+        }
+#endif
+        outClientTargetProperty->pixelFormat = pixelFormat;
+        outClientTargetProperty->dataspace = HAL_DATASPACE_SRGB;
+        HWC2_LOGV_IF("display-id=%" PRIu64 "pixel format = %d dataspace =%" PRIx32, handle_,
+                              outClientTargetProperty->pixelFormat, outClientTargetProperty->dataspace);
+    }else{
+        HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
+    }
     return HWC2::Error::None;
 }
 
@@ -5527,7 +5542,11 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 }
 
                 src.iRotation_ = drmHwcLayer->transform;
-                src.mIsFbcdFormat_ = drmHwcLayer->bAfbcd_ || drmHwcLayer->bRfbcd_;
+                bool isAfbc = false;
+                if (fourcc_mod_is_vendor(drmHwcLayer->uModifier_, ARM)) {
+                    isAfbc = drmHwcLayer->uModifier_ & AFBC_FORMAT_MOD_BLOCK_SIZE_32x8;
+                }
+                src.mIsFbcdFormat_ = isAfbc || drmHwcLayer->bRfbcd_;
 
                 // 2. Alloc Dst HwPqReg
                 HwPqImageInfo dst;
