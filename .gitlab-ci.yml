@@ -1,9 +1,3 @@
-workflow:
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'  # 只有通过 schedule 触发才执行
-      when: always
-    - when: never  # 其他所有情况都不执行
-
 stages:
   - build
   - test
@@ -14,69 +8,102 @@ before_script:
   - export PATH=/home/lb/projects/gitlab-ci/drmhwc2-configs/build_sh/:/home/lb/projects/gitlab-ci/drmhwc2-configs/test_sh/:$PATH
   - echo "Updated PATH=$PATH"  # 打印修改后的 PATH
 
+# 创建MR时自动构建单元测试
+build_14_on_mr:
+  stage: build
+  tags:
+    - android-14
+  script:
+    - echo "Building the Android-14 SDK ..."
+    - . 14_build_drmhwc2_mr.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
-# 自动化编译部分
-build_android_15:
+# 每日构建自动化编译部分
+build_15_on_schedule:
   stage: build
   tags:
     - android-15
   script:
     - echo "Building the Android-15 SDK ..."
     - . 15_build_drmhwc2.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'  # 只有通过 schedule 触发才执行
+      when: always
+    - when: never  # 其他所有情况都不执行
 
-build_android_14:
+build_14_on_schedule:
   stage: build
   tags:
     - android-14
   script:
     - echo "Building the Android-14 SDK ..."
     - . 14_build_drmhwc2.sh
+  only:
+    - schedules  # 这个 job 仅在定时任务触发时执行
 
-build_android_13:
+build_13_on_schedule:
   stage: build
   tags:
     - android-13
   script:
     - echo "Building the Android-14 SDK ..."
     - . 13_build_drmhwc2.sh
+  only:
+    - schedules  # 这个 job 仅在定时任务触发时执行
 
-build_android_12:
+build_12_on_schedule:
   stage: build
   tags:
     - android-12
   script:
     - echo "Building the Android-14 SDK ..."
     - . 12_build_drmhwc2.sh
+  only:
+    - schedules  # 这个 job 仅在定时任务触发时执行
 
-build_android_11:
+build_11_on_schedule:
   stage: build
   tags:
     - android-11
   script:
     - echo "Building the Android-14 SDK ..."
     - . 11_build_drmhwc2.sh
+  only:
+    - schedules  # 这个 job 仅在定时任务触发时执行
 
-# 单元测试部分
-test_rk3588_android_14:
+test_rk3588_14:
   stage: test
   tags:
     - android-14
+  variables:
+    GIT_STRATEGY: none  # 不拉取代码
+  rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "schedule"'
   script:
     - echo "Test the Android-14 RK3588 ..."
     - . 14_test_drmhwc2.sh "14" "rk3588_u"
 
-test_rk3576_android_14:
+test_rk3576_14:
   stage: test
   tags:
     - android-14
+  variables:
+    GIT_STRATEGY: none  # 不拉取代码
+  rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "schedule"'
   script:
     - echo "Test the Android-14 RK3576 ..."
     - . 14_test_drmhwc2.sh "14" "rk3576_u"
 
-test_rk3568_android_14:
+test_rk3568_14:
   stage: test
   tags:
     - android-14
+  variables:
+    GIT_STRATEGY: none  # 不拉取代码
+  rules:
+      - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_PIPELINE_SOURCE == "schedule"'
   script:
     - echo "Test the Android-14 RK3568 ..."
     - . 14_test_drmhwc2.sh "14" "rk3568_u"
