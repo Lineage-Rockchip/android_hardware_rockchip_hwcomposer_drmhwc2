@@ -199,7 +199,8 @@ class Vop3576 : public Planner::PlanStage {
 
         int iVopPerformanceFactor;
 
-        bool bNeedReservedCluster0ForHWPQ;
+        bool bNeedReservedCluster0ForHWPQVideo;
+        bool bNeedReservedCluster0ForHWPQSideband;
         // CropSplit mode
         bool bIsCropSplit_;
         bool bIsCropSplitPrimary_;
@@ -303,6 +304,7 @@ class Vop3576 : public Planner::PlanStage {
 #endif
 #ifdef USE_LIBPQ_HWPQ
     int RunHwPqVideoMode(DrmHwcLayer* drmLayer);
+    int RunHwPqGetReg(DrmHwcLayer* drmLayer);
 #endif
     int TryGlesSidebandPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers,
                               DrmCrtc* crtc, std::vector<PlaneGroup*>& plane_groups);

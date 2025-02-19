@@ -1129,7 +1129,7 @@ void DrmVideoProducer::Routine() {
         std::shared_ptr<DrmBuffer> originalBuffer = buffer;
         if (gIsRK3576()) {
             int hwpq_mode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
-            if (hwpq_mode == 2) {
+            if (hwpq_mode == 2 || hwpq_mode == 3) {
                 HWC2_LOGD_IF("persist.vendor.tvinput.rkpq.mode =%d Do pq", hwpq_mode);
                 auto hwpq_buffer = DoHwPq(ctx, buffer);
 

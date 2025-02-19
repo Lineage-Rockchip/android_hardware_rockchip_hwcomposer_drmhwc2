@@ -1938,7 +1938,7 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
 #ifdef USE_LIBPQ
 #ifdef USE_LIBPQ_HWPQ
                 if (gIsRK3576()) {
-                    if (drm_hwc_layer.uWinType_ == PLANE_RK3576_CLUSTER0_WIN0 && crtc_->get_port_id() == 0) {
+                    if (crtc_->get_port_id() == 0) {
                         CollectInfoForHwPqUIMode();
                         ret = client_layer_.DoHwPq(false, &drm_hwc_layer, &ctx_);
                     }
@@ -5650,8 +5650,10 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
     } else {
         if (bPqReady_) {
             drmHwcLayer->hwPqReg_ = NULL;
-            hwpq_->DeInit();
-            hwpq_ = NULL;
+            if (hwpq_) {
+                hwpq_->DeInit();
+                hwpq_ = NULL;
+            }
             bPqReady_ = false;
         }
     }
