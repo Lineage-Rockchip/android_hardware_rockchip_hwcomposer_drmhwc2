@@ -598,6 +598,21 @@ class DrmHwcTwo : public hwc2_device_t {
         HWC2::Error SetLayerVisibleRegion(hwc_region_t visible);
         HWC2::Error SetLayerZOrder(uint32_t z);
 
+#if PLATFORM_SDK_VERSION >= 34
+        // Composer 2.2 Layer
+        HWC2::Error SetLayerPerFrameMetadata(uint32_t numElements, const int32_t* /*hw2_per_frame_metadata_key_t*/ keys,
+                                             const float* metadata);
+        HWC2::Error SetLayerFloatColor(hwc_float_color_t color);
+        // Composer 2.3 layer
+        HWC2::Error SetLayerColorTransform(const float* matrix);
+        HWC2::Error SetLayerPerFrameMetadataBlobs(uint32_t numElements,
+                                                  const int32_t* /*hw2_per_frame_metadata_key_t*/ keys,
+                                                  const uint32_t* sizes, const uint8_t* metadata);
+
+        // Composer 2.4 layer
+        HWC2::Error SetLayerGenericMetadata(uint32_t keyLength, const char* key, bool mandatory, uint32_t valueLength,
+                                            const uint8_t* value);
+#endif
       private:
         // Hwc2Layer id
         uint32_t id_;
@@ -728,17 +743,26 @@ class DrmHwcTwo : public hwc2_device_t {
         HWC2::Error ValidateDisplay(uint32_t* num_types, uint32_t* num_requests);
         HWC2::Error ValidateVirtualDisplay(uint32_t* num_types, uint32_t* num_requests);
 
-#if PLATFORM_SDK_VERSION > 27
+#if PLATFORM_SDK_VERSION >= 34
+        // Composer 2.2
         HWC2::Error GetRenderIntents(int32_t mode, uint32_t* outNumIntents, int32_t* outIntents);
         HWC2::Error SetColorModeWithIntent(int32_t mode, int32_t intent);
-#endif
-#if PLATFORM_SDK_VERSION > 28
+        HWC2::Error GetPerFrameMetadataKeys(uint32_t* outNumKeys, int32_t* /*hwc2_per_frame_metadata_key_t*/ outKeys);
+        HWC2::Error GetReadbackBufferFence(int32_t* outFence);
+        HWC2::Error SetReadbackBuffer(buffer_handle_t buffer, int32_t releaseFence);
+        HWC2::Error GetReadbackBufferAttributes(int32_t* /*android_pixel_format_t*/ outFormat,
+                                                int32_t* /*android_dataspace_t*/ outDataspace);
+        // Composer 2.3
         HWC2::Error GetDisplayIdentificationData(uint8_t* outPort, uint32_t* outDataSize, uint8_t* outData);
         HWC2::Error GetDisplayCapabilities(uint32_t* outNumCapabilities, uint32_t* outCapabilities);
         HWC2::Error GetDisplayBrightnessSupport(bool* supported);
         HWC2::Error SetDisplayBrightness(float);
-#endif
-#if PLATFORM_SDK_VERSION > 29
+        HWC2::Error GetDisplayedContentSamplingAttributes(int32_t* format, int32_t* dataspace,
+                                                          uint8_t* supported_components);
+        HWC2::Error SetDisplayedContentSamplingEnabled(int32_t enabled, uint8_t component_mask, uint64_t max_frames);
+        HWC2::Error GetDisplayedContentSample(uint64_t max_frames, uint64_t timestamp, uint64_t* frame_count,
+                                              int32_t samples_size[4], uint64_t* samples[4]);
+        // Composer 2.4
         HWC2::Error GetDisplayConnectionType(uint32_t* outType);
         HWC2::Error GetDisplayVsyncPeriod(hwc2_vsync_period_t* outVsyncPeriod);
 
@@ -750,6 +774,7 @@ class DrmHwcTwo : public hwc2_device_t {
                                              const uint32_t* outSupportedContentTypes);
 
         HWC2::Error SetContentType(int32_t contentType);
+        HWC2::Error GetClientTargetProperty(hwc_client_target_property_t* outClientTargetProperty);
 #endif
 
         std::map<hwc2_layer_t, HwcLayer>& get_layers() { return layers_; }
@@ -1019,6 +1044,9 @@ class DrmHwcTwo : public hwc2_device_t {
     void Dump(uint32_t* size, char* buffer);
     uint32_t GetMaxVirtualDisplayCount();
     HWC2::Error RegisterCallback(int32_t descriptor, hwc2_callback_data_t data, hwc2_function_pointer_t function);
+#if PLATFORM_SDK_VERSION >= 34
+    HWC2::Error GetLayerGenericMetadataKey(uint32_t keyIndex, uint32_t* outKeyLength, char* outKey, bool* outMandatory);
+#endif
     HWC2::Error CreateDisplay(hwc2_display_t displ, HWC2::DisplayType type);
     void HandleDisplayHotplug(hwc2_display_t displayid, int state);
     void HandleInitialHotplugState(DrmDevice* drmDevice);

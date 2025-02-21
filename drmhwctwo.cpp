@@ -340,6 +340,11 @@ static bool isValid(HWC2::Callback descriptor) {
 
         case HWC2::Callback::Vsync:
             return true;
+#if PLATFORM_SDK_VERSION >= 34
+        case HWC2::Callback::VsyncPeriodTimingChanged:
+        case HWC2::Callback::SeamlessPossible:
+            return false;
+#endif
         default:
             return false;
     }
@@ -418,6 +423,14 @@ HWC2::Error DrmHwcTwo::RegisterCallback(int32_t descriptor, hwc2_callback_data_t
     }
     return HWC2::Error::None;
 }
+
+#if PLATFORM_SDK_VERSION >= 34
+HWC2::Error DrmHwcTwo::GetLayerGenericMetadataKey(uint32_t keyIndex, uint32_t* outKeyLength, char* outKey,
+                                                  bool* outMandatory) {
+    HWC2_ALOGD_IF_VERBOSE();
+    return unsupported(__func__, keyIndex, outKeyLength, outKey, outMandatory);
+}
+#endif
 
 DrmHwcTwo::HwcDisplay::HwcDisplay(ResourceManager* resource_manager, DrmDevice* drm, std::shared_ptr<Importer> importer,
                                   hwc2_display_t handle, HWC2::DisplayType type)
@@ -3154,6 +3167,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
 
 // Only Android 14 Support
 #if PLATFORM_SDK_VERSION >= 34
+// Composer 2.4
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConnectionType(uint32_t* outType) {
     HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
     if (connector_->internal())
@@ -3243,10 +3257,14 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetContentType(int32_t contentType) {
 
     return HWC2::Error::None;
 }
-#endif
 
-// Only Android 14 Support
-#if PLATFORM_SDK_VERSION >= 34
+HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetProperty(hwc_client_target_property_t* outClientTargetProperty) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    supported(__func__);
+
+    return HWC2::Error::None;
+}
+
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayIdentificationData(uint8_t* outPort, uint32_t* outDataSize,
                                                                 uint8_t* outData) {
     HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
@@ -3326,10 +3344,24 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetDisplayBrightness(float /* brightness */) 
     return HWC2::Error::Unsupported;
 }
 
-#endif /* PLATFORM_SDK_VERSION > 28 */
-
-// Only Android 14 Support
-#if PLATFORM_SDK_VERSION >= 34
+HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayedContentSamplingAttributes(
+        int32_t* /* android_pixel_format_t */ format, int32_t* /* android_dataspace_t */ dataspace,
+        uint8_t* /* mask of android_component_t */ supported_components) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    return HWC2::Error::Unsupported;
+}
+HWC2::Error DrmHwcTwo::HwcDisplay::SetDisplayedContentSamplingEnabled(
+        int32_t /*hwc2_displayed_content_sampling_t*/ enabled, uint8_t /* mask of android_component_t */ component_mask,
+        uint64_t max_frames) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    return HWC2::Error::Unsupported;
+}
+HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayedContentSample(uint64_t max_frames, uint64_t timestamp,
+                                                             uint64_t* frame_count, int32_t samples_size[4],
+                                                             uint64_t* samples[4]) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    return HWC2::Error::Unsupported;
+}
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetRenderIntents(int32_t mode, uint32_t* outNumIntents,
                                                     int32_t* /*android_render_intent_v1_1_t*/ outIntents) {
@@ -3360,6 +3392,32 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetColorModeWithIntent(int32_t mode, int32_t 
 
     color_mode_ = mode;
     return HWC2::Error::None;
+}
+
+// TODO:
+HWC2::Error DrmHwcTwo::HwcDisplay::GetPerFrameMetadataKeys(uint32_t* outNumKeys,
+                                                           int32_t* /*hwc2_per_frame_metadata_key_t*/ outKeys) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    return unsupported(__func__, outNumKeys, outKeys);
+}
+// TODO:
+HWC2::Error DrmHwcTwo::HwcDisplay::GetReadbackBufferFence(int32_t* outFence) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    return unsupported(__func__, outFence);
+}
+// TODO:
+HWC2::Error DrmHwcTwo::HwcDisplay::SetReadbackBuffer(buffer_handle_t buffer, int32_t releaseFence) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    if (releaseFence > 0) {
+        close(releaseFence);
+        releaseFence = -1;
+    }
+    return unsupported(__func__, buffer);
+}
+HWC2::Error DrmHwcTwo::HwcDisplay::GetReadbackBufferAttributes(int32_t* /*android_pixel_format_t*/ outFormat,
+                                                               int32_t* /*android_dataspace_t*/ outDataspace) {
+    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    return unsupported(__func__, outFormat, outDataspace);
 }
 
 #endif /* PLATFORM_SDK_VERSION >= 34 */
@@ -4807,6 +4865,40 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerZOrder(uint32_t order) {
     bUpdate_ = true;
     return HWC2::Error::None;
 }
+
+#if PLATFORM_SDK_VERSION >= 34
+// Composer 2.2 : TODO:
+HWC2::Error DrmHwcTwo::HwcLayer::SetLayerPerFrameMetadata(uint32_t numElements,
+                                                          const int32_t* /*hw2_per_frame_metadata_key_t*/ keys,
+                                                          const float* metadata) {
+    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    return HWC2::Error::None;
+}
+// TODO:
+HWC2::Error DrmHwcTwo::HwcLayer::SetLayerFloatColor(hwc_float_color_t color) {
+    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    return HWC2::Error::None;
+}
+
+// Composer 2.3 TODO:
+HWC2::Error DrmHwcTwo::HwcLayer::SetLayerPerFrameMetadataBlobs(uint32_t numElements,
+                                                               const int32_t* /*hw2_per_frame_metadata_key_t*/ keys,
+                                                               const uint32_t* sizes, const uint8_t* metadata) {
+    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    return HWC2::Error::None;
+}
+
+HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColorTransform(const float* matrix) {
+    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    return HWC2::Error::None;
+}
+HWC2::Error DrmHwcTwo::HwcLayer::SetLayerGenericMetadata(uint32_t keyLength, const char* key, bool mandatory,
+                                                         uint32_t valueLength, const uint8_t* value) {
+    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    return HWC2::Error::None;
+}
+
+#endif
 
 void DrmHwcTwo::HwcLayer::PopulateSidebandLayer(DrmHwcLayer* drmHwcLayer, hwc2_drm_display_t* ctx) {
     // sideband layer
@@ -6841,6 +6933,7 @@ hwc2_function_pointer_t DrmHwcTwo::HookDevGetFunction(struct hwc2_device* /*dev*
                                                                  &HwcDisplay::ValidateDisplay, uint32_t*, uint32_t*>);
 // Only Android 14 Support
 #if PLATFORM_SDK_VERSION >= 34
+            // Composer 2.2 Display
         case HWC2::FunctionDescriptor::GetRenderIntents:
             return ToHook<HWC2_PFN_GET_RENDER_INTENTS>(
                     DisplayHook<decltype(&HwcDisplay::GetRenderIntents), &HwcDisplay::GetRenderIntents, int32_t,
@@ -6849,6 +6942,31 @@ hwc2_function_pointer_t DrmHwcTwo::HookDevGetFunction(struct hwc2_device* /*dev*
             return ToHook<HWC2_PFN_SET_COLOR_MODE_WITH_RENDER_INTENT>(
                     DisplayHook<decltype(&HwcDisplay::SetColorModeWithIntent), &HwcDisplay::SetColorModeWithIntent,
                                 int32_t, int32_t>);
+        case HWC2::FunctionDescriptor::GetPerFrameMetadataKeys:
+            return ToHook<HWC2_PFN_GET_PER_FRAME_METADATA_KEYS>(
+                    DisplayHook<decltype(&HwcDisplay::GetPerFrameMetadataKeys), &HwcDisplay::GetPerFrameMetadataKeys,
+                                uint32_t*, int32_t*>);
+        case HWC2::FunctionDescriptor::GetReadbackBufferFence:
+            return ToHook<HWC2_PFN_GET_READBACK_BUFFER_FENCE>(
+                    DisplayHook<decltype(&HwcDisplay::GetReadbackBufferFence), &HwcDisplay::GetReadbackBufferFence,
+                                int32_t*>);
+        case HWC2::FunctionDescriptor::SetReadbackBuffer:
+            return ToHook<HWC2_PFN_SET_READBACK_BUFFER>(
+                    DisplayHook<decltype(&HwcDisplay::SetReadbackBuffer), &HwcDisplay::SetReadbackBuffer,
+                                buffer_handle_t, int32_t>);
+        case HWC2::FunctionDescriptor::GetReadbackBufferAttributes:
+            return ToHook<HWC2_PFN_GET_READBACK_BUFFER_ATTRIBUTES>(
+                    DisplayHook<decltype(&HwcDisplay::GetReadbackBufferAttributes),
+                                &HwcDisplay::GetReadbackBufferAttributes, int32_t*, int32_t*>);
+            // Composer 2.2 Layer
+        case HWC2::FunctionDescriptor::SetLayerPerFrameMetadata:
+            return ToHook<HWC2_PFN_SET_LAYER_PER_FRAME_METADATA>(
+                    LayerHook<decltype(&HwcLayer::SetLayerPerFrameMetadata), &HwcLayer::SetLayerPerFrameMetadata,
+                              uint32_t, const int32_t*, const float*>);
+        case HWC2::FunctionDescriptor::SetLayerFloatColor:
+            return ToHook<HWC2_PFN_SET_LAYER_FLOAT_COLOR>(LayerHook<decltype(&HwcLayer::SetLayerFloatColor),
+                                                                    &HwcLayer::SetLayerFloatColor, hwc_float_color_t>);
+            // Composer 2.3 Display
         case HWC2::FunctionDescriptor::GetDisplayIdentificationData:
             return ToHook<HWC2_PFN_GET_DISPLAY_IDENTIFICATION_DATA>(
                     DisplayHook<decltype(&HwcDisplay::GetDisplayIdentificationData),
@@ -6857,6 +6975,19 @@ hwc2_function_pointer_t DrmHwcTwo::HookDevGetFunction(struct hwc2_device* /*dev*
             return ToHook<HWC2_PFN_GET_DISPLAY_CAPABILITIES>(
                     DisplayHook<decltype(&HwcDisplay::GetDisplayCapabilities), &HwcDisplay::GetDisplayCapabilities,
                                 uint32_t*, uint32_t*>);
+        case HWC2::FunctionDescriptor::GetDisplayedContentSamplingAttributes:
+            return ToHook<HWC2_PFN_GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES>(
+                    DisplayHook<decltype(&HwcDisplay::GetDisplayedContentSamplingAttributes),
+                                &HwcDisplay::GetDisplayedContentSamplingAttributes, int32_t*, int32_t*, uint8_t*>);
+        case HWC2::FunctionDescriptor::SetDisplayedContentSamplingEnabled:
+            return ToHook<HWC2_PFN_SET_DISPLAYED_CONTENT_SAMPLING_ENABLED>(
+                    DisplayHook<decltype(&HwcDisplay::SetDisplayedContentSamplingEnabled),
+                                &HwcDisplay::SetDisplayedContentSamplingEnabled, int32_t, uint8_t, uint64_t>);
+        case HWC2::FunctionDescriptor::GetDisplayedContentSample:
+            return ToHook<HWC2_PFN_GET_DISPLAYED_CONTENT_SAMPLE>(
+                    DisplayHook<decltype(&HwcDisplay::GetDisplayedContentSample),
+                                &HwcDisplay::GetDisplayedContentSample, uint64_t, uint64_t, uint64_t*, int32_t*,
+                                uint64_t**>);
         case HWC2::FunctionDescriptor::GetDisplayBrightnessSupport:
             return ToHook<HWC2_PFN_GET_DISPLAY_BRIGHTNESS_SUPPORT>(
                     DisplayHook<decltype(&HwcDisplay::GetDisplayBrightnessSupport),
@@ -6864,6 +6995,17 @@ hwc2_function_pointer_t DrmHwcTwo::HookDevGetFunction(struct hwc2_device* /*dev*
         case HWC2::FunctionDescriptor::SetDisplayBrightness:
             return ToHook<HWC2_PFN_SET_DISPLAY_BRIGHTNESS>(
                     DisplayHook<decltype(&HwcDisplay::SetDisplayBrightness), &HwcDisplay::SetDisplayBrightness, float>);
+        // Composer 2.3 layer
+        case HWC2::FunctionDescriptor::SetLayerPerFrameMetadataBlobs:
+            return ToHook<HWC2_PFN_SET_LAYER_PER_FRAME_METADATA_BLOBS>(
+                    LayerHook<decltype(&HwcLayer::SetLayerPerFrameMetadataBlobs),
+                              &HwcLayer::SetLayerPerFrameMetadataBlobs, uint32_t, const int32_t*, const uint32_t*,
+                              const uint8_t*>);
+        case HWC2::FunctionDescriptor::SetLayerColorTransform:
+            return ToHook<HWC2_PFN_SET_LAYER_COLOR_TRANSFORM>(
+                    LayerHook<decltype(&HwcLayer::SetLayerColorTransform), &HwcLayer::SetLayerColorTransform,
+                              const float*>);
+        // Composer 2.4 display
         case HWC2::FunctionDescriptor::GetDisplayConnectionType:
             return ToHook<HWC2_PFN_GET_DISPLAY_CONNECTION_TYPE>(
                     DisplayHook<decltype(&HwcDisplay::GetDisplayConnectionType), &HwcDisplay::GetDisplayConnectionType,
@@ -6887,6 +7029,20 @@ hwc2_function_pointer_t DrmHwcTwo::HookDevGetFunction(struct hwc2_device* /*dev*
         case HWC2::FunctionDescriptor::SetContentType:
             return ToHook<HWC2_PFN_SET_CONTENT_TYPE>(
                     DisplayHook<decltype(&HwcDisplay::SetContentType), &HwcDisplay::SetContentType, int32_t>);
+        case HWC2::FunctionDescriptor::GetClientTargetProperty:
+            return ToHook<HWC2_PFN_GET_CLIENT_TARGET_PROPERTY>(
+                    DisplayHook<decltype(&HwcDisplay::GetClientTargetProperty), &HwcDisplay::GetClientTargetProperty,
+                                hwc_client_target_property_t*>);
+            // Composer 2.4 layer
+        case HWC2::FunctionDescriptor::SetLayerGenericMetadata:
+            return ToHook<HWC2_PFN_SET_LAYER_GENERIC_METADATA>(
+                    LayerHook<decltype(&HwcLayer::SetLayerGenericMetadata), &HwcLayer::SetLayerGenericMetadata,
+                              uint32_t, const char*, bool, uint32_t, const uint8_t*>);
+            // Composer 2.4 Device
+        case HWC2::FunctionDescriptor::GetLayerGenericMetadataKey:
+            return ToHook<HWC2_PFN_GET_LAYER_GENERIC_METADATA_KEY>(
+                    DeviceHook<void, decltype(&DrmHwcTwo::GetLayerGenericMetadataKey),
+                               &DrmHwcTwo::GetLayerGenericMetadataKey, uint32_t, uint32_t*, char*, bool*>);
 #endif
         // Layer functions
         case HWC2::FunctionDescriptor::SetCursorPosition:
