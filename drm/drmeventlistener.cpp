@@ -74,7 +74,7 @@ void DrmEventListener::RegisterHotplugHandler(DrmEventHandler* handler) {
             timestamp = ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
         else
             ALOGE("Failed to get monotonic clock on hotplug %d", ret);
-        HWC2_ALOGI("hwc_hotplug : handle pending drm event, timestamp=%" PRIu64, timestamp);
+        HWC2_LOGI("hwc_hotplug : handle pending drm event, timestamp=%" PRIu64, timestamp);
         hotplug_handler_->HandleEvent(timestamp);
     }
 }
@@ -129,7 +129,7 @@ void DrmEventListener::UEventHandler() {
             if (!ret)
                 timestamp = ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
             else
-                HWC2_ALOGE("hwc_hotplug : Failed to get monotonic clock on hotplug %d", ret);
+                HWC2_LOGE("hwc_hotplug : Failed to get monotonic clock on hotplug %d", ret);
             // 如果 hotplug_handler_ 非空，则正常执行热插拔流程
             if (hotplug_handler_) {
                 hotplug_handler_->HandleEvent(timestamp);

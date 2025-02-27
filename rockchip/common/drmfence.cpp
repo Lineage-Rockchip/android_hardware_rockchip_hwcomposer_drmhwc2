@@ -154,7 +154,7 @@ std::string ReleaseFence::dump() const {
     std::string output;
     for (auto& info : getInfo()) {
         output += info.driverName + ":" + info.objectName + ":" + std::to_string(info.timeStampNs) +
-                  ":state=" + std::to_string(info.status) + "\n";
+                  ":state=" + std::to_string(info.status);
     }
     return output;
 }

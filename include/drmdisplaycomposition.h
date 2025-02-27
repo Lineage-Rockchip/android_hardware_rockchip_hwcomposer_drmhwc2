@@ -191,7 +191,7 @@ class DrmDisplayComposition {
     bool has_10bit_Yuv() const { return bYuv10bit_; }
     android_dataspace_t dataspace() const { return dataspace_; }
 
-    void Dump(std::ostringstream* out) const;
+    void Dump(String8& output);
 
     bool update_drmplane_assign() { return update_drmplane_assign_; }
 

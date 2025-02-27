@@ -126,14 +126,15 @@ DrmBuffer::DrmBuffer(native_handle_t* in_handle)
     ptrDrmGralloc_->hwc_get_handle_name(buffer_, sName_);
     ret = ptrDrmGralloc_->hwc_get_gemhandle_from_fd(iFd_, uBufferId_, &uGemHandle_);
     if (ret) {
-        HWC2_ALOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
+        HWC2_LOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
         return;
     }
 
-    HWC2_ALOGI("Import buffer fd=%d w=%d h=%d s=%d hs=%d bs=%d f=%d fcc=%c%c%c%c mdf=0x%" PRIx64 " BufferId=0x%" PRIx64
-               " name=%s ",
-               iFd_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
-               uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, uModifier_, uBufferId_, sName_.c_str());
+    HWC2_LOGV_IF("Import buffer fd=%d w=%d h=%d s=%d hs=%d bs=%d f=%d fcc=%c%c%c%c mdf=0x%" PRIx64
+                 " BufferId=0x%" PRIx64 " name=%s ",
+                 iFd_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
+                 uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, uModifier_, uBufferId_,
+                 sName_.c_str());
 
     uFbId_ = 0;
 #ifdef RK3528
@@ -168,15 +169,15 @@ DrmBuffer::DrmBuffer(int fd, int width, int height, int stride, int heightStride
     uByteStridePlanes_ = {0, 0, 0, 0};
     int ret = ptrDrmGralloc_->hwc_get_gemhandle_from_fd(iFd_, uBufferId_, &uGemHandle_);
     if (ret) {
-        HWC2_ALOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
+        HWC2_LOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
         return;
     }
 
-    HWC2_ALOGD_IF_DEBUG("Import buffer fd=%d w=%d h=%d s=%d hs=%d bs=%d f=%d fcc=%c%c%c%c mdf=0x%" PRIx64
-                        " BufferId=0x%" PRIx64 " name=%s ",
-                        iFd_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
-                        uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, uModifier_, uBufferId_,
-                        sName_.c_str());
+    HWC2_LOGD_IF("Import buffer fd=%d w=%d h=%d s=%d hs=%d bs=%d f=%d fcc=%c%c%c%c mdf=0x%" PRIx64
+                 " BufferId=0x%" PRIx64 " name=%s ",
+                 iFd_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
+                 uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, uModifier_, uBufferId_,
+                 sName_.c_str());
 
     uFbId_ = 0;
 #ifdef RK3528
@@ -194,7 +195,7 @@ DrmBuffer::~DrmBuffer() {
 
     if (uFbId_ > 0) {
         if (ptrDrmGralloc_->hwc_fbid_rm_cache(ptrDrmGralloc_->get_drm_device(), uFbId_)) {
-            HWC2_ALOGE("BufferId=0x%" PRIx64 " Failed to rm uFbId_ %d", uBufferId_, uFbId_);
+            HWC2_LOGE("BufferId=0x%" PRIx64 " Failed to rm uFbId_ %d", uBufferId_, uFbId_);
         }
         uFbId_ = 0;
     }
@@ -202,7 +203,7 @@ DrmBuffer::~DrmBuffer() {
 #ifdef RK3528
     if (uPreScaleFbId_ > 0) {
         if (ptrDrmGralloc_->hwc_fbid_rm_cache(ptrDrmGralloc_->get_drm_device(), uPreScaleFbId_)) {
-            HWC2_ALOGE("BufferId=0x%" PRIx64 " Failed to rm uPreScaleFbId_ %d", uBufferId_, uPreScaleFbId_);
+            HWC2_LOGE("BufferId=0x%" PRIx64 " Failed to rm uPreScaleFbId_ %d", uBufferId_, uPreScaleFbId_);
         }
 
         uPreScaleFbId_ = 0;
@@ -212,14 +213,14 @@ DrmBuffer::~DrmBuffer() {
     if (uRgaHandle_ > 0) {
         int ret = releasebuffer_handle(uRgaHandle_);
         if (ret < 0) {
-            HWC2_ALOGE("RgaHandle %s releasebuffer fail, buffer_id=0x%" PRIx64, sName_.c_str(), uBufferId_);
+            HWC2_LOGE("RgaHandle %s releasebuffer fail, buffer_id=0x%" PRIx64, sName_.c_str(), uBufferId_);
         }
         uRgaHandle_ = 0;
     }
 
     int ret = ptrDrmGralloc_->hwc_free_gemhandle(uBufferId_);
     if (ret) {
-        HWC2_ALOGE("%s hwc_free_gemhandle fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
+        HWC2_LOGE("%s hwc_free_gemhandle fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
     }
 
     if (inBuffer_ != NULL) {
@@ -227,32 +228,32 @@ DrmBuffer::~DrmBuffer() {
         if (ret) {
             ALOGE("freeBuffer in_handle=%p, local_handle=%p fail, ret=%d", inBuffer_, buffer_, ret);
         }
-        HWC2_ALOGI("freeBuffer in_handle=%p, local_handle=%p uBufferId_=0x%" PRIx64 " Success, ret=%d", inBuffer_,
-                   buffer_, uBufferId_, ret);
+        HWC2_LOGI("freeBuffer in_handle=%p, local_handle=%p uBufferId_=0x%" PRIx64 " Success, ret=%d", inBuffer_,
+                  buffer_, uBufferId_, ret);
     }
 }
 
 int DrmBuffer::Init() {
     if (bInit_) {
-        HWC2_ALOGI("DrmBuffer has init, w=%d h=%d format=%d", iWidth_, iHeight_, iFormat_);
+        HWC2_LOGI("DrmBuffer has init, w=%d h=%d format=%d", iWidth_, iHeight_, iFormat_);
         return 0;
     }
 
     if (iWidth_ <= 0 || iHeight_ <= 0 || iFormat_ <= 0) {
-        HWC2_ALOGE("DrmBuffer init fail, w=%d h=%d format=%d", iWidth_, iHeight_, iFormat_);
+        HWC2_LOGE("DrmBuffer init fail, w=%d h=%d format=%d", iWidth_, iHeight_, iFormat_);
         return -1;
     }
 
     // Gralloc 0.3 不支持 uint64_t usage
 #ifdef USE_GRALLOC_0
-    HWC2_ALOGD_IF_WARN("Gralloc0.3 unsupport uint64_t usage, force cvt 0x%" PRIx64 " to uint32_t 0x%" PRIx64, iUsage_,
-                       iUsage_ & UINT32_MAX);
+    HWC2_LOGW_IF("Gralloc0.3 unsupport uint64_t usage, force cvt 0x%" PRIx64 " to uint32_t 0x%" PRIx64, iUsage_,
+                 iUsage_ & UINT32_MAX);
     iUsage_ = iUsage_ & UINT32_MAX;
 #endif
 
     ptrBuffer_ = new GraphicBuffer(iWidth_, iHeight_, iFormat_, 0, iUsage_, sName_);
     if (ptrBuffer_->initCheck()) {
-        HWC2_ALOGE("new GraphicBuffer fail, w=%d h=%d format=%d", iWidth_, iHeight_, iFormat_);
+        HWC2_LOGE("new GraphicBuffer fail, w=%d h=%d format=%d", iWidth_, iHeight_, iFormat_);
         return -1;
     }
     buffer_ = ptrBuffer_->handle;
@@ -270,7 +271,7 @@ int DrmBuffer::Init() {
     ptrDrmGralloc_->hwc_get_handle_plane_bytes_stride(buffer_, uByteStridePlanes_);
     int ret = ptrDrmGralloc_->hwc_get_gemhandle_from_fd(iFd_, uBufferId_, &uGemHandle_);
     if (ret) {
-        HWC2_ALOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
+        HWC2_LOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, sName_.c_str(), uBufferId_);
         return -1;
     }
     uFbId_ = 0;
@@ -408,7 +409,7 @@ uint32_t DrmBuffer::GetFbId() {
 #ifdef RK3528
     if (uPreScaleFbId_ > 0) {
         if (ptrDrmGralloc_->hwc_fbid_rm_cache(ptrDrmGralloc_->get_drm_device(), uPreScaleFbId_)) {
-            HWC2_ALOGE("BufferId=0x%" PRIx64 " Failed to rm uPreScaleFbId_ %d", uBufferId_, uPreScaleFbId_);
+            HWC2_LOGE("BufferId=0x%" PRIx64 " Failed to rm uPreScaleFbId_ %d", uBufferId_, uPreScaleFbId_);
         }
 
         uPreScaleFbId_ = 0;
@@ -462,7 +463,7 @@ uint32_t DrmBuffer::GetFbId() {
                                                       iHeightStride_, uFourccFormat_, gem_handles, pitches, offsets,
                                                       modifier, &uFbId_, DRM_MODE_FB_MODIFIERS);
 
-    HWC2_ALOGD_IF_DEBUG(
+    HWC2_LOGD_IF(
             "ImportBuffer fd=%d,w=%d,h=%d,format=%c%c%c%c,"
             "gem_handle=%d,pitches[0]=%d,fb_id=%d,modifier = %" PRIx64,
             ptrDrmGralloc_->get_drm_device(), iWidth_, iHeightStride_, uFourccFormat_, uFourccFormat_ >> 8,
@@ -470,7 +471,7 @@ uint32_t DrmBuffer::GetFbId() {
 
     if (ret) {
         ALOGE("could not create drm fb %d", ret);
-        HWC2_ALOGE(
+        HWC2_LOGE(
                 "ImportBuffer fd=%d,w=%d,h=%d,format=%c%c%c%c,"
                 "gem_handle=%d,pitches[0]=%d,fb_id=%d,modifier = %" PRIx64,
                 ptrDrmGralloc_->get_drm_device(), iWidth_, iHeightStride_, uFourccFormat_, uFourccFormat_ >> 8,
@@ -484,7 +485,7 @@ uint32_t DrmBuffer::GetFbId() {
 void* DrmBuffer::Lock() {
     std::lock_guard<std::mutex> lk(mtx_);
     if (!buffer_) {
-        HWC2_ALOGI("LayerId=%" PRIu64 " Buffer is null.", uId);
+        HWC2_LOGI("LayerId=%" PRIu64 " Buffer is null.", uId);
         return NULL;
     }
 
@@ -493,7 +494,7 @@ void* DrmBuffer::Lock() {
 
     cpu_addr = ptrDrmGralloc_->hwc_get_handle_lock(buffer_, iWidth_, iHeight_);
     if (cpu_addr == NULL) {
-        HWC2_ALOGE("buffer-id=%" PRIu64 " lock fail", uId);
+        HWC2_LOGE("buffer-id=%" PRIu64 " lock fail", uId);
         return NULL;
     }
 
@@ -503,13 +504,13 @@ void* DrmBuffer::Lock() {
 int DrmBuffer::Unlock() {
     std::lock_guard<std::mutex> lk(mtx_);
     if (!buffer_) {
-        HWC2_ALOGI("LayerId=%" PRIu64 " Buffer is null.", uId);
+        HWC2_LOGI("LayerId=%" PRIu64 " Buffer is null.", uId);
         return -1;
     }
 
     int ret = ptrDrmGralloc_->hwc_get_handle_unlock(buffer_);
     if (ret) {
-        HWC2_ALOGE("buffer-id=%" PRIu64 " unlock fail ret = %d ", uId, ret);
+        HWC2_LOGE("buffer-id=%" PRIu64 " unlock fail ret = %d ", uId, ret);
         return ret;
     }
     return ret;
@@ -527,7 +528,7 @@ int DrmBuffer::SetFinishFence(int fence) {
         int ret = sync_wait(iFinishFence_.get(), 1500);
         iFinishFence_.Close();
         if (ret) {
-            HWC2_ALOGE("Failed to wait for finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
+            HWC2_LOGE("Failed to wait for finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
             return -1;
         }
     }
@@ -542,7 +543,7 @@ int DrmBuffer::WaitFinishFence() {
     if (iFinishFence_.get() > 0) {
         ret = sync_wait(iFinishFence_.get(), 1500);
         if (ret) {
-            HWC2_ALOGE("Failed to wait for RGA finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
+            HWC2_LOGE("Failed to wait for RGA finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
         }
         iFinishFence_.Close();
     }
@@ -565,7 +566,7 @@ int DrmBuffer::WaitReleaseFence() {
     if (iReleaseFence_.get() > 0) {
         ret = sync_wait(iReleaseFence_.get(), 1500);
         if (ret) {
-            HWC2_ALOGE("Failed to wait for RGA finish fence %d/%d 1500ms", iReleaseFence_.get(), ret);
+            HWC2_LOGE("Failed to wait for RGA finish fence %d/%d 1500ms", iReleaseFence_.get(), ret);
         }
         iReleaseFence_.Close();
     }
@@ -574,7 +575,7 @@ int DrmBuffer::WaitReleaseFence() {
 
 int DrmBuffer::DumpData(uint32_t frame_no, int zpos, const char* tag) {
     std::lock_guard<std::mutex> lk(mtx_);
-    if (!buffer_) HWC2_ALOGI("LayerId=%" PRIu64 " Buffer is null.", uId);
+    if (!buffer_) HWC2_LOGI("LayerId=%" PRIu64 " Buffer is null.", uId);
 
     void* cpu_addr = NULL;
     static int frame_cnt = 0;
@@ -584,14 +585,14 @@ int DrmBuffer::DumpData(uint32_t frame_no, int zpos, const char* tag) {
     if (iFinishFence_.get() > 0) {
         ret = sync_wait(iFinishFence_.get(), 1500);
         if (ret) {
-            HWC2_ALOGE("Failed to wait for finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
+            HWC2_LOGE("Failed to wait for finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
         }
         iFinishFence_.Close();
     }
 
     cpu_addr = ptrDrmGralloc_->hwc_get_handle_lock(buffer_, iWidth_, iHeight_);
     if (cpu_addr == NULL) {
-        HWC2_ALOGE("buffer-id=%" PRIu64 " lock fail", uId);
+        HWC2_LOGE("buffer-id=%" PRIu64 " lock fail", uId);
         return -1;
     }
 
@@ -603,7 +604,7 @@ int DrmBuffer::DumpData(uint32_t frame_no, int zpos, const char* tag) {
 
     ret = ptrDrmGralloc_->hwc_get_handle_unlock(buffer_);
     if (ret) {
-        HWC2_ALOGE("buffer-id=%" PRIu64 " unlock fail ret = %d ", uId, ret);
+        HWC2_LOGE("buffer-id=%" PRIu64 " unlock fail ret = %d ", uId, ret);
         return ret;
     }
 
@@ -620,7 +621,7 @@ int DrmBuffer::SwitchToPreScaleBuffer() {
     metadata_for_rkvdec_scaling_t* metadata = NULL;
 
     ptrDrmGralloc_->lock_rkvdec_scaling_metadata(buffer_, &metadata);
-    HWC2_ALOGD_IF_INFO("lock_rkvdec_scaling_metadata buffer_=%p metadata=%p", buffer_, metadata);
+    HWC2_LOGI_IF("lock_rkvdec_scaling_metadata buffer_=%p metadata=%p", buffer_, metadata);
     if (metadata != NULL) {
         metadata->requestMask = 1;
         memcpy(&mMetadata_, metadata, sizeof(metadata_for_rkvdec_scaling_t));
@@ -639,19 +640,19 @@ int DrmBuffer::SwitchToPreScaleBuffer() {
         }
 
         // 打印参数
-        HWC2_ALOGD_IF_INFO("Name=%s metadata = %p", sName_.c_str(), metadata);
-        HWC2_ALOGD_IF_INFO("version=0x%" PRIx64 " requestMask=0x%" PRIx64
-                           " "
-                           "replyMask=0x%" PRIx64 " BufferId=0x%" PRIx64,
-                           metadata->version, metadata->requestMask, metadata->replyMask, uBufferId_);
-        HWC2_ALOGD_IF_INFO("w=%d h=%d s=%d f=%d m=0x%" PRIx64 " usage=0x%x ", metadata->width, metadata->height,
-                           metadata->pixel_stride, metadata->format, metadata->modifier, metadata->usage);
-        HWC2_ALOGD_IF_INFO("crop=(%d,%d,%d,%d) ", metadata->srcLeft, metadata->srcTop, metadata->srcRight,
-                           metadata->srcBottom);
-        HWC2_ALOGD_IF_INFO("layer_cnt=%d offset=%d,%d,%d,%d byteStride=%d,%d,%d,%d) ", metadata->layer_cnt,
-                           metadata->offset[0], metadata->offset[1], metadata->offset[2], metadata->offset[3],
-                           metadata->byteStride[0], metadata->byteStride[1], metadata->byteStride[2],
-                           metadata->byteStride[3]);
+        HWC2_LOGI_IF("Name=%s metadata = %p", sName_.c_str(), metadata);
+        HWC2_LOGI_IF("version=0x%" PRIx64 " requestMask=0x%" PRIx64
+                     " "
+                     "replyMask=0x%" PRIx64 " BufferId=0x%" PRIx64,
+                     metadata->version, metadata->requestMask, metadata->replyMask, uBufferId_);
+        HWC2_LOGI_IF("w=%d h=%d s=%d f=%d m=0x%" PRIx64 " usage=0x%x ", metadata->width, metadata->height,
+                     metadata->pixel_stride, metadata->format, metadata->modifier, metadata->usage);
+        HWC2_LOGI_IF("crop=(%d,%d,%d,%d) ", metadata->srcLeft, metadata->srcTop, metadata->srcRight,
+                     metadata->srcBottom);
+        HWC2_LOGI_IF("layer_cnt=%d offset=%d,%d,%d,%d byteStride=%d,%d,%d,%d) ", metadata->layer_cnt,
+                     metadata->offset[0], metadata->offset[1], metadata->offset[2], metadata->offset[3],
+                     metadata->byteStride[0], metadata->byteStride[1], metadata->byteStride[2],
+                     metadata->byteStride[3]);
         ptrDrmGralloc_->unlock_rkvdec_scaling_metadata(buffer_);
     }
 
@@ -677,10 +678,10 @@ int DrmBuffer::ResetPreScaleBuffer() {
     ptrDrmGralloc_->hwc_get_handle_buffer_id(buffer_, &uBufferId_);
     ptrDrmGralloc_->hwc_get_handle_name(buffer_, sName_);
 
-    HWC2_ALOGI("ResetPreScale Buffer fd=%d w=%d h=%d s=%d hs=%d bs=%d f=%d fcc=%c%c%c%c mdf=0x%" PRIx64
-               " BufferId=0x%" PRIx64 "name=%s ",
-               iFd_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
-               uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, uModifier_, uBufferId_, sName_.c_str());
+    HWC2_LOGI("ResetPreScale Buffer fd=%d w=%d h=%d s=%d hs=%d bs=%d f=%d fcc=%c%c%c%c mdf=0x%" PRIx64
+              " BufferId=0x%" PRIx64 "name=%s ",
+              iFd_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
+              uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, uModifier_, uBufferId_, sName_.c_str());
     bIsPreScale_ = false;
     return 0;
 }
@@ -693,7 +694,7 @@ uint32_t DrmBuffer::GetPreScaleFbId() {
 
     if (uFbId_ > 0) {
         if (ptrDrmGralloc_->hwc_fbid_rm_cache(ptrDrmGralloc_->get_drm_device(), uFbId_)) {
-            HWC2_ALOGE("BufferId=0x%" PRIx64 " Failed to rm uFbId_ %d", uBufferId_, uFbId_);
+            HWC2_LOGE("BufferId=0x%" PRIx64 " Failed to rm uFbId_ %d", uBufferId_, uFbId_);
         }
         uFbId_ = 0;
     }
@@ -747,7 +748,7 @@ uint32_t DrmBuffer::GetPreScaleFbId() {
                                                       iHeightStride_, uFourccFormat_, gem_handles, pitches, offsets,
                                                       modifier, &uPreScaleFbId_, DRM_MODE_FB_MODIFIERS);
 
-    HWC2_ALOGD_IF_DEBUG(
+    HWC2_LOGD_IF(
             "ImportBuffer fd=%d,w=%d,h=%d,format=%c%c%c%c,"
             "gem_handle=%d %d %d %d, pitches[0]=%d %d %d %d, offsets[0]=%d %d %d %d fb_id=%d, modifier = %" PRIx64,
             ptrDrmGralloc_->get_drm_device(), iWidth_, iHeightStride_, uFourccFormat_, uFourccFormat_ >> 8,
@@ -756,7 +757,7 @@ uint32_t DrmBuffer::GetPreScaleFbId() {
             uPreScaleFbId_, modifier[0]);
     if (ret) {
         ALOGE("could not create drm fb %d", ret);
-        HWC2_ALOGE(
+        HWC2_LOGE(
                 "ImportBuffer fd=%d,w=%d,h=%d,format=%c%c%c%c,"
                 "gem_handle=%d %d %d %d, pitches[0]=%d %d %d %d, offsets[0]=%d %d %d %d fb_id=%d, modifier = %" PRIx64,
                 ptrDrmGralloc_->get_drm_device(), iWidth_, iHeightStride_, uFourccFormat_, uFourccFormat_ >> 8,
@@ -776,8 +777,8 @@ rga_buffer_handle_t DrmBuffer::GetRgaHandle() {
 
     uRgaHandle_ = importbuffer_fd(iFd_, iSize_);
     if (uRgaHandle_ == 0) {
-        HWC2_ALOGE("RgaHandle %s import fail, fd=%d, size=%d buffer_id=0x%" PRIx64, sName_.c_str(), iFd_, iSize_,
-                   uBufferId_);
+        HWC2_LOGE("RgaHandle %s import fail, fd=%d, size=%d buffer_id=0x%" PRIx64, sName_.c_str(), iFd_, iSize_,
+                  uBufferId_);
         return 0;
     }
     return uRgaHandle_;

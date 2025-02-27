@@ -95,7 +95,7 @@ class DrmHwcTwo : public hwc2_device_t {
             if (!bSideband2_ && sidebandStreamHandle_ != NULL) {
                 int ret = drmGralloc_->freeBuffer(sidebandStreamHandle_);
                 if (ret) {
-                    HWC2_ALOGE("freeBuffer sidebandStreamHandle = %p fail, ret=%d", sidebandStreamHandle_, ret);
+                    HWC2_LOGE("freeBuffer sidebandStreamHandle = %p fail, ret=%d", sidebandStreamHandle_, ret);
                 }
                 sidebandStreamHandle_ = NULL;
             }
@@ -212,8 +212,8 @@ class DrmHwcTwo : public hwc2_device_t {
                 const auto mapBuffer = bufferInfoMap_.find(local_cache_slot);
                 if (mapBuffer != bufferInfoMap_.end()) {
                     pBufferInfo_ = mapBuffer->second;
-                    HWC2_ALOGD_IF_DEBUG("bufferInfoMap_ size = %zu has cache! Slot=%" PRIu64 " Name=%s",
-                                        bufferInfoMap_.size(), local_cache_slot, pBufferInfo_->sLayerName_.c_str());
+                    HWC2_LOGD_IF("bufferInfoMap_ size = %zu has cache! Slot=%" PRIu64 " Name=%s", bufferInfoMap_.size(),
+                                 local_cache_slot, pBufferInfo_->sLayerName_.c_str());
                     success = true;
                     // 如果存在本地 cache 的 buffer handle，则优先使用本地的
                     if (pBufferInfo_->buffer_) {
@@ -253,12 +253,12 @@ class DrmHwcTwo : public hwc2_device_t {
                 layer_name_ = pBufferInfo_->sLayerName_;
                 pBufferInfo_->bFbIdCached_ = true;
                 drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
-                HWC2_ALOGD_IF_DEBUG("bufferInfoMap_ size = %zu insert success! slot=%" PRIu64
-                                    " w=%d h=%d format=%d fourcc=%c%c%c%c Name=%s",
-                                    bufferInfoMap_.size(), local_cache_slot, pBufferInfo_->iWidth_,
-                                    pBufferInfo_->iHeight_, pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
-                                    pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
-                                    pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->sLayerName_.c_str());
+                HWC2_LOGD_IF("bufferInfoMap_ size = %zu insert success! slot=%" PRIu64
+                             " w=%d h=%d format=%d fourcc=%c%c%c%c Name=%s",
+                             bufferInfoMap_.size(), local_cache_slot, pBufferInfo_->iWidth_, pBufferInfo_->iHeight_,
+                             pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_, pBufferInfo_->uFourccFormat_ >> 8,
+                             pBufferInfo_->uFourccFormat_ >> 16, pBufferInfo_->uFourccFormat_ >> 24,
+                             pBufferInfo_->sLayerName_.c_str());
                 success = true;
             }
 
@@ -280,22 +280,22 @@ class DrmHwcTwo : public hwc2_device_t {
             if (mapBuffer == bufferInfoMap_.end()) {
                 // If bHasCache_ is true, the new buffer_id need to reset mapBuffer
                 if (bHasCache_) {
-                    HWC2_ALOGD_IF_VERBOSE("bHasCache=%d to reset bufferInfoMap_ BufferId=%" PRIx64 " Name=%s",
-                                          bHasCache_, buffer_id, pBufferInfo_->sLayerName_.c_str());
+                    HWC2_LOGV_IF("bHasCache=%d to reset bufferInfoMap_ BufferId=%" PRIx64 " Name=%s", bHasCache_,
+                                 buffer_id, pBufferInfo_->sLayerName_.c_str());
                     bufferInfoMap_.clear();
                     bHasCache_ = false;
                 }
 
                 // If size is too big, the new buffer_id need to reset mapBuffer
                 if (bufferInfoMap_.size() > MAX_NUM_BUFFER_SLOTS) {
-                    HWC2_ALOGD_IF_VERBOSE("MapSize=%zu too large to reset bufferInfoMap_ BufferId=%" PRIx64 " Name=%s",
-                                          bufferInfoMap_.size(), buffer_id, pBufferInfo_->sLayerName_.c_str());
+                    HWC2_LOGV_IF("MapSize=%zu too large to reset bufferInfoMap_ BufferId=%" PRIx64 " Name=%s",
+                                 bufferInfoMap_.size(), buffer_id, pBufferInfo_->sLayerName_.c_str());
                     bufferInfoMap_.clear();
                 }
 
                 auto ret = bufferInfoMap_.emplace(std::make_pair(buffer_id, std::make_shared<LayerInfoCache>()));
                 if (ret.second == false) {
-                    HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ emplace fail! BufferHandle=%p", buffer_);
+                    HWC2_LOGV_IF("bufferInfoMap_ emplace fail! BufferHandle=%p", buffer_);
                 } else {
                     pBufferInfo_ = ret.first->second;
                     pBufferInfo_->uBufferId_ = buffer_id;
@@ -325,12 +325,12 @@ class DrmHwcTwo : public hwc2_device_t {
                     layer_name_ = pBufferInfo_->sLayerName_;
                     pBufferInfo_->bFbIdCached_ = true;
                     drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
-                    HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
-                                          " w=%d h=%d format=%d fourcc=%c%c%c%c Name=%s",
-                                          bufferInfoMap_.size(), buffer_id, pBufferInfo_->iWidth_,
-                                          pBufferInfo_->iHeight_, pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
-                                          pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
-                                          pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->sLayerName_.c_str());
+                    HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
+                                 " w=%d h=%d format=%d fourcc=%c%c%c%c Name=%s",
+                                 bufferInfoMap_.size(), buffer_id, pBufferInfo_->iWidth_, pBufferInfo_->iHeight_,
+                                 pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
+                                 pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
+                                 pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->sLayerName_.c_str());
                 }
             } else {
                 bHasCache_ = true;
@@ -340,8 +340,8 @@ class DrmHwcTwo : public hwc2_device_t {
                     buffer_ = pBufferInfo_->buffer_;
                     mCurrentState.buffer_ = pBufferInfo_->buffer_;
                 }
-                HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ size = %zu has cache! BufferId=%" PRIx64 " Name=%s",
-                                      bufferInfoMap_.size(), buffer_id, pBufferInfo_->sLayerName_.c_str());
+                HWC2_LOGV_IF("bufferInfoMap_ size = %zu has cache! BufferId=%" PRIx64 " Name=%s", bufferInfoMap_.size(),
+                             buffer_id, pBufferInfo_->sLayerName_.c_str());
             }
 
             calculateFPS(buffer_id);
@@ -381,14 +381,13 @@ class DrmHwcTwo : public hwc2_device_t {
             layer_name_ = pBufferInfo_->sLayerName_;
             pBufferInfo_->bFbIdCached_ = true;
             drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
-            HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
-                                  " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c usage=%" PRIx64 " modifier=%" PRIx64
-                                  " Name=%s",
-                                  bufferInfoMap_.size(), buffer_id, pBufferInfo_->uniqueFd_.get(),
-                                  pBufferInfo_->iWidth_, pBufferInfo_->iHeight_, pBufferInfo_->iFormat_,
-                                  pBufferInfo_->uFourccFormat_, pBufferInfo_->uFourccFormat_ >> 8,
-                                  pBufferInfo_->uFourccFormat_ >> 16, pBufferInfo_->uFourccFormat_ >> 24,
-                                  pBufferInfo_->iUsage_, pBufferInfo_->uModifier_, pBufferInfo_->sLayerName_.c_str());
+            HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
+                         " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c usage=%" PRIx64 " modifier=%" PRIx64 " Name=%s",
+                         bufferInfoMap_.size(), buffer_id, pBufferInfo_->uniqueFd_.get(), pBufferInfo_->iWidth_,
+                         pBufferInfo_->iHeight_, pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
+                         pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
+                         pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->iUsage_, pBufferInfo_->uModifier_,
+                         pBufferInfo_->sLayerName_.c_str());
 
             if (last_buffer_id_ != buffer_id) {
                 uFrameCnt_++;
@@ -418,14 +417,13 @@ class DrmHwcTwo : public hwc2_device_t {
             pBufferInfo_->uModifier_ = drmGralloc_->hwc_get_handle_format_modifier(buffer_);
             drmGralloc_->hwc_get_handle_name(buffer_, pBufferInfo_->sLayerName_);
             layer_name_ = pBufferInfo_->sLayerName_;
-            HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
-                                  " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c usage=%" PRIx64 " modifier=%" PRIx64
-                                  " Name=%s",
-                                  bufferInfoMap_.size(), buffer_id, pBufferInfo_->uniqueFd_.get(),
-                                  pBufferInfo_->iWidth_, pBufferInfo_->iHeight_, pBufferInfo_->iFormat_,
-                                  pBufferInfo_->uFourccFormat_, pBufferInfo_->uFourccFormat_ >> 8,
-                                  pBufferInfo_->uFourccFormat_ >> 16, pBufferInfo_->uFourccFormat_ >> 24,
-                                  pBufferInfo_->iUsage_, pBufferInfo_->uModifier_, pBufferInfo_->sLayerName_.c_str());
+            HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
+                         " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c usage=%" PRIx64 " modifier=%" PRIx64 " Name=%s",
+                         bufferInfoMap_.size(), buffer_id, pBufferInfo_->uniqueFd_.get(), pBufferInfo_->iWidth_,
+                         pBufferInfo_->iHeight_, pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
+                         pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
+                         pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->iUsage_, pBufferInfo_->uModifier_,
+                         pBufferInfo_->sLayerName_.c_str());
             if (last_buffer_id_ != buffer_id) {
                 uFrameCnt_++;
                 last_buffer_id_ = buffer_id;
@@ -434,7 +432,7 @@ class DrmHwcTwo : public hwc2_device_t {
 
         int initOrGetGemhanleFromCache(DrmHwcLayer* drmHwcLayer) {
             if (pBufferInfo_ == NULL) {
-                HWC2_ALOGD_IF_VERBOSE("Id=%d pBufferInfo_ is NULL can't find BufferInfoCache!", id_);
+                HWC2_LOGV_IF("Id=%d pBufferInfo_ is NULL can't find BufferInfoCache!", id_);
                 return -1;
             }
 
@@ -445,15 +443,14 @@ class DrmHwcTwo : public hwc2_device_t {
                                                        buffer_id);
                 pBufferInfo_->uGemHandle_ = pBufferInfo_->gemHandle_.GetGemHandle();
                 drmHwcLayer->uGemHandle_ = pBufferInfo_->gemHandle_.GetGemHandle();
-                HWC2_ALOGD_IF_VERBOSE(
-                        "bufferInfoMap_ init GemHandle success! BufferId=%" PRIx64 " Name=%s GemHandle=%d ptr=%p",
-                        buffer_id, pBufferInfo_->sLayerName_.c_str(), drmHwcLayer->uGemHandle_, drmHwcLayer);
+                HWC2_LOGV_IF("bufferInfoMap_ init GemHandle success! BufferId=%" PRIx64 " Name=%s GemHandle=%d ptr=%p",
+                             buffer_id, pBufferInfo_->sLayerName_.c_str(), drmHwcLayer->uGemHandle_, drmHwcLayer);
                 return 0;
             }
 
             drmHwcLayer->uGemHandle_ = pBufferInfo_->gemHandle_.GetGemHandle();
-            HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ GemHandle cache! BufferId=%" PRIx64 " Name=%s  GemHandle=%d ptr=%p",
-                                  buffer_id, pBufferInfo_->sLayerName_.c_str(), drmHwcLayer->uGemHandle_, drmHwcLayer);
+            HWC2_LOGV_IF("bufferInfoMap_ GemHandle cache! BufferId=%" PRIx64 " Name=%s  GemHandle=%d ptr=%p", buffer_id,
+                         pBufferInfo_->sLayerName_.c_str(), drmHwcLayer->uGemHandle_, drmHwcLayer);
             return 0;
         }
 
@@ -484,7 +481,7 @@ class DrmHwcTwo : public hwc2_device_t {
             bufferInfoMap_.clear();
             auto ret = bufferInfoMap_.emplace(std::make_pair(buffer_id, std::make_shared<LayerInfoCache>()));
             if (ret.second == false) {
-                HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ emplace fail! BufferHandle=%p", sidebandStreamHandle_);
+                HWC2_LOGV_IF("bufferInfoMap_ emplace fail! BufferHandle=%p", sidebandStreamHandle_);
             } else {
                 pBufferInfo_ = ret.first->second;
                 pBufferInfo_->uBufferId_ = buffer_id;
@@ -506,8 +503,8 @@ class DrmHwcTwo : public hwc2_device_t {
                 pBufferInfo_->gemHandle_.InitGemHandle(pBufferInfo_->sLayerName_.c_str(), pBufferInfo_->uniqueFd_.get(),
                                                        buffer_id);
                 pBufferInfo_->uGemHandle_ = pBufferInfo_->gemHandle_.GetGemHandle();
-                HWC2_ALOGD_IF_VERBOSE("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64 " Name=%s",
-                                      bufferInfoMap_.size(), buffer_id, pBufferInfo_->sLayerName_.c_str());
+                HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64 " Name=%s",
+                             bufferInfoMap_.size(), buffer_id, pBufferInfo_->sLayerName_.c_str());
             }
         }
 

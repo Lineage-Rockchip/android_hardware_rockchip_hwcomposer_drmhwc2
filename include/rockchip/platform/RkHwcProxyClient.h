@@ -57,7 +57,7 @@ class RkHwcProxyClient {
         RkHwcProxyAidlCB(RkHwcProxyClient& client, int fd) : client_(client), fd_(fd) {};
         ::ndk::ScopedAStatus asyncDone(const RkHwcProxyAidlResponse& response) override {
             client_.notify();
-            HWC2_ALOGD_IF_DEBUG("Received %s", response.toString().c_str());
+            HWC2_LOGD_IF("Received %s", response.toString().c_str());
             return ScopedAStatus::ok();
         }
 
@@ -78,14 +78,14 @@ class RkHwcProxyClient {
         client = IRkHwcProxyAidl::fromBinder(SpAIBinder(AServiceManager_waitForService(instance.c_str())));
 
         if (client == nullptr) {
-            HWC2_ALOGE("Failed to get service Demo");
+            HWC2_LOGE("Failed to get service Demo");
             return -1;
         }
 
         // register callback
         cb = SharedRefBase::make<RkHwcProxyAidlCB>(*this, fd);
         client->registerCallback(cb);
-        HWC2_ALOGI("registerCallback ok");
+        HWC2_LOGI("registerCallback ok");
         return 0;
     }
 
@@ -107,7 +107,7 @@ class RkHwcProxyClient {
         while (client_count == 0) {
             status = client_cv.wait_until(lock, now + std::chrono::seconds(20));
             if (status == std::cv_status::timeout) {
-                HWC2_ALOGE("wait callback timeout");
+                HWC2_LOGE("wait callback timeout");
                 return status;
             }
         }

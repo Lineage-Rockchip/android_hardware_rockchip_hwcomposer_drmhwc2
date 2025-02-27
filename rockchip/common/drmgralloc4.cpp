@@ -638,7 +638,7 @@ int get_plane_bytes_tride(buffer_handle_t handle, std::vector<uint32_t>& byte_st
 
         for (int i = 0; i < layouts.size(); i++) {
             byte_strides.push_back((uint32_t)layouts[i].strideInBytes);
-            // HWC2_ALOGI("rk-debug format_requested=%d i=%d byte_stride = %d", format_requested, i, (uint32_t)layouts[i].strideInBytes);
+            // HWC2_LOGI("rk-debug format_requested=%d i=%d byte_stride = %d", format_requested, i, (uint32_t)layouts[i].strideInBytes);
         }
     }
     /* 否则, 即 'format_requested' "是" HAL_PIXEL_FORMAT_YCrCb_NV12_10, 则 ... */
@@ -654,7 +654,7 @@ int get_plane_bytes_tride(buffer_handle_t handle, std::vector<uint32_t>& byte_st
 
             for (int i = 0; i < layouts.size(); i++) {
                 byte_strides.push_back((uint32_t)layouts[i].strideInBytes);
-                // HWC2_ALOGI("rk-debug format_requested=%d i=%d byte_stride = %d", format_requested, i, (uint32_t)layouts[i].strideInBytes);
+                // HWC2_LOGI("rk-debug format_requested=%d i=%d byte_stride = %d", format_requested, i, (uint32_t)layouts[i].strideInBytes);
             }
         }
         // 对于 fourcc不为 DRM_FORMAT_NV15 的情况，认为 Mali不支持 NV15格式,采用 width 作为 byte_stride.
@@ -668,7 +668,7 @@ int get_plane_bytes_tride(buffer_handle_t handle, std::vector<uint32_t>& byte_st
             }
 
             byte_strides.push_back((uint32_t)width);
-            // HWC2_ALOGI("rk-debug format_requested=%d i=0 byte_stride = %d", format_requested, (uint32_t)width);
+            // HWC2_LOGI("rk-debug format_requested=%d i=0 byte_stride = %d", format_requested, (uint32_t)width);
         }
     }
     return 0;

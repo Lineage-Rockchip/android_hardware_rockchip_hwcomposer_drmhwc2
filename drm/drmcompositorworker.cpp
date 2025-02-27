@@ -51,9 +51,9 @@ void DrmCompositorWorker::Routine() {
         param.sched_priority = kFifoPriority;
 
         if (sched_setscheduler(0, sched_policy, &param) != 0) {
-            HWC2_ALOGE("DrmCompositorWorker set SCHED_FIFO fail!");
+            HWC2_LOGE("DrmCompositorWorker set SCHED_FIFO fail!");
         } else {
-            HWC2_ALOGI("DrmCompositorWorker set SCHED_FIFO success!");
+            HWC2_LOGI("DrmCompositorWorker set SCHED_FIFO success!");
         }
     }
 

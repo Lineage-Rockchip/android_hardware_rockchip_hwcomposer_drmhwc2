@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+#define LOG_TAG "hwc-hdr-parser"
+
 #include "rockchip/hdr/drmhdrparser.h"
 #include "rockchip/utils/drmdebug.h"
 
@@ -79,7 +82,7 @@ int DrmHdrParser::Init() {
 int DrmHdrParser::InitNextHdr() {
     dovi_lib_handle = dlopen(DOVI_PARSER_LIB, RTLD_NOW);
     if (dovi_lib_handle == NULL) {
-        HWC2_ALOGD_IF_ERR("cat not open %s\n", DOVI_PARSER_LIB);
+        HWC2_LOGE_IF("cat not open %s\n", DOVI_PARSER_LIB);
         return -1;
     } else {
         dovi_ops.init = (dovi_init_func)dlsym(dovi_lib_handle, "dovi_init");
@@ -87,8 +90,8 @@ int DrmHdrParser::InitNextHdr() {
         dovi_ops.destroy = (dovi_destroy_func)dlsym(dovi_lib_handle, "dovi_deinit");
 
         if (dovi_ops.init == NULL || dovi_ops.parser == NULL || dovi_ops.destroy == NULL) {
-            HWC2_ALOGD_IF_ERR("cat not dlsym init=%p parser=%p destroy=%p\n", dovi_ops.init, dovi_ops.parser,
-                              dovi_ops.destroy);
+            HWC2_LOGE_IF("cat not dlsym init=%p parser=%p destroy=%p\n", dovi_ops.init, dovi_ops.parser,
+                         dovi_ops.destroy);
             return -1;
         }
     }
@@ -101,14 +104,14 @@ int DrmHdrParser::InitVividHdr() {
 #ifdef VIVID_PARSER_USE_DLOPEN
     vivid_lib_handle = dlopen(VIVID_PARSER_LIB, RTLD_NOW);
     if (vivid_lib_handle == NULL) {
-        HWC2_ALOGD_IF_ERR("cat not open %s\n", VIVID_PARSER_LIB);
+        HWC2_LOGE_IF("cat not open %s\n", VIVID_PARSER_LIB);
         return -1;
     } else {
         vivid_ops.parser = (vivid_parser_func)dlsym(vivid_lib_handle, "_Z10hdr_parserP22rk_hdr_parser_params_t");
         vivid_ops.parser_hdr = (hdr_format_parser_func)dlsym(
                 vivid_lib_handle, "_Z17hdr_format_parserP22rk_hdr_parser_params_tP17rk_hdr_fmt_info_t");
         if (vivid_ops.parser == NULL || vivid_ops.parser_hdr == NULL) {
-            HWC2_ALOGD_IF_ERR("cat not dlsym parser=%p parser_hdr=%p\n", vivid_ops.parser, vivid_ops.parser_hdr);
+            HWC2_LOGE_IF("cat not dlsym parser=%p parser_hdr=%p\n", vivid_ops.parser, vivid_ops.parser_hdr);
             return -1;
         }
     }
@@ -179,7 +182,7 @@ void DrmHdrParser::NextHdrDestoryHandle(int display, uint32_t layer_id) {
         }
     }
 
-    HWC2_ALOGD_IF_ERR("can't find suitable hdrParserHandle display=%d layer-id=%d", display, layer_id);
+    HWC2_LOGE_IF("can't find suitable hdrParserHandle display=%d layer-id=%d", display, layer_id);
 
     return;
 }

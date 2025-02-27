@@ -131,13 +131,13 @@ int DrmCrtc::Init() {
 #ifdef RK3399
         //RK3399 平台Kernel4.19及之前无SOC_ID，5.10后有SOC_ID
         if (isDrmVerison44(drm_version_) || isDrmVerison419(drm_version_)) {
-            HWC2_ALOGI("SOC(RK3399...) don't have SOC_ID,force setting...");
+            HWC2_LOGI("SOC(RK3399...) don't have SOC_ID,force setting...");
             soc_id_ = 0x3399;
         }
 #elif defined(RK3326)
         //RK3326 平台Kernel4.19及之前无SOC_ID，5.10后有SOC_ID
         if (isDrmVerison44(drm_version_) || isDrmVerison419(drm_version_)) {
-            HWC2_ALOGI("SOC(RK3326...) don't have SOC_ID,force setting...");
+            HWC2_LOGI("SOC(RK3326...) don't have SOC_ID,force setting...");
             soc_id_ = 0x3326;
         }
 #endif
@@ -362,9 +362,9 @@ int DrmCrtc::Init() {
         std::tie(ret, min_refresh_rate_value_) = min_refresh_rate_.value();
     }
 
-    HWC2_ALOGI("crtc-id=%d vrr=%" PRIu64 ", maxrr=%" PRIu64 " minrr=%" PRIu64 ", VRR %s", id_,
-               variable_refresh_rate_value_, max_refresh_rate_value_, min_refresh_rate_value_,
-               (is_vrr() ? "Enable" : "Disable"));
+    HWC2_LOGI("crtc-id=%d vrr=%" PRIu64 ", maxrr=%" PRIu64 " minrr=%" PRIu64 ", VRR %s", id_,
+              variable_refresh_rate_value_, max_refresh_rate_value_, min_refresh_rate_value_,
+              (is_vrr() ? "Enable" : "Disable"));
 
     ret = drm_->GetCrtcProperty(*this, "HDR_EXT_DATA", &hdr_ext_data_);
     if (ret) ALOGE("Could not get hdr_ext_data_ property");
@@ -382,12 +382,12 @@ int DrmCrtc::Init() {
     if (ret) ALOGE("Could not get IS_VIRTUAL property");
 
     if (isRK3576(soc_id_)) {
-        HWC2_ALOGI("RK3576 do not use vop overscan, set b_can_overscan_ to false");
+        HWC2_LOGI("RK3576 do not use vop overscan, set b_can_overscan_ to false");
         b_can_overscan_ = false;
     }
 
-    HWC2_ALOGD_IF_DEBUG("crtc-id=%d b_can_alpha_scale_=%d b_can_hdr10_=%d b_can_next_hdr_=%d b_can_vivid_hdr_=%d", id_,
-                        b_can_alpha_scale_, b_can_hdr10_, b_can_next_hdr_, b_can_vivid_hdr_);
+    HWC2_LOGD_IF("crtc-id=%d b_can_alpha_scale_=%d b_can_hdr10_=%d b_can_next_hdr_=%d b_can_vivid_hdr_=%d", id_,
+                 b_can_alpha_scale_, b_can_hdr10_, b_can_next_hdr_, b_can_vivid_hdr_);
     return 0;
 }
 

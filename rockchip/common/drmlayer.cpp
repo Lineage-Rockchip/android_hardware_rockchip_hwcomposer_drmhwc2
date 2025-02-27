@@ -326,9 +326,9 @@ void DrmHwcLayer::ModifyDisplayFrameForOverscan(hwc2_drm_display_t* ctx) {
     display_frame.right = display_frame.left + dst_w;
     display_frame.bottom = display_frame.top + dst_h;
 
-    HWC2_ALOGD_IF_VERBOSE("overscan(%d,%d,%d,%d) display_frame(%d,%d,%d,%d) => (%d,%d,%d,%d)", left_margin, top_margin,
-                          right_margin, bottom_margin, disp_old_l, disp_old_t, disp_old_r, disp_old_b,
-                          display_frame.left, display_frame.top, display_frame.right, display_frame.bottom);
+    HWC2_LOGV_IF("overscan(%d,%d,%d,%d) display_frame(%d,%d,%d,%d) => (%d,%d,%d,%d)", left_margin, top_margin,
+                 right_margin, bottom_margin, disp_old_l, disp_old_t, disp_old_r, disp_old_b, display_frame.left,
+                 display_frame.top, display_frame.right, display_frame.bottom);
 
     bScale_ = IsScale(source_crop, display_frame, transform);
     return;
@@ -477,7 +477,7 @@ int DrmHwcLayer::SwitchPreScaleBufferInfo() {
 
     metadata_for_rkvdec_scaling_t* metadata = NULL;
     gralloc->lock_rkvdec_scaling_metadata(sf_handle, &metadata);
-    HWC2_ALOGD_IF_INFO("lock_rkvdec_scaling_metadata sf_handle=%p metadata=%p", sf_handle, metadata);
+    HWC2_LOGI_IF("lock_rkvdec_scaling_metadata sf_handle=%p metadata=%p", sf_handle, metadata);
     if (metadata != NULL) {
         metadata->requestMask = 1;
 
@@ -505,19 +505,19 @@ int DrmHwcLayer::SwitchPreScaleBufferInfo() {
         }
 
         // 打印参数
-        HWC2_ALOGD_IF_INFO("Name=%s metadata = %p", sLayerName_.c_str(), metadata);
-        HWC2_ALOGD_IF_INFO("version=0x%" PRIx64 " requestMask=0x%" PRIx64
-                           " "
-                           "replyMask=0x%" PRIx64 " BufferId=0x%" PRIx64,
-                           metadata->version, metadata->requestMask, metadata->replyMask, uBufferId_);
-        HWC2_ALOGD_IF_INFO("w=%d h=%d s=%d f=%d m=0x%" PRIx64 " usage=0x%x ", metadata->width, metadata->height,
-                           metadata->pixel_stride, metadata->format, metadata->modifier, metadata->usage);
-        HWC2_ALOGD_IF_INFO("crop=(%d,%d,%d,%d) ", metadata->srcLeft, metadata->srcTop, metadata->srcRight,
-                           metadata->srcBottom);
-        HWC2_ALOGD_IF_INFO("layer_cnt=%d offset=%d,%d,%d,%d byteStride=%d,%d,%d,%d) ", metadata->layer_cnt,
-                           metadata->offset[0], metadata->offset[1], metadata->offset[2], metadata->offset[3],
-                           metadata->byteStride[0], metadata->byteStride[1], metadata->byteStride[2],
-                           metadata->byteStride[3]);
+        HWC2_LOGI_IF("Name=%s metadata = %p", sLayerName_.c_str(), metadata);
+        HWC2_LOGI_IF("version=0x%" PRIx64 " requestMask=0x%" PRIx64
+                     " "
+                     "replyMask=0x%" PRIx64 " BufferId=0x%" PRIx64,
+                     metadata->version, metadata->requestMask, metadata->replyMask, uBufferId_);
+        HWC2_LOGI_IF("w=%d h=%d s=%d f=%d m=0x%" PRIx64 " usage=0x%x ", metadata->width, metadata->height,
+                     metadata->pixel_stride, metadata->format, metadata->modifier, metadata->usage);
+        HWC2_LOGI_IF("crop=(%d,%d,%d,%d) ", metadata->srcLeft, metadata->srcTop, metadata->srcRight,
+                     metadata->srcBottom);
+        HWC2_LOGI_IF("layer_cnt=%d offset=%d,%d,%d,%d byteStride=%d,%d,%d,%d) ", metadata->layer_cnt,
+                     metadata->offset[0], metadata->offset[1], metadata->offset[2], metadata->offset[3],
+                     metadata->byteStride[0], metadata->byteStride[1], metadata->byteStride[2],
+                     metadata->byteStride[3]);
         gralloc->unlock_rkvdec_scaling_metadata(sf_handle);
     }
 
@@ -539,7 +539,7 @@ int DrmHwcLayer::SwitchPreScaleBufferInfo() {
         source_crop.bottom = source_crop.bottom / 2;
 
         Init();
-        HWC2_ALOGD_IF_DEBUG(
+        HWC2_LOGD_IF(
                 "PreScale : LayerId[%u] Fourcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
                 "src=[%5.0f,%5.0f,%5.0f,%5.0f] dis=[%4d,%4d,%4d,%4d] Transform=%-8.8s(0x%x)\n"
                 "                       Fourcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
@@ -563,7 +563,7 @@ int DrmHwcLayer::SwitchPreScaleBufferInfo() {
 
 int DrmHwcLayer::ResetInfoFromPreScaleStore() {
     if (!storePreScaleInfo_.valid_) {
-        HWC2_ALOGE("ResetInfoFromStore fail, There may be some errors.");
+        HWC2_LOGE("ResetInfoFromStore fail, There may be some errors.");
         return -1;
     }
 
@@ -574,18 +574,18 @@ int DrmHwcLayer::ResetInfoFromPreScaleStore() {
     }
     metadata_for_rkvdec_scaling_t* metadata = NULL;
     gralloc->lock_rkvdec_scaling_metadata(sf_handle, &metadata);
-    HWC2_ALOGD_IF_INFO("lock_rkvdec_scaling_metadata sf_handle=%p metadata=%p", sf_handle, metadata);
+    HWC2_LOGI_IF("lock_rkvdec_scaling_metadata sf_handle=%p metadata=%p", sf_handle, metadata);
     if (metadata != NULL) {
         bIsPreScale_ = false;
         metadata->requestMask = 2;
         memset(&mMetadata_, 0x0, sizeof(metadata_for_rkvdec_scaling_t));
 
         // 打印参数
-        HWC2_ALOGD_IF_INFO("Name=%s metadata = %p", sLayerName_.c_str(), metadata);
-        HWC2_ALOGD_IF_INFO("version=0x%" PRIx64 " requestMask=0x%" PRIx64
-                           " "
-                           "replyMask=0x%" PRIx64 " BufferId=0x%" PRIx64,
-                           metadata->version, metadata->requestMask, metadata->replyMask, uBufferId_);
+        HWC2_LOGI_IF("Name=%s metadata = %p", sLayerName_.c_str(), metadata);
+        HWC2_LOGI_IF("version=0x%" PRIx64 " requestMask=0x%" PRIx64
+                     " "
+                     "replyMask=0x%" PRIx64 " BufferId=0x%" PRIx64,
+                     metadata->version, metadata->requestMask, metadata->replyMask, uBufferId_);
         gralloc->unlock_rkvdec_scaling_metadata(sf_handle);
     }
 
@@ -606,7 +606,7 @@ int DrmHwcLayer::ResetInfoFromPreScaleStore() {
     uGemHandle_ = storePreScaleInfo_.uGemHandle_;
     bIsPreScale_ = false;
     Init();
-    HWC2_ALOGD_IF_DEBUG(
+    HWC2_LOGD_IF(
             "PreScale reset:DrmHwcLayer[%4u] Buffer[w/h/s/format]=[%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
             "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
             "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] "
@@ -700,10 +700,10 @@ void DrmHwcLayer::ModifyDisplayFrame() {
                     ALOGE("ScaleMode[%d] is invalid ", scaleMode);
                     return;
             }
-            HWC2_ALOGD_IF_DEBUG("Video area change [%d,%d,%d,%d]:[%d,%d,%d,%d] => [%d,%d,%d,%d]", (int)source_crop.left,
-                                (int)source_crop.top, (int)source_crop.right, (int)source_crop.bottom,
-                                display_frame.left, display_frame.top, display_frame.right, display_frame.bottom,
-                                d_letf, d_top, d_right, d_bottom);
+            HWC2_LOGD_IF("Video area change [%d,%d,%d,%d]:[%d,%d,%d,%d] => [%d,%d,%d,%d]", (int)source_crop.left,
+                         (int)source_crop.top, (int)source_crop.right, (int)source_crop.bottom, display_frame.left,
+                         display_frame.top, display_frame.right, display_frame.bottom, d_letf, d_top, d_right,
+                         d_bottom);
 
             display_frame.left = d_letf;
             display_frame.top = d_top;
@@ -1047,7 +1047,7 @@ void DrmHwcLayer::UpdateAndStoreInfoFromDrmBuffer(buffer_handle_t handle, int fd
 
     transform = replace_transform;
     Init();
-    HWC2_ALOGD_IF_DEBUG(
+    HWC2_LOGD_IF(
             "SrTransform : LayerId[%u] Fourcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
             "src=[%5.0f,%5.0f,%5.0f,%5.0f] dis=[%4d,%4d,%4d,%4d] Transform=%-8.8s(0x%x) gemhandle=%d\n"
             "                            Fourcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
@@ -1068,7 +1068,7 @@ void DrmHwcLayer::UpdateAndStoreInfoFromDrmBuffer(buffer_handle_t handle, int fd
 
 void DrmHwcLayer::ResetInfoFromStore() {
     if (!storeLayerInfo_.valid_) {
-        HWC2_ALOGE("ResetInfoFromStore fail, There may be some errors.");
+        HWC2_LOGE("ResetInfoFromStore fail, There may be some errors.");
         return;
     }
 
@@ -1093,7 +1093,7 @@ void DrmHwcLayer::ResetInfoFromStore() {
     eDataSpace_ = storeLayerInfo_.eDataSpace_;
 
     Init();
-    HWC2_ALOGD_IF_DEBUG(
+    HWC2_LOGD_IF(
             "reset:DrmHwcLayer[%4u] Buffer[w/h/s/hs/format]=[%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
             "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
             "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] "
@@ -1119,15 +1119,15 @@ std::string DrmHwcLayer::TransformToString(uint32_t transform) const {
         case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_Y:
             return "FlipV";
         case DRM_MODE_ROTATE_90:
-            return "Rotate90";
+            return "R_90";
         case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y:
-            return "Rotate180";
+            return "R_180";
         case DRM_MODE_ROTATE_270:
-            return "Rotate270";
+            return "R_270";
         case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X | DRM_MODE_ROTATE_90:
-            return "FlipHRotate90";
+            return "FlipH_90";
         case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_Y | DRM_MODE_ROTATE_90:
-            return "FlipVRotate90";
+            return "FlipV_90";
         default:
             return "Unknown";
     }
@@ -1135,13 +1135,13 @@ std::string DrmHwcLayer::TransformToString(uint32_t transform) const {
 std::string DrmHwcLayer::BlendingToString(DrmHwcBlending blending) const {
     switch (blending) {
         case DrmHwcBlending::kNone:
-            return "NONE";
+            return "None";
         case DrmHwcBlending::kPreMult:
-            return "PREMULT";
+            return "PreMult";
         case DrmHwcBlending::kCoverage:
-            return "COVERAGE";
+            return "Coverage";
         default:
-            return "<invalid>";
+            return "Unkwon";
     }
 }
 

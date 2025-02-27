@@ -43,25 +43,25 @@ std::string HwcDumper::GetDumpName(const char* tag, int frame_no, int z, int str
 
     char data_name[200] = {0};
     snprintf(data_name, sizeof(data_name), "%s%05d_Z%d_NONE_%dx%d_%d_%c%c%c%c_%s_@%.35s_id_0x%" PRIx64 ".bin", tag,
-               frame_no, z, stride, height_stride, byte_stride, fourcc_format & 0xff, (fourcc_format >> 8) & 0xff,
-               (fourcc_format >> 16) & 0xff, (fourcc_format >> 24) & 0xff, ModifierToStr(modifier),
-               buffer_name_result.size() < 5 ? "unset" : buffer_name_result.c_str(), buffer_id);
+             frame_no, z, stride, height_stride, byte_stride, fourcc_format & 0xff, (fourcc_format >> 8) & 0xff,
+             (fourcc_format >> 16) & 0xff, (fourcc_format >> 24) & 0xff, ModifierToStr(modifier),
+             buffer_name_result.size() < 5 ? "unset" : buffer_name_result.c_str(), buffer_id);
     return data_name;
 }
 
 int HwcDumper::DumpData(void* data, size_t size, const char* filename) {
     if (data == NULL) {
-        HWC2_ALOGE("Dumper: data=%p, DumpData error!", data);
+        HWC2_LOGE("Dumper: data=%p, DumpData error!", data);
         return -1;
     }
 
     if (!directoryExists(HWC_DUMP_DIR)) {
         int ret = mkdir(HWC_DUMP_DIR, 0755);
         if (ret) {
-            HWC2_ALOGE("Dumper: Can not create dir %s, ret=%d", HWC_DUMP_DIR, ret);
+            HWC2_LOGE("Dumper: Can not create dir %s, ret=%d", HWC_DUMP_DIR, ret);
             return -1;
         } else {
-            HWC2_ALOGI("Dumper: create dir = %s success!", HWC_DUMP_DIR);
+            HWC2_LOGI("Dumper: create dir = %s success!", HWC_DUMP_DIR);
         }
     }
 
@@ -74,7 +74,7 @@ int HwcDumper::DumpData(void* data, size_t size, const char* filename) {
         fflush(fp);
         fclose(fp);
     } else {
-        HWC2_ALOGE("Dumper: Can not open path %s", path);
+        HWC2_LOGE("Dumper: Can not open path %s", path);
         return -1;
     }
     return (writen == size ? 0 : -1);

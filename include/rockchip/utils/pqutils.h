@@ -162,14 +162,14 @@ class PqUtils {
         //将GPU合成的图层信息存储到对应的plane info内
         if (clientComposeInfo.size() > 0) {
             if (!status->mapPlaneInfo_.count(client_layer_zpos)) {
-                HWC2_ALOGE("Error, got client composite layer but cannot found fb target!");
+                HWC2_LOGE("Error, got client composite layer but cannot found fb target!");
             } else {
                 status->mapPlaneInfo_[client_layer_zpos].vecComposeInfo_ = clientComposeInfo;
             }
         }
         //检查是否有pq图层
         if (status->iPqZpos < 0 || status->mapPlaneInfo_.count(status->iPqZpos) == 0) {
-            HWC2_ALOGE("Error Could not found PQ layer!");
+            HWC2_LOGE("Error Could not found PQ layer!");
             return NULL;
         }
 
@@ -208,8 +208,8 @@ class PqUtils {
                     }
                 }
             }
-            HWC2_ALOGD_IF_DEBUG("dump HWPQ_DisplayStatus: iPqZpos=%d, type=%d \n%s", status->iPqZpos,
-                                status->mapPlaneInfo_.at(status->iPqZpos).iLayerType_, ss.str().c_str());
+            HWC2_LOGD_IF("dump HWPQ_DisplayStatus: iPqZpos=%d, type=%d \n%s", status->iPqZpos,
+                         status->mapPlaneInfo_.at(status->iPqZpos).iLayerType_, ss.str().c_str());
         }
 
         return status;

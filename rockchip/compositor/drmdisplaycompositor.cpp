@@ -15,7 +15,7 @@
  */
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#define LOG_TAG "hwc-drm-display-compositor"
+#define LOG_TAG "hwc-drm-compositor"
 
 #include "drmdisplaycompositor.h"
 
@@ -23,6 +23,7 @@
 #include <sched.h>
 #include <stdlib.h>
 #include <time.h>
+#include <iomanip>  // 包含 setw
 #include <sstream>
 #include <vector>
 
@@ -165,7 +166,7 @@ int DrmDisplayCompositor::Init(ResourceManager* resource_manager, int display) {
 
     DrmVideoProducer* dvp = DrmVideoProducer::getInstance();
     if (dvp->Init()) {
-        HWC2_ALOGI("DrmVideoProducer Init fail.");
+        HWC2_LOGI("DrmVideoProducer Init fail.");
     }
 
     initialized_ = true;
@@ -181,7 +182,7 @@ int DrmDisplayCompositor::QueueComposition(std::unique_ptr<DrmDisplayComposition
     switch (composition->type()) {
         case DRM_COMPOSITION_TYPE_FRAME:
             if (!active_) {
-                HWC2_ALOGD_IF_INFO("active_=%d skip frame_no=%" PRIu64, active_, composition->frame_no());
+                HWC2_LOGI_IF("active_=%d skip frame_no=%" PRIu64, active_, composition->frame_no());
                 return -ENODEV;
             }
             break;
@@ -207,7 +208,7 @@ int DrmDisplayCompositor::QueueComposition(std::unique_ptr<DrmDisplayComposition
     if (lock.Lock()) return -EAGAIN;
 
     if (!active_) {
-        HWC2_ALOGD_IF_INFO("active_=%d skip frame_no=%" PRIu64, active_, composition->frame_no());
+        HWC2_LOGI_IF("active_=%d skip frame_no=%" PRIu64, active_, composition->frame_no());
         return -ENODEV;
     }
 
@@ -309,12 +310,12 @@ int DrmDisplayCompositor::SetupWritebackCommit(drmModeAtomicReqPtr pset, uint32_
     }
     ret = resource_manager_->UpdateWriteBackResolution(display_);
     if (ret) {
-        HWC2_ALOGE("UpdateWriteBackResolution fail.");
+        HWC2_LOGE("UpdateWriteBackResolution fail.");
         return -1;
     }
     std::shared_ptr<DrmBuffer> wbBuffer = resource_manager_->GetNextWBBuffer();
     if (wbBuffer == NULL || !wbBuffer->initCheck()) {
-        HWC2_ALOGE("wbBuffer init fail.");
+        HWC2_LOGE("wbBuffer init fail.");
         return -1;
     }
 
@@ -348,8 +349,8 @@ int DrmDisplayCompositor::SetupWritebackCommit(drmModeAtomicReqPtr pset, uint32_
     // RK3576 若使能 HWPQ ,则回写回的色彩空间为 bt709-full range
     wbBuffer->SetDataspace(dataspace);
 
-    HWC2_ALOGD_IF_DEBUG("WB: id=%" PRIu64 " fbid=%d conn-id=%d crtc_id=%d", wbBuffer->GetId(), wbBuffer->GetFbId(),
-                        writeback_conn->id(), crtc_id);
+    HWC2_LOGD_IF("WB: id=%" PRIu64 " fbid=%d conn-id=%d crtc_id=%d", wbBuffer->GetId(), wbBuffer->GetFbId(),
+                 writeback_conn->id(), crtc_id);
     return 0;
 }
 
@@ -381,7 +382,7 @@ int DrmDisplayCompositor::DisableWritebackCommit(drmModeAtomicReqPtr pset, DrmCo
     }
 
     bWriteBackRequestDisable_ = true;
-    HWC2_ALOGD_IF_DEBUG("Reset WB: conn-id=%d ", writeback_conn->id());
+    HWC2_LOGD_IF("Reset WB: conn-id=%d ", writeback_conn->id());
     return 0;
 }
 
@@ -618,8 +619,8 @@ int DrmDisplayCompositor::CommitSidebandStream(drmModeAtomicReqPtr pset, DrmPlan
       }
     }*/
 
-    HWC2_ALOGD_IF_INFO("SidebandStreamLayer plane-id=%d name=%s zpos=%d crtc-id=%d not to commit frame.", plane->id(),
-                       plane->name(), zpos, crtc_id);
+    HWC2_LOGI_IF("SidebandStreamLayer plane-id=%d name=%s zpos=%d crtc-id=%d not to commit frame.", plane->id(),
+                 plane->name(), zpos, crtc_id);
     return 0;
 }
 
@@ -631,7 +632,7 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
         return -1;
     }
     if (!gIsRK3576()) {
-        HWC2_ALOGD_IF_DEBUG("SOC is not RK3576, Skip.");
+        HWC2_LOGD_IF("SOC is not RK3576, Skip.");
         return 0;
     }
 
@@ -649,7 +650,7 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
     }
 
     if (current_composition == NULL) {
-        HWC2_ALOGE("can't find suitable active DrmDisplayComposition");
+        HWC2_LOGE("can't find suitable active DrmDisplayComposition");
         return 0;
     }
 
@@ -659,23 +660,23 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
 
     DrmConnector* connector = drm->GetConnectorForDisplay(display_);
     if (!connector) {
-        HWC2_ALOGE("Could not locate connector for display %d", display_);
+        HWC2_LOGE("Could not locate connector for display %d", display_);
         return -ENODEV;
     }
 
     DrmCrtc* crtc = drm->GetCrtcForDisplay(display_);
     if (!crtc) {
-        HWC2_ALOGE("Could not locate crtc for display %d", display_);
+        HWC2_LOGE("Could not locate crtc for display %d", display_);
         return -ENODEV;
     }
 
     if (!(crtc->get_port_id() == 0 && crtc->post_sharp_data().id() && crtc->acm_lut_data().id() &&
           crtc->post_csc_data().id())) {
-        HWC2_ALOGD_IF_DEBUG("display %d crtc_id=%" PRIu32 " port_id=%" PRIu32
-                            " do not support hwpq. "
-                            "post_sharp_data_id=%" PRIu32 " acm_lut_data_id=%" PRIu32 " post_csc_data_id=%" PRIu32,
-                            display_, crtc->id(), crtc->get_port_id(), crtc->post_sharp_data().id(),
-                            crtc->acm_lut_data().id(), crtc->post_csc_data().id());
+        HWC2_LOGD_IF("display %d crtc_id=%" PRIu32 " port_id=%" PRIu32
+                     " do not support hwpq. "
+                     "post_sharp_data_id=%" PRIu32 " acm_lut_data_id=%" PRIu32 " post_csc_data_id=%" PRIu32,
+                     display_, crtc->id(), crtc->get_port_id(), crtc->post_sharp_data().id(), crtc->acm_lut_data().id(),
+                     crtc->post_csc_data().id());
         return 0;
     }
 
@@ -691,7 +692,7 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
         }
 
         if (!(plane->dci_data().id())) {
-            HWC2_ALOGD_IF_DEBUG("Cluster0-Win0 Do not have dci_data, do not support hwpq");
+            HWC2_LOGD_IF("Cluster0-Win0 Do not have dci_data, do not support hwpq");
             return 0;
         }
 
@@ -700,19 +701,19 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
         }
 
         if (source_layers.empty()) {
-            HWC2_ALOGE("Can't handle empty source layer CompositionPlane.");
+            HWC2_LOGE("Can't handle empty source layer CompositionPlane.");
             continue;
         }
 
         if (source_layers.size() > 1) {
-            HWC2_ALOGE("Can't handle more than one source layer sz=%zu type=%d", source_layers.size(),
-                       comp_plane.type());
+            HWC2_LOGE("Can't handle more than one source layer sz=%zu type=%d", source_layers.size(),
+                      comp_plane.type());
             continue;
         }
 
         if (source_layers.front() >= layers.size()) {
-            HWC2_ALOGE("Source layer index %zu out of bounds %zu type=%d", source_layers.front(), layers.size(),
-                       comp_plane.type());
+            HWC2_LOGE("Source layer index %zu out of bounds %zu type=%d", source_layers.front(), layers.size(),
+                      comp_plane.type());
             break;
         }
 
@@ -726,21 +727,21 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
             if (layer.hwPqRegAcquireFence_->wait(100) == 0) {
                 request_mode_set_.hwpq_regs_ = layer.hwPqReg_;
             } else {
-                HWC2_ALOGE("Wait Hwpq AcquireFence 100ms Failed");
+                HWC2_LOGE("Wait Hwpq AcquireFence 100ms Failed");
             }
         }
         if (request_mode_set_.hwpq_regs_) {
             hwpq_plane = plane;
             hwpq_crtc = crtc;
-            HWC2_ALOGD_IF_DEBUG("hwpq enabled,hwpq reg info:");
-            HWC2_ALOGD_IF_DEBUG("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_shp_reg.module_name,
-                                request_mode_set_.hwpq_regs_->rk_hwpq_shp_reg.prop_length);
-            HWC2_ALOGD_IF_DEBUG("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_csc_reg.module_name,
-                                request_mode_set_.hwpq_regs_->rk_hwpq_csc_reg.prop_length);
-            HWC2_ALOGD_IF_DEBUG("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_acm_reg.module_name,
-                                request_mode_set_.hwpq_regs_->rk_hwpq_acm_reg.prop_length);
-            HWC2_ALOGD_IF_DEBUG("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_dci_reg.module_name,
-                                request_mode_set_.hwpq_regs_->rk_hwpq_dci_reg.prop_length);
+            HWC2_LOGD_IF("hwpq enabled,hwpq reg info:");
+            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_shp_reg.module_name,
+                         request_mode_set_.hwpq_regs_->rk_hwpq_shp_reg.prop_length);
+            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_csc_reg.module_name,
+                         request_mode_set_.hwpq_regs_->rk_hwpq_csc_reg.prop_length);
+            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_acm_reg.module_name,
+                         request_mode_set_.hwpq_regs_->rk_hwpq_acm_reg.prop_length);
+            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_dci_reg.module_name,
+                         request_mode_set_.hwpq_regs_->rk_hwpq_dci_reg.prop_length);
             break;
         }
     }
@@ -749,43 +750,43 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
     if (current_mode_set_.hwpq_regs_ != hwpq_regs) {
         if (hwpq_regs != NULL) {
             //下发HWPQ相关寄存器
-            HWC2_ALOGD_IF_DEBUG("crtc_id = %" PRIu32 " new hwpq setting! update hwpq reg", crtc->id());
+            HWC2_LOGD_IF("crtc_id = %" PRIu32 " new hwpq setting! update hwpq reg", crtc->id());
             if (hwpq_plane == NULL) {
-                HWC2_ALOGE("Could not found HWPQ Plane, skip setting, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
-                           drm->getSocId(), crtc->id());
+                HWC2_LOGE("Could not found HWPQ Plane, skip setting, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
+                          drm->getSocId(), crtc->id());
                 return -1;
             }
             if (hwpq_crtc == NULL) {
-                HWC2_ALOGE("Could not found HWPQ Crtc, skip setting, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
-                           drm->getSocId(), crtc->id());
+                HWC2_LOGE("Could not found HWPQ Crtc, skip setting, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
+                          drm->getSocId(), crtc->id());
                 return -1;
             }
 
             if (hwpq_shp_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_shp_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory SHARP blob. blob_id:[%" PRIu32 "]", hwpq_shp_id_);
+                    HWC2_LOGE("Failed to destory SHARP blob. blob_id:[%" PRIu32 "]", hwpq_shp_id_);
                 }
                 hwpq_shp_id_ = 0;
             }
             if (hwpq_csc_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_csc_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory CSC blob. blob_id:[%" PRIu32 "]", hwpq_csc_id_);
+                    HWC2_LOGE("Failed to destory CSC blob. blob_id:[%" PRIu32 "]", hwpq_csc_id_);
                 }
                 hwpq_csc_id_ = 0;
             }
             if (hwpq_acm_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_acm_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory ACM blob. blob_id:[%" PRIu32 "]", hwpq_acm_id_);
+                    HWC2_LOGE("Failed to destory ACM blob. blob_id:[%" PRIu32 "]", hwpq_acm_id_);
                 }
                 hwpq_acm_id_ = 0;
             }
             if (hwpq_dci_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_dci_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory DCI blob. blob_id:[%" PRIu32 "]", hwpq_dci_id_);
+                    HWC2_LOGE("Failed to destory DCI blob. blob_id:[%" PRIu32 "]", hwpq_dci_id_);
                 }
                 hwpq_dci_id_ = 0;
             }
@@ -794,8 +795,8 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                                               hwpq_regs->rk_hwpq_shp_reg.prop_length, &hwpq_shp_id_);
                 if (ret < 0) {
                     hwpq_shp_id_ = 0;
-                    HWC2_ALOGE("Failed to create sharp blob with data=%p,length=%" PRIu32,
-                               hwpq_regs->rk_hwpq_shp_reg.prop_data, hwpq_regs->rk_hwpq_shp_reg.prop_length);
+                    HWC2_LOGE("Failed to create sharp blob with data=%p,length=%" PRIu32,
+                              hwpq_regs->rk_hwpq_shp_reg.prop_data, hwpq_regs->rk_hwpq_shp_reg.prop_length);
                 }
             }
             if (hwpq_regs->rk_hwpq_csc_reg.prop_length > 0) {
@@ -803,8 +804,8 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                                               hwpq_regs->rk_hwpq_csc_reg.prop_length, &hwpq_csc_id_);
                 if (ret < 0) {
                     hwpq_csc_id_ = 0;
-                    HWC2_ALOGE("Failed to create csc blob with data=%p,length=%" PRIu32,
-                               hwpq_regs->rk_hwpq_csc_reg.prop_data, hwpq_regs->rk_hwpq_csc_reg.prop_length);
+                    HWC2_LOGE("Failed to create csc blob with data=%p,length=%" PRIu32,
+                              hwpq_regs->rk_hwpq_csc_reg.prop_data, hwpq_regs->rk_hwpq_csc_reg.prop_length);
                 }
             }
             if (hwpq_regs->rk_hwpq_acm_reg.prop_length > 0) {
@@ -812,8 +813,8 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                                               hwpq_regs->rk_hwpq_acm_reg.prop_length, &hwpq_acm_id_);
                 if (ret < 0) {
                     hwpq_acm_id_ = 0;
-                    HWC2_ALOGE("Failed to create acm blob with data=%p,length=%" PRIu32,
-                               hwpq_regs->rk_hwpq_acm_reg.prop_data, hwpq_regs->rk_hwpq_acm_reg.prop_length);
+                    HWC2_LOGE("Failed to create acm blob with data=%p,length=%" PRIu32,
+                              hwpq_regs->rk_hwpq_acm_reg.prop_data, hwpq_regs->rk_hwpq_acm_reg.prop_length);
                 }
             }
             if (hwpq_regs->rk_hwpq_dci_reg.prop_length > 0) {
@@ -821,48 +822,47 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                                               hwpq_regs->rk_hwpq_dci_reg.prop_length, &hwpq_dci_id_);
                 if (ret < 0) {
                     hwpq_dci_id_ = 0;
-                    HWC2_ALOGE("Failed to create dci blob with data=%p,length=%" PRIu32,
-                               hwpq_regs->rk_hwpq_dci_reg.prop_data, hwpq_regs->rk_hwpq_dci_reg.prop_length);
+                    HWC2_LOGE("Failed to create dci blob with data=%p,length=%" PRIu32,
+                              hwpq_regs->rk_hwpq_dci_reg.prop_data, hwpq_regs->rk_hwpq_dci_reg.prop_length);
                 }
             }
             //CRTC
             ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
             if (ret < 0) {
-                HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                           hwpq_crtc->post_csc_data().name().c_str(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
+                HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                          hwpq_crtc->post_csc_data().name().c_str(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
             }
             ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
             if (ret < 0) {
-                HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                           hwpq_crtc->acm_lut_data().name().c_str(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
+                HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                          hwpq_crtc->acm_lut_data().name().c_str(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
             }
             ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_sharp_data().id(), hwpq_shp_id_);
             if (ret < 0) {
-                HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                           hwpq_crtc->post_sharp_data().name().c_str(), hwpq_crtc->post_sharp_data().id(),
-                           hwpq_shp_id_);
+                HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                          hwpq_crtc->post_sharp_data().name().c_str(), hwpq_crtc->post_sharp_data().id(), hwpq_shp_id_);
             }
             //PLANE
             ret = drmModeAtomicAddProperty(pset_, hwpq_plane->id(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
             if (ret < 0) {
-                HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                           hwpq_plane->dci_data().name().c_str(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
+                HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                          hwpq_plane->dci_data().name().c_str(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
             }
-            HWC2_ALOGD_IF_DEBUG("Done Setting HWPQ regs for crtc_id=%" PRIu32 " plane_name=%s", hwpq_crtc->id(),
-                                hwpq_plane->name());
+            HWC2_LOGD_IF("Done Setting HWPQ regs for crtc_id=%" PRIu32 " plane_name=%s", hwpq_crtc->id(),
+                         hwpq_plane->name());
         } else {
             //如果reg为空，删除HWPQ下发的寄存器参数
             //先检查记录中HWPQ所在的crtc和plane是否有效
 
-            HWC2_ALOGD_IF_DEBUG("crtc_id = %" PRIu32 " disable hwpq", crtc->id());
+            HWC2_LOGD_IF("crtc_id = %" PRIu32 " disable hwpq", crtc->id());
             if (hwpq_crtc == NULL) {
-                HWC2_ALOGD_IF_DEBUG("Could not found HWPQ Crtc, skip disable, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
-                                    drm->getSocId(), crtc->id());
+                HWC2_LOGD_IF("Could not found HWPQ Crtc, skip disable, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
+                             drm->getSocId(), crtc->id());
                 return 0;
             }
             if (hwpq_plane == NULL) {
-                HWC2_ALOGD_IF_DEBUG("Could not found HWPQ Plane, skip disable, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
-                                    drm->getSocId(), crtc->id());
+                HWC2_LOGD_IF("Could not found HWPQ Plane, skip disable, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
+                             drm->getSocId(), crtc->id());
                 return 0;
             }
 
@@ -871,39 +871,38 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
             if (hwpq_shp_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_shp_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory SHARP blob. blob_id:[%" PRIu32 "]", hwpq_shp_id_);
+                    HWC2_LOGE("Failed to destory SHARP blob. blob_id:[%" PRIu32 "]", hwpq_shp_id_);
                 }
                 hwpq_shp_id_ = 0;
                 ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_sharp_data().id(), hwpq_shp_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                               hwpq_crtc->post_sharp_data().name().c_str(), hwpq_crtc->post_sharp_data().id(),
-                               hwpq_shp_id_);
+                    HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                              hwpq_crtc->post_sharp_data().name().c_str(), hwpq_crtc->post_sharp_data().id(),
+                              hwpq_shp_id_);
                 }
             }
             if (hwpq_csc_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_csc_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory CSC blob. blob_id:[%" PRIu32 "]", hwpq_csc_id_);
+                    HWC2_LOGE("Failed to destory CSC blob. blob_id:[%" PRIu32 "]", hwpq_csc_id_);
                 }
                 hwpq_csc_id_ = 0;
                 ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                               hwpq_crtc->post_csc_data().name().c_str(), hwpq_crtc->post_csc_data().id(),
-                               hwpq_csc_id_);
+                    HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                              hwpq_crtc->post_csc_data().name().c_str(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
                 }
             }
             if (hwpq_acm_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_acm_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory ACM blob. blob_id:[%" PRIu32 "]", hwpq_acm_id_);
+                    HWC2_LOGE("Failed to destory ACM blob. blob_id:[%" PRIu32 "]", hwpq_acm_id_);
                 }
                 hwpq_acm_id_ = 0;
                 ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                               hwpq_crtc->acm_lut_data().name().c_str(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
+                    HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                              hwpq_crtc->acm_lut_data().name().c_str(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
                 }
             }
 
@@ -912,18 +911,18 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
             if (hwpq_dci_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_dci_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to destory DCI blob. blob_id:[%" PRIu32 "]", hwpq_dci_id_);
+                    HWC2_LOGE("Failed to destory DCI blob. blob_id:[%" PRIu32 "]", hwpq_dci_id_);
                 }
                 hwpq_dci_id_ = 0;
                 ret = drmModeAtomicAddProperty(pset_, hwpq_plane->id(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                               hwpq_plane->dci_data().name().c_str(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
+                    HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                              hwpq_plane->dci_data().name().c_str(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
                 }
             }
 
-            HWC2_ALOGD_IF_DEBUG("Done Setting HWPQ regs for crtc_id=%" PRIu32 " plane_name=%s", hwpq_crtc->id(),
-                                hwpq_plane->name());
+            HWC2_LOGD_IF("Done Setting HWPQ regs for crtc_id=%" PRIu32 " plane_name=%s", hwpq_crtc->id(),
+                         hwpq_plane->name());
         }
     }
     return ret < 0 ? -1 : 0;
@@ -938,7 +937,7 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
     // RK3528 平台 Sideband 后续流程会处理
 #if defined(USE_VIVID_HDR) && USE_VIVID_HDR
     if ((IsSidebandMode() || IsMemcMode()) && !is_sideband_collect) {
-        HWC2_ALOGD_IF_INFO("SidebandMode/MemcMode skip normal hdr modeset");
+        HWC2_LOGV_IF("SidebandMode/MemcMode skip normal hdr modeset");
         return 0;
     }
 #endif
@@ -967,8 +966,8 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
             }
             ret = drmModeAtomicAddProperty(pset, crtc->id(), crtc->hdr_ext_data().id(), hdr_blob_id_);
             if (ret < 0) {
-                HWC2_ALOGE("Failed to add metadata-Hdr crtc-id=%d hdr_ext_data-prop[%d]", crtc->id(),
-                           crtc->hdr_ext_data().id());
+                HWC2_LOGE("Failed to add metadata-Hdr crtc-id=%d hdr_ext_data-prop[%d]", crtc->id(),
+                          crtc->hdr_ext_data().id());
             }
         }
 
@@ -995,8 +994,8 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
                     }
                 }
 
-                HWC2_ALOGD_IF_INFO("%s HDR mode %s.", display_comp->hdr_mode() ? "Enable" : "Disable",
-                                   display_comp->has_10bit_Yuv() ? "10bit" : "8bit");
+                HWC2_LOGI_IF("%s HDR mode %s.", display_comp->hdr_mode() ? "Enable" : "Disable",
+                             display_comp->has_10bit_Yuv() ? "10bit" : "8bit");
                 request_mode_set_.hdr_.mode_ = display_comp->hdr_mode();
                 request_mode_set_.hdr_.bHasYuv10bit_ = display_comp->has_10bit_Yuv();
                 request_mode_set_.hdr_.datespace_ = display_comp->dataspace();
@@ -1030,8 +1029,8 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
                             }
                         }
                     }
-                    HWC2_ALOGD_IF_INFO("%s HDR mode %s.", display_comp->hdr_mode() ? "Enable" : "Disable",
-                                       display_comp->has_10bit_Yuv() ? "10bit" : "8bit");
+                    HWC2_LOGI_IF("%s HDR mode %s.", display_comp->hdr_mode() ? "Enable" : "Disable",
+                                 display_comp->has_10bit_Yuv() ? "10bit" : "8bit");
                     request_mode_set_.hdr_.mode_ = display_comp->hdr_mode();
                     request_mode_set_.hdr_.bHasYuv10bit_ = display_comp->has_10bit_Yuv();
                     request_mode_set_.hdr_.datespace_ = display_comp->dataspace();
@@ -1045,16 +1044,16 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
                 ret = drmModeCreatePropertyBlob(drm->fd(), (void*)(&layer.metadataHdrParam_.hdr_reg),
                                                 sizeof(layer.metadataHdrParam_.hdr_reg), &hdr_blob_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to drmModeCreatePropertyBlob crtci-id=%d hdr_ext_data-prop[%d]", crtc->id(),
-                               crtc->hdr_ext_data().id());
+                    HWC2_LOGE("Failed to drmModeCreatePropertyBlob crtci-id=%d hdr_ext_data-prop[%d]", crtc->id(),
+                              crtc->hdr_ext_data().id());
                 }
                 ret = 0;
                 ret = drmModeAtomicAddProperty(pset, crtc->id(), crtc->hdr_ext_data().id(), hdr_blob_id_);
                 if (ret < 0) {
-                    HWC2_ALOGE("Failed to add metadata_hdr crtci-id=%d hdr_ext_data-prop[%d]", crtc->id(),
-                               crtc->hdr_ext_data().id());
+                    HWC2_LOGE("Failed to add metadata_hdr crtci-id=%d hdr_ext_data-prop[%d]", crtc->id(),
+                              crtc->hdr_ext_data().id());
                 } else {
-                    HWC2_ALOGD_IF_INFO("%s MetadataHdr mode.", display_comp->hdr_mode() ? "Enable" : "Disable");
+                    HWC2_LOGI_IF("%s MetadataHdr mode.", display_comp->hdr_mode() ? "Enable" : "Disable");
                     request_mode_set_.hdr_.mode_ = display_comp->hdr_mode();
                     request_mode_set_.hdr_.bHasYuv10bit_ = display_comp->has_10bit_Yuv();
                     request_mode_set_.hdr_.datespace_ = display_comp->dataspace();
@@ -1130,7 +1129,6 @@ int DrmDisplayCompositor::UpdateSidebandState() {
 
     DrmVideoProducer* dvp = DrmVideoProducer::getInstance();
     if (!dvp->IsValid()) {
-        HWC2_ALOGD_IF_ERR("SidebandStream: DrmVideoProducer is invalidate.");
         return -1;
     }
 
@@ -1148,18 +1146,18 @@ int DrmDisplayCompositor::UpdateSidebandState() {
                 if (drawing_sideband2_.buffer_ != NULL) {
                     if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
                                                 drawing_sideband2_.buffer_->GetExternalId())) {
-                        HWC2_ALOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                                   display_, drawing_sideband2_.buffer_->GetId());
+                        HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
+                                  display_, drawing_sideband2_.buffer_->GetId());
                     }
                 }
                 // 断开旧连接
                 int ret = dvp->DestoryConnection(display_, drawing_sideband2_.tunnel_id_);
                 if (ret) {
-                    HWC2_ALOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
-                               display_, drawing_sideband2_.tunnel_id_);
+                    HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
+                              display_, drawing_sideband2_.tunnel_id_);
                 } else {
-                    HWC2_ALOGI("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
-                               display_, drawing_sideband2_.tunnel_id_);
+                    HWC2_LOGD_IF("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
+                                 display_, drawing_sideband2_.tunnel_id_);
                 }
                 drawing_sideband2_.enable_ = current_sideband2_.enable_;
                 drawing_sideband2_.tunnel_id_ = current_sideband2_.tunnel_id_;
@@ -1169,18 +1167,18 @@ int DrmDisplayCompositor::UpdateSidebandState() {
             if (drawing_sideband2_.buffer_ != NULL) {
                 if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
                                             drawing_sideband2_.buffer_->GetExternalId())) {
-                    HWC2_ALOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                               display_, drawing_sideband2_.buffer_->GetId());
+                    HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
+                              display_, drawing_sideband2_.buffer_->GetId());
                 }
             }
             // 断开旧连接
             int ret = dvp->DestoryConnection(display_, drawing_sideband2_.tunnel_id_);
             if (ret) {
-                HWC2_ALOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.", display_,
-                           drawing_sideband2_.tunnel_id_);
+                HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.", display_,
+                          drawing_sideband2_.tunnel_id_);
             } else {
-                HWC2_ALOGI("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
-                           display_, drawing_sideband2_.tunnel_id_);
+                HWC2_LOGD_IF("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
+                             display_, drawing_sideband2_.tunnel_id_);
             }
             drawing_sideband2_.enable_ = current_sideband2_.enable_;
             drawing_sideband2_.tunnel_id_ = current_sideband2_.tunnel_id_;
@@ -1194,8 +1192,8 @@ int DrmDisplayCompositor::UpdateSidebandState() {
         if (drawing_sideband2_.buffer_ != NULL && drawing_sideband2_.buffer_ != current_sideband2_.buffer_) {
             if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
                                         drawing_sideband2_.buffer_->GetExternalId())) {
-                HWC2_ALOGE("SidebandStream: SignalReleaseFence fail, last buffer id=%" PRIu64,
-                           drawing_sideband2_.buffer_->GetId());
+                HWC2_LOGE("SidebandStream: SignalReleaseFence fail, last buffer id=%" PRIu64,
+                          drawing_sideband2_.buffer_->GetId());
             }
         }
         drawing_sideband2_.enable_ = current_sideband2_.enable_;
@@ -1218,11 +1216,11 @@ int DrmDisplayCompositor::UpdateMemcState() {
 
     if (drawing_memc_.buffer_ != NULL) {
         if (drawing_memc_.svep_memc_->ReleaseDstImage(drawing_memc_.buffer_->GetBufferId()) != MEMC_NO_ERROR) {
-            HWC2_ALOGE("MemcStream: ReleaseDstImage fail, last buffer id=%" PRIu64,
-                       drawing_memc_.buffer_->GetBufferId());
+            HWC2_LOGE("MemcStream: ReleaseDstImage fail, last buffer id=%" PRIu64,
+                      drawing_memc_.buffer_->GetBufferId());
         } else {
-            HWC2_ALOGD_IF_DEBUG("MemcStream: ReleaseDstImage Succeed, last buffer id=%" PRIu64,
-                                drawing_memc_.buffer_->GetBufferId());
+            HWC2_LOGD_IF("MemcStream: ReleaseDstImage Succeed, last buffer id=%" PRIu64,
+                         drawing_memc_.buffer_->GetBufferId());
         }
     }
 
@@ -1406,11 +1404,11 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
 
             if (!test_only && layer.acquire_fence && layer.acquire_fence->isValid()) {
                 if (layer.acquire_fence->wait(500)) {
-                    HWC2_ALOGE("display=%d Wait AcquireFence 500ms failed! frame = %" PRIu64
-                               " Info: size=%d act=%d signal=%d err=%d ,LayerName=%s ",
-                               display_, display_comp->frame_no(), layer.acquire_fence->getSize(),
-                               layer.acquire_fence->getActiveCount(), layer.acquire_fence->getSignaledCount(),
-                               layer.acquire_fence->getErrorCount(), layer.sLayerName_.c_str());
+                    HWC2_LOGE("display=%d Wait AcquireFence 500ms failed! frame = %" PRIu64
+                              " Info: size=%d act=%d signal=%d err=%d ,LayerName=%s ",
+                              display_, display_comp->frame_no(), layer.acquire_fence->getSize(),
+                              layer.acquire_fence->getActiveCount(), layer.acquire_fence->getSignaledCount(),
+                              layer.acquire_fence->getErrorCount(), layer.sLayerName_.c_str());
                 }
                 layer.acquire_fence->destroy();
             }
@@ -1430,7 +1428,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                 if (!layer.bSideband2_) {
                     ret = CommitSidebandStream(pset, plane, layer, zpos, crtc->id());
                     if (ret) {
-                        HWC2_ALOGE("CommitSidebandStream fail");
+                        HWC2_LOGE("CommitSidebandStream fail");
                     }
                 }
                 continue;
@@ -1452,8 +1450,8 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                         ALOGE("Failed to prescale_layer add plane %d disable to pset", plane->id());
                         continue;
                     } else {
-                        HWC2_ALOGD_IF_WARN("%s bNeedPreScale_=%d bIsPreScale_=%d skip until PreScale ready.",
-                                           layer.sLayerName_.c_str(), layer.bNeedPreScale_, layer.bIsPreScale_);
+                        HWC2_LOGW_IF("%s bNeedPreScale_=%d bIsPreScale_=%d skip until PreScale ready.",
+                                     layer.sLayerName_.c_str(), layer.bNeedPreScale_, layer.bIsPreScale_);
                         continue;
                     }
 
@@ -1461,7 +1459,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                         will_disable_drmplane_types.push_back(plane->win_type());
                     }
                 } else {
-                    HWC2_ALOGD_IF_INFO(
+                    HWC2_LOGI_IF(
                             "PreScale : %s bNeedPreScale_=%d bIsPreScale_=%d display by black layer until PreScale "
                             "ready.",
                             layer.sLayerName_.c_str(), layer.bNeedPreScale_, layer.bIsPreScale_);
@@ -1601,17 +1599,17 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
             break;
         }
 
-        size_t index = 0;
         std::ostringstream out_log;
-
         if (LogLevel(DBG_DEBUG)) {
-            out_log << "DrmDisplayCompositor[" << index << "]"
+            out_log << "SFlinger Commit:"
                     << " frame_no=" << display_comp->frame_no() << " display=" << display_comp->display()
-                    << " plane=" << plane->name() << " crct id=" << crtc->id() << " fb id=" << fb_id
-                    << " display_frame[" << dst_l << "," << dst_t << "," << dst_w << "," << dst_h << "]"
-                    << " source_crop[" << src_l << "," << src_t << "," << src_w << "," << src_h << "]"
+                    << " plane=" << std::left << std::setw(13) << plane->name() << " crct_id=" << crtc->id()
+                    << " fb_id=" << std::left << std::setw(5) << fb_id << " display_frame[" << std::setw(5) << dst_l
+                    << "," << std::setw(5) << dst_t << "," << std::setw(5) << dst_w << "," << std::setw(5) << dst_h
+                    << "]"
+                    << " source_crop[" << std::setw(5) << src_l << "," << std::setw(5) << src_t << "," << std::setw(5)
+                    << src_w << "," << std::setw(5) << src_h << "]"
                     << ", zpos=" << zpos;
-            index++;
         }
 
         if (plane->rotation_property().id()) {
@@ -1660,7 +1658,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
             }
 
             if (LogLevel(DBG_DEBUG)) {
-                out_log << " blend mode =" << blend;
+                out_log << " blend_mode =" << blend;
             }
         }
 
@@ -1673,7 +1671,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
             }
 
             if (LogLevel(DBG_DEBUG)) {
-                out_log << " blend mode =" << blend;
+                out_log << " blend_mode =" << blend;
             }
         }
 
@@ -1700,7 +1698,8 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                 }
 
                 if (LogLevel(DBG_DEBUG)) {
-                    out_log << " color_encoding=" << std::hex << colorspace.colorspace_kernel_6_1_.color_encoding_;
+                    out_log << " color_encoding=" << std::left << std::setw(7)
+                            << DrmColorEncodingToString(colorspace.colorspace_kernel_6_1_.color_encoding_);
                 }
             }
 
@@ -1714,7 +1713,8 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                 }
 
                 if (LogLevel(DBG_DEBUG)) {
-                    out_log << " color_range=" << std::hex << colorspace.colorspace_kernel_6_1_.color_range_;
+                    out_log << " color_range=" << std::left << std::setw(7)
+                            << DrmColorRangeToString(colorspace.colorspace_kernel_6_1_.color_range_);
                 }
             }
         } else {
@@ -1728,11 +1728,11 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                 }
 
                 if (LogLevel(DBG_DEBUG)) {
-                    out_log << " colorspace=" << std::hex << colorspace.colorspace_kernel_510_;
+                    out_log << " colorspace=" << std::left << std::setw(13)
+                            << V4L2ColorspaceToString(colorspace.colorspace_kernel_510_);
                 }
             }
         }
-
         if (plane->async_commit_property().id()) {
             ret = drmModeAtomicAddProperty(pset, plane->id(), plane->async_commit_property().id(),
                                            sideband == true ? 1 : 0) < 0;
@@ -1767,7 +1767,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
             }
         }
 
-        HWC2_ALOGD_IF_DEBUG("%s", out_log.str().c_str());
+        ALOGI_IF(LogLevel(DBG_INFO), "%s", out_log.str().c_str());
         out_log.clear();
     }
     return ret;
@@ -1832,7 +1832,7 @@ int DrmDisplayCompositor::CollectForceDisablePlane() {
 
     DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
     if (!drm) {
-        HWC2_ALOGE("Can not found drm device for display %d", display_);
+        HWC2_LOGE("Can not found drm device for display %d", display_);
         return -1;
     }
     std::vector<PlaneGroup*> all_plane_groups = drm->GetPlaneGroups();
@@ -1841,7 +1841,7 @@ int DrmDisplayCompositor::CollectForceDisablePlane() {
             for (auto& plane : plane_group->planes) {
                 ret |= drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0;
                 ret |= drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
-                HWC2_ALOGD_IF_DEBUG("Disable plane %s", plane->name());
+                HWC2_LOGD_IF("Disable plane %s", plane->name());
             }
         }
     }
@@ -1852,7 +1852,7 @@ void DrmDisplayCompositor::Commit() {
     ATRACE_CALL();
 
     if (!active_) {
-        HWC2_ALOGD_IF_INFO("active_=%d skip frame_no=%" PRIu64, active_, frame_no_);
+        HWC2_LOGI_IF("active_=%d skip frame_no=%" PRIu64, active_, frame_no_);
         drmModeAtomicFree(pset_);
         pset_ = NULL;
         return;
@@ -1952,7 +1952,7 @@ void DrmDisplayCompositor::Commit() {
                 useless_queue.pop();
                 composition->SignalCompositionDone();
             }
-            HWC2_ALOGD_IF_DEBUG(
+            HWC2_LOGD_IF(
                     "signal useless compositions: display=%d "
                     "size=%" PRIu64 " frame_no=%" PRIu64 "->%" PRIu64,
                     display_, useless_size, useless_frame_no_start, useless_frame_no_end);
@@ -2111,11 +2111,11 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition* display_comp, bool 
 
             if (!test_only && layer.acquire_fence->isValid()) {
                 if (layer.acquire_fence->wait(500)) {
-                    HWC2_ALOGE("Wait AcquireFence 500ms failed! frame = %" PRIu64
-                               " Info: size=%d act=%d signal=%d err=%d ,LayerName=%s ",
-                               display_comp->frame_no(), layer.acquire_fence->getSize(),
-                               layer.acquire_fence->getActiveCount(), layer.acquire_fence->getSignaledCount(),
-                               layer.acquire_fence->getErrorCount(), layer.sLayerName_.c_str());
+                    HWC2_LOGE("Wait AcquireFence 500ms failed! frame = %" PRIu64
+                              " Info: size=%d act=%d signal=%d err=%d ,LayerName=%s ",
+                              display_comp->frame_no(), layer.acquire_fence->getSize(),
+                              layer.acquire_fence->getActiveCount(), layer.acquire_fence->getSignaledCount(),
+                              layer.acquire_fence->getErrorCount(), layer.sLayerName_.c_str());
                 }
                 layer.acquire_fence->destroy();
             }
@@ -2125,11 +2125,11 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition* display_comp, bool 
             }
 
             if (layer.bSidebandStreamLayer_) {
-                HWC2_ALOGI("SidebandLayer continue, iTunnelId = %d", layer.iTunnelId_);
+                HWC2_LOGI("SidebandLayer continue, iTunnelId = %d", layer.iTunnelId_);
                 continue;
             }
             if (layer.bUseMemc_) {
-                HWC2_ALOGI("SvepMemc Layer continue, iTunnelId = %d", layer.iTunnelId_);
+                HWC2_LOGI("SvepMemc Layer continue, iTunnelId = %d", layer.iTunnelId_);
                 continue;
             }
 
@@ -2266,7 +2266,7 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition* display_comp, bool 
                       plane->id());
                 break;
             }
-            out_log << " blend mode =" << blend;
+            out_log << " blend_mode =" << blend;
         }
 
         if (plane->blend_property_vop1_kernel4_19().id()) {
@@ -2276,7 +2276,7 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition* display_comp, bool 
                       plane->blend_property_vop1_kernel4_19().id(), plane->id());
                 break;
             }
-            out_log << " blend mode =" << blend;
+            out_log << " blend_mode =" << blend;
         }
 
         if (plane->get_hdr2sdr() && plane->eotf_property().id()) {
@@ -2416,21 +2416,21 @@ void DrmDisplayCompositor::ClearDisplayHdrState() {
     if (current_mode_set_.hdr_.mode_ != DRM_HWC_SDR) {
         drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
         if (!pset) {
-            HWC2_ALOGE("display=%d Failed to allocate property set", display_);
+            HWC2_LOGE("display=%d Failed to allocate property set", display_);
             return;
         }
 
         DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
         DrmConnector* connector = drm->GetConnectorForDisplay(display_);
         if (!connector) {
-            HWC2_ALOGE("Could not locate connector for display %d", display_);
+            HWC2_LOGE("Could not locate connector for display %d", display_);
             drmModeAtomicFree(pset);
             pset = NULL;
             return;
         }
         DrmCrtc* crtc = drm->GetCrtcForDisplay(display_);
         if (!crtc) {
-            HWC2_ALOGE("Could not locate crtc for display %d", display_);
+            HWC2_LOGE("Could not locate crtc for display %d", display_);
             drmModeAtomicFree(pset);
             pset = NULL;
             return;
@@ -2439,8 +2439,8 @@ void DrmDisplayCompositor::ClearDisplayHdrState() {
         if (hdr_blob_id_) {
             int ret = drm->DestroyPropertyBlob(hdr_blob_id_);
             if (ret) {
-                HWC2_ALOGE("display=%d Failed to DestroyPropertyBlob crtc-id=%d hdr_ext_data-prop[%d]", display_,
-                           crtc->id(), hdr_blob_id_);
+                HWC2_LOGE("display=%d Failed to DestroyPropertyBlob crtc-id=%d hdr_ext_data-prop[%d]", display_,
+                          crtc->id(), hdr_blob_id_);
             } else {
                 hdr_blob_id_ = 0;
             }
@@ -2449,20 +2449,20 @@ void DrmDisplayCompositor::ClearDisplayHdrState() {
         if (crtc->hdr_ext_data().id() > 0) {
             int ret = drmModeAtomicAddProperty(pset, crtc->id(), crtc->hdr_ext_data().id(), hdr_blob_id_);
             if (ret < 0) {
-                HWC2_ALOGE("display=%d Failed to add metadata-Hdr crtc-id=%d hdr_ext_data-prop[%d]", display_,
-                           crtc->id(), crtc->hdr_ext_data().id());
+                HWC2_LOGE("display=%d Failed to add metadata-Hdr crtc-id=%d hdr_ext_data-prop[%d]", display_,
+                          crtc->id(), crtc->hdr_ext_data().id());
             }
         }
         // 进入HDR10/SDR的处理逻辑
         int ret = connector->switch_hdmi_hdr_mode(pset, HAL_DATASPACE_UNKNOWN, false);
         if (ret) {
-            HWC2_ALOGE("display %d enable hdr fail. datespace=%x", display_, HAL_DATASPACE_UNKNOWN);
+            HWC2_LOGE("display %d enable hdr fail. datespace=%x", display_, HAL_DATASPACE_UNKNOWN);
         }
 
         uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
         ret = drmModeAtomicCommit(drm->fd(), pset, flags, drm);
         if (ret) {
-            HWC2_ALOGE("display=%d Failed to commit pset ret=%d\n", display_, ret);
+            HWC2_LOGE("display=%d Failed to commit pset ret=%d\n", display_, ret);
             drmModeAtomicFree(pset);
             pset = NULL;
             return;
@@ -2517,7 +2517,7 @@ void DrmDisplayCompositor::ClearDisplay() {
     if (bWriteBackEnable_) {
         drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
         if (!pset) {
-            HWC2_ALOGE("Failed to allocate property set");
+            HWC2_LOGE("Failed to allocate property set");
             return;
         }
         DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
@@ -2525,7 +2525,7 @@ void DrmDisplayCompositor::ClearDisplay() {
         uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
         int ret = drmModeAtomicCommit(drm->fd(), pset, flags, drm);
         if (ret) {
-            HWC2_ALOGE("Failed to commit pset ret=%d\n", ret);
+            HWC2_LOGE("Failed to commit pset ret=%d\n", ret);
         }
 
         drmModeAtomicFree(pset);
@@ -2540,15 +2540,15 @@ void DrmDisplayCompositor::ClearDisplay() {
 
     DrmVideoProducer* dvp = DrmVideoProducer::getInstance();
     if (!dvp->IsValid()) {
-        HWC2_ALOGD_IF_ERR("SidebandStream: DrmVideoProducer is invalidate.");
+        HWC2_LOGE_IF("SidebandStream: DrmVideoProducer is invalidate.");
     } else {
         if (current_sideband2_.enable_ || drawing_sideband2_.enable_) {
             if (drawing_sideband2_.buffer_ != NULL) {
                 // 释放上一帧 ReleaseFence
                 if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
                                             drawing_sideband2_.buffer_->GetExternalId())) {
-                    HWC2_ALOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                               display_, drawing_sideband2_.buffer_->GetId());
+                    HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
+                              display_, drawing_sideband2_.buffer_->GetId());
                 }
             }
 
@@ -2557,19 +2557,19 @@ void DrmDisplayCompositor::ClearDisplay() {
                 // 释放上一帧 ReleaseFence
                 if (dvp->SignalReleaseFence(display_, current_sideband2_.tunnel_id_,
                                             current_sideband2_.buffer_->GetExternalId())) {
-                    HWC2_ALOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                               display_, current_sideband2_.buffer_->GetId());
+                    HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
+                              display_, current_sideband2_.buffer_->GetId());
                 }
             }
 
             if (current_sideband2_.tunnel_id_ > 0) {
                 int ret = dvp->DestoryConnection(display_, current_sideband2_.tunnel_id_);
                 if (ret) {
-                    HWC2_ALOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
-                               display_, current_sideband2_.tunnel_id_);
+                    HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
+                              display_, current_sideband2_.tunnel_id_);
                 } else {
-                    HWC2_ALOGI("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
-                               display_, current_sideband2_.tunnel_id_);
+                    HWC2_LOGI("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
+                              display_, current_sideband2_.tunnel_id_);
                 }
                 current_sideband2_.enable_ = false;
                 current_sideband2_.buffer_ = NULL;
@@ -2579,11 +2579,11 @@ void DrmDisplayCompositor::ClearDisplay() {
             if (drawing_sideband2_.tunnel_id_ > 0) {
                 int ret = dvp->DestoryConnection(display_, drawing_sideband2_.tunnel_id_);
                 if (ret) {
-                    HWC2_ALOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
-                               display_, drawing_sideband2_.tunnel_id_);
+                    HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
+                              display_, drawing_sideband2_.tunnel_id_);
                 } else {
-                    HWC2_ALOGI("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
-                               display_, drawing_sideband2_.tunnel_id_);
+                    HWC2_LOGI("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
+                              display_, drawing_sideband2_.tunnel_id_);
                 }
                 drawing_sideband2_.enable_ = false;
                 drawing_sideband2_.buffer_ = NULL;
@@ -2596,8 +2596,8 @@ void DrmDisplayCompositor::ClearDisplay() {
     if (drawing_memc_.enable_ && drawing_memc_.buffer_ != NULL && drawing_memc_.svep_memc_ != NULL) {
         // 释放上一帧 ReleaseFence
         if (drawing_memc_.svep_memc_->ReleaseDstImage(drawing_memc_.buffer_->GetBufferId())) {
-            HWC2_ALOGE("SvepMemc: display-id=%d ReleaseDstImage fail, last buffer id=%" PRIu64, display_,
-                       drawing_memc_.buffer_->GetBufferId());
+            HWC2_LOGE("SvepMemc: display-id=%d ReleaseDstImage fail, last buffer id=%" PRIu64, display_,
+                      drawing_memc_.buffer_->GetBufferId());
             drawing_memc_.enable_ = false;
             drawing_memc_.buffer_ = NULL;
             drawing_memc_.svep_memc_ = NULL;
@@ -2607,8 +2607,8 @@ void DrmDisplayCompositor::ClearDisplay() {
     if (current_memc_.enable_ && current_memc_.buffer_ != NULL && current_memc_.svep_memc_ != NULL) {
         // 释放当前帧 ReleaseFence
         if (current_memc_.svep_memc_->ReleaseDstImage(current_memc_.buffer_->GetBufferId())) {
-            HWC2_ALOGE("MemcStream: display-id=%d ReleaseDstImage fail, last buffer id=%" PRIu64, display_,
-                       current_memc_.buffer_->GetBufferId());
+            HWC2_LOGE("MemcStream: display-id=%d ReleaseDstImage fail, last buffer id=%" PRIu64, display_,
+                      current_memc_.buffer_->GetBufferId());
             current_memc_.enable_ = false;
             current_memc_.buffer_ = NULL;
             current_memc_.svep_memc_ = NULL;
@@ -2801,7 +2801,7 @@ int DrmDisplayCompositor::CollectSFInfo() {
 }
 
 // 收集来自 VideoProducer 的送显信息
-int DrmDisplayCompositor::CollectVPInfo() {
+int DrmDisplayCompositor::CollectSidebandInfo() {
     ATRACE_CALL();
     int ret = 0;
     if (!pset_) {
@@ -2825,7 +2825,7 @@ int DrmDisplayCompositor::CollectVPInfo() {
     }
 
     if (current_composition == NULL) {
-        HWC2_ALOGE("can't find suitable active DrmDisplayComposition");
+        HWC2_LOGE("can't find suitable active DrmDisplayComposition");
         return 0;
     }
 
@@ -2841,7 +2841,7 @@ int DrmDisplayCompositor::CollectVPInfo() {
 
     DrmCrtc* crtc = drm->GetCrtcForDisplay(display_);
     if (!crtc) {
-        HWC2_ALOGE("Could not locate crtc for display %d", display_);
+        HWC2_LOGE("Could not locate crtc for display %d", display_);
         return -ENODEV;
     }
 
@@ -2867,6 +2867,12 @@ int DrmDisplayCompositor::CollectVPInfo() {
         bool afbcd = false, yuv = false, sideband = false;
 
         crtc = comp_plane.crtc();
+
+        float producer_fps = 60;
+        float display_refresh = 60;
+        bool need_wait_fence = false;
+        uint64_t hnd_buffer_id = 0;
+        uint64_t buffer_id = 0;
 
         if (comp_plane.type() != DrmCompositionPlane::Type::kDisable) {
             if (source_layers.empty()) {
@@ -2896,8 +2902,8 @@ int DrmDisplayCompositor::CollectVPInfo() {
 
                 ret = dvp->CreateConnection(display_, layer.iTunnelId_, layer.eDataSpace_, layer.transform);
                 if (ret < 0) {
-                    HWC2_ALOGI("SidebandStream: display-id=%d CreateConnection fail, iTunnelId = %d", display_,
-                               layer.iTunnelId_);
+                    HWC2_LOGI("SidebandStream: display-id=%d CreateConnection fail, iTunnelId = %d", display_,
+                              layer.iTunnelId_);
                 }
 
                 vt_rect_t dis_rect = {0, 0, 0, 0};
@@ -2906,9 +2912,9 @@ int DrmDisplayCompositor::CollectVPInfo() {
                 dis_rect.right = layer.display_frame.right;
                 dis_rect.bottom = layer.display_frame.bottom;
 
-                float producer_fps = dvp->GetProducerFps(layer.iTunnelId_);
-                bool acquire_fence_en = false;
-                float display_refresh = 60;
+                producer_fps = dvp->GetProducerFps(layer.iTunnelId_);
+                need_wait_fence = false;
+                display_refresh = 60;
                 //获取屏幕帧率
                 DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
                 DrmConnector* conn = drm->GetConnectorForDisplay(display_);
@@ -2919,22 +2925,24 @@ int DrmDisplayCompositor::CollectVPInfo() {
                 //若使用RGAWriteBack，也需要等待AcquireFence
                 if ((resource_manager_->isWBMode() && resource_manager_->IsWriteBackByRga()) ||
                     display_refresh > producer_fps) {
-                    acquire_fence_en = true;
+                    need_wait_fence = true;
                 }
-                //HWC2_ALOGD_IF_DEBUG("DVP AcquireBuffer with acquire_fence_en:%d,display_refresh:%f,ProducerFps:%f",acquire_fence_en,display_refresh,producer_fps);
+                //HWC2_LOGD_IF("DVP AcquireBuffer with acquire_fence_en:%d,display_refresh:%f,ProducerFps:%f",acquire_fence_en,display_refresh,producer_fps);
                 std::shared_ptr<DrmBuffer> buffer =
-                        dvp->AcquireBuffer(display_, layer.iTunnelId_, &dis_rect, 0, acquire_fence_en);
+                        dvp->AcquireBuffer(display_, layer.iTunnelId_, &dis_rect, 0, need_wait_fence);
                 if (buffer == NULL) {
-                    HWC2_ALOGD_IF_WARN("SidebandStream: display-id=%d AcquireBuffer fail, iTunnelId = %d", display_,
-                                       layer.iTunnelId_);
+                    HWC2_LOGW_IF("SidebandStream: display-id=%d AcquireBuffer fail, iTunnelId = %d", display_,
+                                 layer.iTunnelId_);
                     continue;
                 }
+
+                hnd_buffer_id = buffer->GetExternalId();
+                buffer_id = buffer->GetBufferId();
 #ifdef RK3528
                 if (layer.bNeedPreScale_) {
                     ret = buffer->SwitchToPreScaleBuffer();
                     if (ret) {
-                        HWC2_ALOGD_IF_WARN("SidebandStream: SwitchToPreScaleBuffer fail, iTunnelId = %d",
-                                           layer.iTunnelId_);
+                        HWC2_LOGW_IF("SidebandStream: SwitchToPreScaleBuffer fail, iTunnelId = %d", layer.iTunnelId_);
                     } else {
                         // 更新 sideband Buffer 参数
                         fb_id = buffer->GetPreScaleFbId();
@@ -2974,7 +2982,7 @@ int DrmDisplayCompositor::CollectVPInfo() {
 
                 // RK3528 更新HDR信息, 若无报错，则使用 metadata Hdr模式
 #if defined(USE_VIVID_HDR) && USE_VIVID_HDR
-                if (comp_plane.get_zpos() == 0 && !CollectVPHdrInfo(layer)) {
+                if (comp_plane.get_zpos() == 0 && !CollectSidebandHdrInfo(layer)) {
                     current_composition->SetDisplayHdrMode(DRM_HWC_METADATA_HDR, layer.eDataSpace_);
                 } else {
                     current_composition->SetDisplayHdrMode(DRM_HWC_SDR, HAL_DATASPACE_UNKNOWN);
@@ -2990,8 +2998,8 @@ int DrmDisplayCompositor::CollectVPInfo() {
 
 #ifdef RK3528
             if (layer.bNeedPreScale_ && !layer.bIsPreScale_) {
-                HWC2_ALOGD_IF_WARN("%s bNeedPreScale_=%d bIsPreScale_=%d skip until PreScale ready.",
-                                   layer.sLayerName_.c_str(), layer.bNeedPreScale_, layer.bIsPreScale_);
+                HWC2_LOGW_IF("%s bNeedPreScale_=%d bIsPreScale_=%d skip until PreScale ready.",
+                             layer.sLayerName_.c_str(), layer.bNeedPreScale_, layer.bIsPreScale_);
                 continue;
             }
 #endif
@@ -3083,16 +3091,18 @@ int DrmDisplayCompositor::CollectVPInfo() {
             break;
         }
 
-        size_t index = 0;
         std::ostringstream out_log;
-
-        out_log << "DrmDisplayCompositor[" << index << "]"
-                << " frame_no=" << current_composition->frame_no() << " display=" << current_composition->display()
-                << " plane=" << (plane ? plane->name() : "Unknow") << " crct id=" << crtc->id() << " fb id=" << fb_id
-                << " display_frame[" << dst_l << "," << dst_t << "," << dst_w << "," << dst_h << "]"
-                << " source_crop[" << src_l << "," << src_t << "," << src_w << "," << src_h << "]"
-                << ", zpos=" << zpos;
-        index++;
+        if (LogLevel(DBG_DEBUG)) {
+            out_log << "Sideband Commit:"
+                    << " frame_no=" << current_composition->frame_no() << " display=" << current_composition->display()
+                    << " plane=" << std::left << std::setw(13) << plane->name() << " crct_id=" << crtc->id()
+                    << " fb_id=" << std::left << std::setw(5) << fb_id << " display_frame[" << std::setw(5) << dst_l
+                    << "," << std::setw(5) << dst_t << "," << std::setw(5) << dst_w << "," << std::setw(5) << dst_h
+                    << "]"
+                    << " source_crop[" << std::setw(5) << src_l << "," << std::setw(5) << src_t << "," << std::setw(5)
+                    << src_w << "," << std::setw(5) << src_h << "]"
+                    << ", zpos=" << zpos;
+        }
 
         if (plane->rotation_property().id()) {
             ret = drmModeAtomicAddProperty(pset, plane->id(), plane->rotation_property().id(), rotation) < 0;
@@ -3100,7 +3110,9 @@ int DrmDisplayCompositor::CollectVPInfo() {
                 ALOGE("Failed to add rotation property %d to plane %d", plane->rotation_property().id(), plane->id());
                 break;
             }
-            out_log << " rotation=" << rotation;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " rotation=" << rotation;
+            }
         }
 
         if (plane->alpha_property().id()) {
@@ -3109,7 +3121,10 @@ int DrmDisplayCompositor::CollectVPInfo() {
                 ALOGE("Failed to add alpha property %d to plane %d", plane->alpha_property().id(), plane->id());
                 break;
             }
-            out_log << " alpha=" << std::hex << alpha;
+
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " alpha=" << std::hex << alpha;
+            }
         }
 
         if (plane->alpha_property_vop1_kernel4_19().id()) {
@@ -3120,7 +3135,10 @@ int DrmDisplayCompositor::CollectVPInfo() {
                       plane->id());
                 break;
             }
-            out_log << " alpha=" << std::hex << alpha;
+
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " alpha=" << std::hex << alpha;
+            }
         }
 
         if (plane->blend_property().id()) {
@@ -3130,7 +3148,10 @@ int DrmDisplayCompositor::CollectVPInfo() {
                       plane->id());
                 break;
             }
-            out_log << " blend mode =" << blend;
+
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " blend_mode =" << blend;
+            }
         }
 
         if (plane->blend_property_vop1_kernel4_19().id()) {
@@ -3140,7 +3161,10 @@ int DrmDisplayCompositor::CollectVPInfo() {
                       plane->blend_property_vop1_kernel4_19().id(), plane->id());
                 break;
             }
-            out_log << " blend mode =" << blend;
+
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " blend_mode =" << blend;
+            }
         }
 
         if (plane->get_hdr2sdr() && plane->eotf_property().id()) {
@@ -3149,7 +3173,10 @@ int DrmDisplayCompositor::CollectVPInfo() {
                 ALOGE("Failed to add eotf property %d to plane %d", plane->eotf_property().id(), plane->id());
                 break;
             }
-            out_log << " eotf=" << std::hex << eotf;
+
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " eotf=" << std::hex << eotf;
+            }
         }
 
         if (gIsDrmVerison6_1()) {
@@ -3161,7 +3188,11 @@ int DrmDisplayCompositor::CollectVPInfo() {
                           plane->kernel6_1_color_encoding().id(), plane->id());
                     break;
                 }
-                out_log << " color_encoding=" << std::hex << colorspace.colorspace_kernel_6_1_.color_encoding_;
+
+                if (LogLevel(DBG_DEBUG)) {
+                    out_log << " color_encoding=" << std::left << std::setw(7)
+                            << DrmColorEncodingToString(colorspace.colorspace_kernel_6_1_.color_encoding_);
+                }
             }
 
             if (plane->kernel6_1_color_range().id()) {
@@ -3172,7 +3203,11 @@ int DrmDisplayCompositor::CollectVPInfo() {
                           plane->kernel6_1_color_range().id(), plane->id());
                     break;
                 }
-                out_log << " color_range=" << std::hex << colorspace.colorspace_kernel_6_1_.color_range_;
+
+                if (LogLevel(DBG_DEBUG)) {
+                    out_log << " color_range=" << std::left << std::setw(7)
+                            << DrmColorRangeToString(colorspace.colorspace_kernel_6_1_.color_range_);
+                }
             }
         } else {
             if (plane->colorspace_property().id()) {
@@ -3183,10 +3218,13 @@ int DrmDisplayCompositor::CollectVPInfo() {
                           plane->id());
                     break;
                 }
-                out_log << " colorspace=" << std::hex << colorspace.colorspace_kernel_510_;
+
+                if (LogLevel(DBG_DEBUG)) {
+                    out_log << " colorspace=" << std::left << std::setw(13)
+                            << V4L2ColorspaceToString(colorspace.colorspace_kernel_510_);
+                }
             }
         }
-
         if (plane->async_commit_property().id()) {
             ret = drmModeAtomicAddProperty(pset, plane->id(), plane->async_commit_property().id(),
                                            sideband == true ? 1 : 0) < 0;
@@ -3196,10 +3234,15 @@ int DrmDisplayCompositor::CollectVPInfo() {
                 break;
             }
 
-            out_log << " async_commit=" << sideband;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " async_commit=" << sideband;
+            }
         }
-
-        HWC2_ALOGD_IF_DEBUG("SidebandStream: %s", out_log.str().c_str());
+        if (LogLevel(DBG_DEBUG)) {
+            out_log << " hnd_buffer_id=0x" << hnd_buffer_id << " buffer_id=0x" << buffer_id << " fps: " << producer_fps
+                    << "=>" << display_refresh << " waitAcqFence=" << need_wait_fence;
+        }
+        ALOGI_IF(LogLevel(DBG_INFO), "%s", out_log.str().c_str());
         out_log.clear();
     }
 
@@ -3232,7 +3275,7 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
     }
 
     if (current_composition == NULL) {
-        HWC2_ALOGE("can't find suitable active DrmDisplayComposition");
+        HWC2_LOGE("can't find suitable active DrmDisplayComposition");
         return 0;
     }
 
@@ -3248,7 +3291,7 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
 
     DrmCrtc* crtc = drm->GetCrtcForDisplay(display_);
     if (!crtc) {
-        HWC2_ALOGE("Could not locate crtc for display %d", display_);
+        HWC2_LOGE("Could not locate crtc for display %d", display_);
         return -ENODEV;
     }
 
@@ -3320,28 +3363,27 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                 MemcImageInfo dst;
                 int ret = layer.svep_memc_->GetDstImage(&dst, phased_timestamp);
                 if (ret != MEMC_NO_ERROR) {
-                    HWC2_ALOGD_IF_WARN("SvepMemc: display-id=%d GetDstImage failed.", display_);
+                    HWC2_LOGW_IF("SvepMemc: display-id=%d GetDstImage failed.", display_);
                     continue;
                 }
                 if (dst.mAcquireFence_.get() > 0) {
                     ret = sync_wait(dst.mAcquireFence_.get(), 1500);
                     if (ret) {
-                        HWC2_ALOGD_IF_WARN("Failed to wait for SvepMemc finish fence %d/%d 1500ms, buffer_id=%" PRIu64
-                                           "",
-                                           dst.mAcquireFence_.get(), ret, dst.mBufferInfo_.uBufferId_);
+                        HWC2_LOGW_IF("Failed to wait for SvepMemc finish fence %d/%d 1500ms, buffer_id=%" PRIu64 "",
+                                     dst.mAcquireFence_.get(), ret, dst.mBufferInfo_.uBufferId_);
                     }
                     dst.mAcquireFence_.Close();
                 }
 
                 if (dst.mBufferInfo_.iFd_ <= 0 || dst.mBufferInfo_.uBufferId_ <= 0) {
-                    HWC2_ALOGD_IF_WARN("SvepMemc: display-id=%d get Invalid image!", display_);
+                    HWC2_LOGW_IF("SvepMemc: display-id=%d get Invalid image!", display_);
                     continue;
                 }
 
                 uint64_t uModifier_ = 0;
                 if (dst.mBufferInfo_.uMask_ & MEMC_AFBC_FORMAT) {
                     if (gIsRK3576()) {
-                        HWC2_ALOGD_IF_DEBUG("TODO: AFBC/RFBC Need to be updated for RK3576!!!");
+                        HWC2_LOGD_IF("TODO: AFBC/RFBC Need to be updated for RK3576!!!");
                         uModifier_ = AFBC_FORMAT_MOD_BLOCK_SIZE_32x8;
                     } else {
                         uModifier_ = AFBC_FORMAT_MOD_BLOCK_SIZE_16x16;
@@ -3373,7 +3415,7 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
 
                 // RK3528 更新HDR信息, 若无报错，则使用 metadata Hdr模式
 #if defined(USE_VIVID_HDR) && USE_VIVID_HDR
-                if (comp_plane.get_zpos() == 0 && !CollectVPHdrInfo(layer)) {
+                if (comp_plane.get_zpos() == 0 && !CollectSidebandHdrInfo(layer)) {
                     current_composition->SetDisplayHdrMode(DRM_HWC_METADATA_HDR, layer.eDataSpace_);
                 } else {
                     current_composition->SetDisplayHdrMode(DRM_HWC_SDR, HAL_DATASPACE_UNKNOWN);
@@ -3389,8 +3431,8 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
 
 #ifdef RK3528
             if (layer.bNeedPreScale_ && !layer.bIsPreScale_) {
-                HWC2_ALOGD_IF_WARN("%s bNeedPreScale_=%d bIsPreScale_=%d skip until PreScale ready.",
-                                   layer.sLayerName_.c_str(), layer.bNeedPreScale_, layer.bIsPreScale_);
+                HWC2_LOGW_IF("%s bNeedPreScale_=%d bIsPreScale_=%d skip until PreScale ready.",
+                             layer.sLayerName_.c_str(), layer.bNeedPreScale_, layer.bIsPreScale_);
                 continue;
             }
 #endif
@@ -3424,7 +3466,6 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
 
             rotation = layer.transform;
         }
-
         // Disable the plane if there's no framebuffer
         if (fb_id < 0) {
             ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
@@ -3476,16 +3517,18 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
             break;
         }
 
-        size_t index = 0;
         std::ostringstream out_log;
-
-        out_log << "DrmDisplayCompositor[" << index << "]"
-                << " frame_no=" << current_composition->frame_no() << " display=" << current_composition->display()
-                << " plane=" << (plane ? plane->name() : "Unknow") << " crct id=" << crtc->id() << " fb id=" << fb_id
-                << " display_frame[" << dst_l << "," << dst_t << "," << dst_w << "," << dst_h << "]"
-                << " source_crop[" << src_l << "," << src_t << "," << src_w << "," << src_h << "]"
-                << ", zpos=" << zpos;
-        index++;
+        if (LogLevel(DBG_DEBUG)) {
+            out_log << "SvepMemc Commit:"
+                    << " frame_no=" << current_composition->frame_no() << " display=" << current_composition->display()
+                    << " plane=" << std::left << std::setw(13) << plane->name() << " crct_id=" << crtc->id()
+                    << " fb_id=" << std::left << std::setw(5) << fb_id << " display_frame[" << std::setw(5) << dst_l
+                    << "," << std::setw(5) << dst_t << "," << std::setw(5) << dst_w << "," << std::setw(5) << dst_h
+                    << "]"
+                    << " source_crop[" << std::setw(5) << src_l << "," << std::setw(5) << src_t << "," << std::setw(5)
+                    << src_w << "," << std::setw(5) << src_h << "]"
+                    << ", zpos=" << zpos;
+        }
 
         if (plane->rotation_property().id()) {
             ret = drmModeAtomicAddProperty(pset, plane->id(), plane->rotation_property().id(), rotation) < 0;
@@ -3493,7 +3536,9 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                 ALOGE("Failed to add rotation property %d to plane %d", plane->rotation_property().id(), plane->id());
                 break;
             }
-            out_log << " rotation=" << rotation;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " rotation=" << rotation;
+            }
         }
 
         if (plane->alpha_property().id()) {
@@ -3502,7 +3547,9 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                 ALOGE("Failed to add alpha property %d to plane %d", plane->alpha_property().id(), plane->id());
                 break;
             }
-            out_log << " alpha=" << std::hex << alpha;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " alpha=" << std::hex << alpha;
+            }
         }
 
         if (plane->alpha_property_vop1_kernel4_19().id()) {
@@ -3513,7 +3560,9 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                       plane->id());
                 break;
             }
-            out_log << " alpha=" << std::hex << alpha;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " alpha=" << std::hex << alpha;
+            }
         }
 
         if (plane->blend_property().id()) {
@@ -3523,7 +3572,9 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                       plane->id());
                 break;
             }
-            out_log << " blend mode =" << blend;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " blend_mode =" << blend;
+            }
         }
 
         if (plane->blend_property_vop1_kernel4_19().id()) {
@@ -3533,7 +3584,9 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                       plane->blend_property_vop1_kernel4_19().id(), plane->id());
                 break;
             }
-            out_log << " blend mode =" << blend;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " blend_mode =" << blend;
+            }
         }
 
         if (plane->get_hdr2sdr() && plane->eotf_property().id()) {
@@ -3542,7 +3595,9 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                 ALOGE("Failed to add eotf property %d to plane %d", plane->eotf_property().id(), plane->id());
                 break;
             }
-            out_log << " eotf=" << std::hex << eotf;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " eotf=" << std::hex << eotf;
+            }
         }
 
         if (gIsDrmVerison6_1()) {
@@ -3554,7 +3609,11 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                           plane->kernel6_1_color_encoding().id(), plane->id());
                     break;
                 }
-                out_log << " color_encoding=" << std::hex << colorspace.colorspace_kernel_6_1_.color_encoding_;
+
+                if (LogLevel(DBG_DEBUG)) {
+                    out_log << " color_encoding=" << std::left << std::setw(7)
+                            << DrmColorEncodingToString(colorspace.colorspace_kernel_6_1_.color_encoding_);
+                }
             }
 
             if (plane->kernel6_1_color_range().id()) {
@@ -3565,7 +3624,11 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                           plane->kernel6_1_color_range().id(), plane->id());
                     break;
                 }
-                out_log << " color_range=" << std::hex << colorspace.colorspace_kernel_6_1_.color_range_;
+
+                if (LogLevel(DBG_DEBUG)) {
+                    out_log << " color_range=" << std::left << std::setw(7)
+                            << DrmColorRangeToString(colorspace.colorspace_kernel_6_1_.color_range_);
+                }
             }
         } else {
             if (plane->colorspace_property().id()) {
@@ -3576,7 +3639,11 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                           plane->id());
                     break;
                 }
-                out_log << " colorspace=" << std::hex << colorspace.colorspace_kernel_510_;
+
+                if (LogLevel(DBG_DEBUG)) {
+                    out_log << " colorspace=" << std::left << std::setw(13)
+                            << V4L2ColorspaceToString(colorspace.colorspace_kernel_510_);
+                }
             }
         }
 
@@ -3589,10 +3656,12 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                 break;
             }
 
-            out_log << " async_commit=" << sideband;
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " async_commit=" << sideband;
+            }
         }
 
-        HWC2_ALOGD_IF_DEBUG("SvepMemc: %s", out_log.str().c_str());
+        ALOGI_IF(LogLevel(DBG_INFO), "%s", out_log.str().c_str());
         out_log.clear();
     }
 
@@ -3606,14 +3675,14 @@ static inline long __currentTime() {
     return static_cast<long>(tp.tv_sec) * 1000000 + tp.tv_usec;
 }
 
-int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
-    HWC2_ALOGD_IF_INFO("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
+int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
+    // HWC2_LOGI_IF("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
 
     // 算法解析库是否存在
     DrmHdrParser* dhp = DrmHdrParser::Get();
     if (dhp == NULL) {
-        HWC2_ALOGD_IF_ERR("Fail to get DrmHdrParser, use SDR mode, Id=%d Name=%s ", hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str());
+        HWC2_LOGE_IF("Fail to get DrmHdrParser, use SDR mode, Id=%d Name=%s ", hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str());
         return -1;
     }
     DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
@@ -3625,8 +3694,8 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
     }
 
     if (connector_->type() == DRM_MODE_CONNECTOR_TV) {
-        HWC2_ALOGD_IF_INFO("RK3528 TV unsupport HDR2SDR, Id=%d Name=%s eDataSpace_=0x%x eotf=%d", hdrLayer.uId_,
-                           hdrLayer.sLayerName_.c_str(), hdrLayer.eDataSpace_, hdrLayer.uEOTF);
+        HWC2_LOGI_IF("RK3528 TV unsupport HDR2SDR, Id=%d Name=%s eDataSpace_=0x%x eotf=%d", hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str(), hdrLayer.eDataSpace_, hdrLayer.uEOTF);
         return -1;
     }
     // 显示器是否支持HDR
@@ -3650,13 +3719,13 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
 
     // 如果输入是 SDR 且输出为SDR,则不需要进行任何处理
     if (is_input_hdr == false && is_output_hdr == false) {
-        HWC2_ALOGD_IF_INFO("Use SDR2SDR mode.");
+        // HWC2_LOGI_IF("Use SDR2SDR mode.");
         return -1;
     }
 
     DrmGralloc* gralloc = DrmGralloc::getInstance();
     if (gralloc == NULL) {
-        HWC2_ALOGD_IF_INFO("DrmGralloc is null, Use SDR2SDR mode.");
+        // HWC2_LOGI_IF("DrmGralloc is null, Use SDR2SDR mode.");
         return -1;
     }
 
@@ -3668,12 +3737,11 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
     // 获取存储 metadata 信息的 offset
     int64_t offset = gralloc->hwc_get_offset_of_dynamic_hdr_metadata(hdrLayer.sf_handle);
     if (offset < 0) {
-        HWC2_ALOGD_IF_ERR("Fail to get hdr metadata offset, Id=%d Name=%s ", hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str());
+        HWC2_LOGE_IF("Fail to get hdr metadata offset, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
     }
     // offset > 0 则认为存在 Metadata
     codec_meta_exist = offset > 0;
-    HWC2_ALOGD_IF_INFO("dynamic_hdr_metadata offset=%" PRIi64, offset);
+    HWC2_LOGI_IF("dynamic_hdr_metadata offset=%" PRIi64, offset);
 
     // 初始化参数
     memset(&hdrLayer.metadataHdrParam_, 0x00, sizeof(rk_hdr_parser_params_t));
@@ -3737,7 +3805,7 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
             cpu_addr = gralloc->hwc_get_handle_lock(hdrLayer.sf_handle, hdrLayer.iWidth_, hdrLayer.iHeight_);
         }
         if (cpu_addr == NULL) {
-            HWC2_ALOGD_IF_ERR("Fail to lock dma buffer, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
+            HWC2_LOGE_IF("Fail to lock dma buffer, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
             hdrLayer.metadataHdrParam_.codec_meta_exist = false;
             hdrLayer.metadataHdrParam_.p_hdr_codec_meta = NULL;
         } else {
@@ -3755,19 +3823,19 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
             if (hdrLayer.uEOTF == HLG && hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf == SINK_EOTF_HLG) {
                 int ret = dhp->MetadataHdrparserFormat(&hdrLayer.metadataHdrParam_, &hdrLayer.metadataHdrFmtInfo_);
                 if (ret) {
-                    HWC2_ALOGD_IF_ERR("MetadataHdrparserFormat, Id=%d Name=%s ", hdrLayer.uId_,
-                                      hdrLayer.sLayerName_.c_str());
+                    HWC2_LOGE_IF("MetadataHdrparserFormat, Id=%d Name=%s ", hdrLayer.uId_,
+                                 hdrLayer.sLayerName_.c_str());
                     hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_ST2084;
                 } else {
                     if (hdrLayer.metadataHdrFmtInfo_.hdr_format == HDRVIVID) {
                         if (connector_->isSupportSt2084()) {
                             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_ST2084;
-                            HWC2_ALOGD_IF_INFO("Id=%d Name=%s is HLG dynamic, convert to HDR10.", hdrLayer.uId_,
-                                               hdrLayer.sLayerName_.c_str());
+                            HWC2_LOGI_IF("Id=%d Name=%s is HLG dynamic, convert to HDR10.", hdrLayer.uId_,
+                                         hdrLayer.sLayerName_.c_str());
                         } else {
                             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_GAMMA_SDR;
-                            HWC2_ALOGD_IF_INFO("Id=%d Name=%s is HLG dynamic, convert to SDR.", hdrLayer.uId_,
-                                               hdrLayer.sLayerName_.c_str());
+                            HWC2_LOGI_IF("Id=%d Name=%s is HLG dynamic, convert to SDR.", hdrLayer.uId_,
+                                         hdrLayer.sLayerName_.c_str());
                         }
                     }
                 }
@@ -3863,13 +3931,13 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
         hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_debug_cfg.hdr_log_level =
                 hwc_get_int_property("vendor.hwc.vivid_hdr_log_level", "7");
     }
-    HWC2_ALOGD_IF_INFO(
+    HWC2_LOGI_IF(
             "hdr_hdmi_meta: user_hdr_mode(%d) layer eDataSpace_=0x%x eotf=%d => codec_meta_exist(%d) "
             "hdr_dataspace_info: color_prim=%d eotf=%d range=%d",
             user_hdr_mode, hdrLayer.eDataSpace_, hdrLayer.uEOTF, hdrLayer.metadataHdrParam_.codec_meta_exist,
             hdrLayer.metadataHdrParam_.hdr_dataspace_info.color_prim,
             hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf, hdrLayer.metadataHdrParam_.hdr_dataspace_info.range);
-    HWC2_ALOGD_IF_INFO(
+    HWC2_LOGI_IF(
             "hdr_hdmi_meta: color_prim=%d eotf=%d red_x=%d red_y=%d green_x=%d green_y=%d white_point_x=%d "
             "white_point_y=%d dst_min=%d dst_max=%d",
             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.color_prim, hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf,
@@ -3879,7 +3947,7 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.white_point_y, hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_min,
             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_max);
 
-    HWC2_ALOGD_IF_INFO(
+    HWC2_LOGI_IF(
             "hdr_user_cfg: hdr_pq_max_y_mode=%d hdr_dst_gamma=%f s2h_sm_ratio=%f s2h_scale_ratio=%f "
             "s2h_sdr_color_space=%d print_input_meta=%d hdr_log_level=%d",
             hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_pq_max_y_mode,
@@ -3891,8 +3959,8 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
 
     int ret = dhp->MetadataHdrParser(&hdrLayer.metadataHdrParam_);
     if (ret) {
-        HWC2_ALOGD_IF_ERR("Fail to call MetadataHdrParser ret=%d Id=%d Name=%s ", ret, hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str());
+        HWC2_LOGE_IF("Fail to call MetadataHdrParser ret=%d Id=%d Name=%s ", ret, hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str());
         if (cpu_addr != NULL) {
             if (usemmap)
                 DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
@@ -3910,7 +3978,7 @@ int DrmDisplayCompositor::CollectVPHdrInfo(DrmHwcLayer& hdrLayer) {
     }
 
     hdrLayer.IsMetadataHdr_ = true;
-    HWC2_ALOGD_IF_INFO("Use HdrParser mode.");
+    HWC2_LOGI_IF("LayerUid=%d Use HdrParser mode, LayerName=%s", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
     return 0;
 }
 
@@ -3930,7 +3998,7 @@ int DrmDisplayCompositor::WriteBackByRGA() {
     }
 
     if (current_composition == NULL) {
-        HWC2_ALOGE("can't find suitable active DrmDisplayComposition");
+        HWC2_LOGE("can't find suitable active DrmDisplayComposition");
         return 0;
     }
 
@@ -3939,14 +4007,14 @@ int DrmDisplayCompositor::WriteBackByRGA() {
     }
 
     if (!sf_update && !sideband_update) {
-        HWC2_ALOGI("not update, skip rga compose.");
+        HWC2_LOGI("not update, skip rga compose.");
         return 0;
     }
 
     std::vector<DrmHwcLayer>& layers = current_composition->layers();
 
     if (layers.size() == 0) {
-        HWC2_ALOGE("layers size is 0");
+        HWC2_LOGE("layers size is 0");
         return 0;
     }
     std::vector<DrmCompositionPlane>& comp_planes = current_composition->composition_planes();
@@ -3966,19 +4034,19 @@ int DrmDisplayCompositor::WriteBackByRGA() {
 
     int wbDisplay = resource_manager_->GetWBDisplay();
     if (wbDisplay != display_) {
-        HWC2_ALOGD_IF_WARN("display=%d is not wbDisplay, skip.", display_);
+        HWC2_LOGW_IF("display=%d is not wbDisplay, skip.", display_);
         return -1;
     }
 
     ret = resource_manager_->UpdateWriteBackResolution(display_);
     if (ret) {
-        HWC2_ALOGE("UpdateWriteBackResolution fail.");
+        HWC2_LOGE("UpdateWriteBackResolution fail.");
         return -1;
     }
     // 获取下一帧的 WB buffer
     std::shared_ptr<DrmBuffer> dst_buffer = resource_manager_->GetNextWBBuffer();
     if (dst_buffer == NULL || !dst_buffer->initCheck()) {
-        HWC2_ALOGE("wbBuffer init fail.");
+        HWC2_LOGE("wbBuffer init fail.");
         return -1;
     }
 
@@ -4046,12 +4114,12 @@ int DrmDisplayCompositor::WriteBackByRGA() {
                     }
 
                     if (avtive_buffer == NULL) {
-                        HWC2_ALOGI("avtive_buffer==null, return");
+                        HWC2_LOGI("avtive_buffer==null, return");
                         continue;
                     }
 
                     // avtive_buffer->DumpData();
-                    HWC2_ALOGD_IF_INFO(
+                    HWC2_LOGI_IF(
                             "src buffer-id=0x%" PRIx64 " avtive_buffer=%p fd=%d w=%d h=%d s=%d hs=%d size=%d format=%d",
                             avtive_buffer->GetBufferId(), avtive_buffer.get(), avtive_buffer->GetFd(),
                             avtive_buffer->GetWidth(), avtive_buffer->GetHeight(), avtive_buffer->GetStride(),
@@ -4078,9 +4146,9 @@ int DrmDisplayCompositor::WriteBackByRGA() {
                                     RK_GRALLOC_USAGE_STRIDE_ALIGN_64 | MALI_GRALLOC_USAGE_NO_AFBC,
                                     "SidebandYuv444TmpBuffer", 0);
                             if (sidbenad_pq_tmp_buffer_->Init()) {
-                                HWC2_ALOGE("DrmBuffer Init fail, w=%d h=%d format=%d name=%s",
-                                           avtive_buffer->GetWidth(), avtive_buffer->GetHeight(),
-                                           HAL_PIXEL_FORMAT_YCbCr_420_888, "SidebandYuv444TmpBuffer");
+                                HWC2_LOGE("DrmBuffer Init fail, w=%d h=%d format=%d name=%s", avtive_buffer->GetWidth(),
+                                          avtive_buffer->GetHeight(), HAL_PIXEL_FORMAT_YCbCr_420_888,
+                                          "SidebandYuv444TmpBuffer");
                                 return -1;
                             }
                         }
@@ -4110,7 +4178,7 @@ int DrmDisplayCompositor::WriteBackByRGA() {
                               HAL_DATASPACE_RANGE_LIMITED
                               HAL_DATASPACE_RANGE_FULL
                               */
-                            HWC2_ALOGD_IF_INFO("layer.eDataSpace_=0x%x", layer.eDataSpace_);
+                            HWC2_LOGI_IF("layer.eDataSpace_=0x%x", layer.eDataSpace_);
                             int rkpq_intput_fmt_colorspace = RKPQ_CLR_SPC_YUV_601_FULL;
                             if (layer.bYuv_ && layer.eDataSpace_) {
                                 if ((layer.eDataSpace_ & HAL_DATASPACE_STANDARD_BT601_625) ==
@@ -4142,7 +4210,7 @@ int DrmDisplayCompositor::WriteBackByRGA() {
                                       rkpq_intput_fmt, rkpq_intput_fmt_colorspace, RKPQ_IMG_FMT_NV12,
                                       RKPQ_CLR_SPC_YUV_601_FULL, RKPQ_FLAG_HIGH_PERFORM);
 
-                            HWC2_ALOGD_IF_INFO(
+                            HWC2_LOGI_IF(
                                     "PQ: reinit src: w=%d h=%d fmt=%d colorspace=%d"
                                     " dst: w=%d h=%d fmt=%d colorspace=%d perf=%d",
                                     avtive_buffer->GetWidth(), avtive_buffer->GetHeight(), rkpq_intput_fmt,
@@ -4207,7 +4275,7 @@ int DrmDisplayCompositor::WriteBackByRGA() {
                       HAL_DATASPACE_RANGE_LIMITED
                       HAL_DATASPACE_RANGE_FULL
                       */
-                    HWC2_ALOGD_IF_INFO("layer.eDataSpace_=0x%x", layer.eDataSpace_);
+                    HWC2_LOGI_IF("layer.eDataSpace_=0x%x", layer.eDataSpace_);
                     src.color_space_mode = IM_YUV_TO_RGB_BT601_FULL;
                     if (layer.bYuv_ && layer.eDataSpace_) {
                         if ((layer.eDataSpace_ & HAL_DATASPACE_STANDARD_BT601_625) ==
@@ -4298,16 +4366,16 @@ int DrmDisplayCompositor::WriteBackByRGA() {
                 if (releaseFence > 0) {
                     int ret = sync_wait(releaseFence, 500);
                     if (ret) {
-                        HWC2_ALOGW("wait RGA fence 500ms failed!");
+                        HWC2_LOGW("wait RGA fence 500ms failed!");
                     }
                     close(releaseFence);
                     releaseFence = -1;
                 }
                 im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, -1, NULL, &opt, usage);
                 if (im_state == IM_STATUS_SUCCESS) {
-                    HWC2_ALOGD_IF_INFO("%s running success! zpos==0 \n", LOG_TAG);
+                    HWC2_LOGI_IF("%s running success! zpos==0 \n", LOG_TAG);
                 } else {
-                    HWC2_ALOGE("%s running failed,  zpos==0  %s\n", LOG_TAG, imStrError((IM_STATUS)ret));
+                    HWC2_LOGE("%s running failed,  zpos==0  %s\n", LOG_TAG, imStrError((IM_STATUS)ret));
                 }
             } else {
                 rga_buffer_t src;
@@ -4366,22 +4434,22 @@ int DrmDisplayCompositor::WriteBackByRGA() {
 
                 int usage = IM_ASYNC | IM_ALPHA_BLEND_SRC_OVER | IM_ALPHA_BLEND_PRE_MUL;
                 // Call Im2d 格式转换
-                HWC2_ALOGD_IF_DEBUG("srd_rect: [%d,%d,%d,%d] dst_rect: [%d,%d,%d,%d], name = %s", src_rect.x,
-                                    src_rect.y, src_rect.width, src_rect.height, dst_rect.x, dst_rect.y, dst_rect.width,
-                                    dst_rect.height, layer.sLayerName_.c_str());
+                HWC2_LOGD_IF("srd_rect: [%d,%d,%d,%d] dst_rect: [%d,%d,%d,%d], name = %s", src_rect.x, src_rect.y,
+                             src_rect.width, src_rect.height, dst_rect.x, dst_rect.y, dst_rect.width, dst_rect.height,
+                             layer.sLayerName_.c_str());
                 if (releaseFence > 0) {
                     int ret = sync_wait(releaseFence, 50);
                     if (ret) {
-                        HWC2_ALOGW("wait RGA fence 50ms failed!");
+                        HWC2_LOGW("wait RGA fence 50ms failed!");
                     }
                     close(releaseFence);
                     releaseFence = -1;
                 }
                 im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, 0, &releaseFence, &opt, usage);
                 if (im_state == IM_STATUS_SUCCESS) {
-                    HWC2_ALOGD_IF_INFO("%s running success! zpos==0 \n", LOG_TAG);
+                    HWC2_LOGI_IF("%s running success! zpos==0 \n", LOG_TAG);
                 } else {
-                    HWC2_ALOGE("%s running failed,  zpos==0  %s\n", LOG_TAG, imStrError((IM_STATUS)ret));
+                    HWC2_LOGE("%s running failed,  zpos==0  %s\n", LOG_TAG, imStrError((IM_STATUS)ret));
                 }
             }
         }
@@ -4411,7 +4479,7 @@ int DrmDisplayCompositor::Composite() {
 
     // 收集来自 SurfaceFlinger 端的送显需求
     if (CollectSFInfo()) {
-        HWC2_ALOGE("CollectSFInfo fail.");
+        HWC2_LOGE("CollectSFInfo fail.");
     }
 
     int ret = pthread_mutex_lock(&lock_);
@@ -4420,13 +4488,13 @@ int DrmDisplayCompositor::Composite() {
         return ret;
     }
 
-    if (IsSidebandMode() && CollectVPInfo()) {
-        HWC2_ALOGE("CollectVPInfo fail.");
+    if (IsSidebandMode() && CollectSidebandInfo()) {
+        HWC2_LOGE("CollectSidebandInfo fail.");
     }
 
 #ifdef USE_LIBPQ_HWPQ
     if (gIsRK3576() && CollectHwPqInfo()) {
-        HWC2_ALOGE("CollectHwPqInfo fail.");
+        HWC2_LOGE("CollectHwPqInfo fail.");
     }
 #endif
 
@@ -4436,7 +4504,7 @@ int DrmDisplayCompositor::Composite() {
 
 #ifdef USE_LIBSVEP_MEMC
     if (IsMemcMode() && CollectMEMCInfo()) {
-        HWC2_ALOGE("CollectMEMCInfo fail.");
+        HWC2_LOGE("CollectMEMCInfo fail.");
     }
 #endif
 
@@ -4453,7 +4521,7 @@ int DrmDisplayCompositor::Composite() {
     // DrmHwc2 前端处理热插拔逻辑，可能会遗漏部分 Compsition 到 DrmDisplayCompositor线程
     // 需要在此处拦截，并清空送显队列
     if (!active_) {
-        HWC2_ALOGD_IF_INFO("display=%d active_=%d not to Composite()", display_, active_);
+        HWC2_LOGI_IF("display=%d active_=%d not to Composite()", display_, active_);
         ClearDisplay();
         return 0;
     }
@@ -4808,7 +4876,7 @@ void DrmDisplayCompositor::Vsync(int display, int64_t timestamp) {
     ALOGV("scene flattening triggered for display %d at timestamp %" PRIu64 " result = %d \n", display, timestamp, ret);
 }
 
-void DrmDisplayCompositor::Dump(std::ostringstream* out) const {
+void DrmDisplayCompositor::Dump(String8& output) const {
     int ret = pthread_mutex_lock(&lock_);
     if (ret) return;
 
@@ -4822,14 +4890,27 @@ void DrmDisplayCompositor::Dump(std::ostringstream* out) const {
         return;
     }
 
+    // 计算平均帧率
     uint64_t cur_ts = ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
     uint64_t num_ms = (cur_ts - dump_last_timestamp_ns_) / (1000 * 1000);
     float fps = num_ms ? (num_frames * 1000.0f) / (num_ms) : 0.0f;
-
-    *out << "--DrmDisplayCompositor[" << display_ << "]: num_frames=" << num_frames << " num_ms=" << num_ms
-         << " fps=" << fps << "\n";
-
     dump_last_timestamp_ns_ = cur_ts;
+
+    // 打印调试日志
+    output.appendFormat("DisplayCompositor[%d] Dump:\n", display_);
+    output.appendFormat("FrameNo:%" PRIu64 ", ", frame_no_);
+    output.appendFormat("HdrMode: %s, ", DrmHdrTypeToString(current_mode_set_.hdr_.mode_));
+    output.appendFormat("DropMode: %s, ", drop_mode_ ? "Enable" : "Disable");
+    output.appendFormat("NumFrames=%" PRIu64 ", ", num_frames);
+    output.appendFormat("NumMs=%" PRIu64 ", ", num_ms);
+    output.appendFormat("FPS=%f \n", fps);
+
+    // 打印 DrmDisplayComposition 情况
+    if (active_composition_map_.size() > 0) {
+        for (auto& active_compositon : active_composition_map_) {
+            active_compositon.second->Dump(output);
+        }
+    }
 
     pthread_mutex_unlock(&lock_);
 }

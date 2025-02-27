@@ -78,14 +78,14 @@ std::map<uint64_t, std::map<uint64_t, uint64_t>> gMapPlanePolicy = {
 
 int Hwc3576::assignPlaneByHWC(DrmDevice* drm, uint64_t connected_port_mask) {
     if (connected_port_mask == 0) {
-        HWC2_ALOGW("connected_port_mask = 0, must disable all DrmPlane ");
+        HWC2_LOGW("connected_port_mask = 0, must disable all DrmPlane ");
         return 0;
     }
 
     // 根据已连接的 port_mask 选择图层分配策略
     auto map_policy = gMapPlanePolicy.find(connected_port_mask);
     if (map_policy == gMapPlanePolicy.end()) {
-        HWC2_ALOGW("can't find port_mask = 0x%" PRIx64 ", plaease check connected port.", connected_port_mask);
+        HWC2_LOGW("can't find port_mask = 0x%" PRIx64 ", plaease check connected port.", connected_port_mask);
         return -1;
     }
 
@@ -93,12 +93,12 @@ int Hwc3576::assignPlaneByHWC(DrmDevice* drm, uint64_t connected_port_mask) {
     for (auto& conn : drm->connectors()) {
         int display_id = conn->display();
         if (conn->state() != DRM_MODE_CONNECTED) {
-            HWC2_ALOGE("display=%d conn state() is disconnect.", display_id);
+            HWC2_LOGE("display=%d conn state() is disconnect.", display_id);
             continue;
         }
         DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
         if (!crtc) {
-            HWC2_ALOGE("display=%d crtc is NULL.", display_id);
+            HWC2_LOGE("display=%d crtc is NULL.", display_id);
             continue;
         }
 
@@ -106,14 +106,14 @@ int Hwc3576::assignPlaneByHWC(DrmDevice* drm, uint64_t connected_port_mask) {
         uint64_t port_mask = 1 << crtc->get_port_id();
 
         if ((connected_port_mask & port_mask) == 0) {
-            HWC2_ALOGW("display=%d connected_port_mask=0x%" PRIx64 " current_port_mask=0x%" PRIx64, display_id,
-                       connected_port_mask, port_mask);
+            HWC2_LOGW("display=%d connected_port_mask=0x%" PRIx64 " current_port_mask=0x%" PRIx64, display_id,
+                      connected_port_mask, port_mask);
             continue;
         }
 
         uint64_t plane_mask = map_policy->second[crtc->get_port_id()];
-        HWC2_ALOGI("display=%d crtc-id=%d port_mask=0x%" PRIx64 " plane_mask=0x%" PRIx64, display_id, crtc->id(),
-                   port_mask, plane_mask);
+        HWC2_LOGI("display=%d crtc-id=%d port_mask=0x%" PRIx64 " plane_mask=0x%" PRIx64, display_id, crtc->id(),
+                  port_mask, plane_mask);
         for (auto& plane_group : all_plane_group) {
             uint64_t plane_group_win_type = plane_group->win_type;
             if ((plane_mask & plane_group_win_type) == plane_group_win_type) {
@@ -123,9 +123,9 @@ int Hwc3576::assignPlaneByHWC(DrmDevice* drm, uint64_t connected_port_mask) {
     }
 
     for (auto& plane_group : all_plane_group) {
-        HWC2_ALOGI("name=%s display=(%" PRIi64 " -> %" PRIi64 ") crtcs_mask=(0x%x -> 0x%x)",
-                   plane_group->planes[0]->name(), plane_group->possible_display_, plane_group->next_possible_display_,
-                   plane_group->current_crtc_, plane_group->next_crtc_);
+        HWC2_LOGI("name=%s display=(%" PRIi64 " -> %" PRIi64 ") crtcs_mask=(0x%x -> 0x%x)",
+                  plane_group->planes[0]->name(), plane_group->possible_display_, plane_group->next_possible_display_,
+                  plane_group->current_crtc_, plane_group->next_crtc_);
     }
     return 0;
 }
@@ -138,7 +138,7 @@ int Hwc3576::TryAssignPlane(DrmDevice* drm) {
         if (conn->state() != DRM_MODE_CONNECTED) continue;
         DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
         if (!crtc) {
-            HWC2_ALOGE("display %d crtc is NULL.", display_id);
+            HWC2_LOGE("display %d crtc is NULL.", display_id);
             continue;
         }
 

@@ -64,7 +64,7 @@ class VpBufferInfo {
         std::lock_guard<std::mutex> lock(mtx_);
         mReleaseRefCnt_.insert(display_id);
         if (mReleaseFence_ != NULL) {
-            HWC2_ALOGD_IF_VERBOSE("Add refCnt display-id=%d Name=%s", display_id, mReleaseFence_->getName().c_str());
+            HWC2_LOGV_IF("Add refCnt display-id=%d Name=%s", display_id, mReleaseFence_->getName().c_str());
         }
     }
 
@@ -84,39 +84,42 @@ class VpBufferInfo {
     int SignalReleaseFence(int display_id) {
         std::lock_guard<std::mutex> lock(mtx_);
         mReleaseRefCnt_.erase(display_id);
-        if (mReleaseFence_ != NULL) {
-            if (display_id >= 0)
-                HWC2_ALOGD_IF_INFO("display_id=%d signal release fence %s , ref count:%zu", display_id,
-                                   mReleaseFence_->getName().c_str(), mReleaseRefCnt_.size());
-        }
         // 若ReleaseFence引用计数为0，则释放ReleaseFence
-        if (mReleaseFence_ != NULL && mReleaseRefCnt_.size() == 0) {
-            int act = mReleaseFence_->getActiveCount();
-            int sig = mReleaseFence_->getSignaledCount();
-            mReleaseFence_->signal();
-            HWC2_ALOGD_IF_INFO("Signal %s Name=%s Info: size=%d act=%d signal=%d err=%d SignalTime=%s",
-                               act == 1 && sig == 0 && mReleaseFence_->getActiveCount() == 0 &&
-                                               mReleaseFence_->getSignaledCount() == 1
-                                       ? "Sucess"
-                                       : "Fail",
-                               mReleaseFence_->getName().c_str(), mReleaseFence_->getSize(),
-                               mReleaseFence_->getActiveCount(), mReleaseFence_->getSignaledCount(),
-                               mReleaseFence_->getErrorCount(), mReleaseFence_->dump().c_str());
-            mReleaseFence_ = NULL;
+        if (mReleaseFence_ != NULL) {
+            if (mReleaseRefCnt_.size() == 0) {
+                int act = mReleaseFence_->getActiveCount();
+                int sig = mReleaseFence_->getSignaledCount();
+                mReleaseFence_->signal();
+                ALOGD_IF(LogLevel(DBG_DEBUG),
+                         "ReleaseFence Signal %s Name=%s display_id=%d Info: size=%d act=%d signal=%d err=%d "
+                         "SignalTime=%s, %s,line=%d",
+                         (act == 1 && sig == 0 && mReleaseFence_->getActiveCount() == 0 &&
+                          mReleaseFence_->getSignaledCount() == 1)
+                                 ? "Sucess"
+                                 : "Fail",
+                         mReleaseFence_->getName().c_str(), display_id, mReleaseFence_->getSize(),
+                         mReleaseFence_->getActiveCount(), mReleaseFence_->getSignaledCount(),
+                         mReleaseFence_->getErrorCount(), mReleaseFence_->dump().c_str(), __FUNCTION__, __LINE__);
+                mReleaseFence_ = NULL;
+            } else {
+                ALOGD_IF(LogLevel(DBG_DEBUG),
+                         "ReleaseFence Name=%s ref_count=%zu > 0, display_id=%d no need to signal, %s,line=%d",
+                         mReleaseFence_->getName().c_str(), mReleaseRefCnt_.size(), display_id, __FUNCTION__, __LINE__);
+            }
         }
         return 0;
     }
 
     void SetAcqurieFence(sp<AcquireFence> acquireFence) {
         std::lock_guard<std::mutex> lock(mtx_);
-        //HWC2_ALOGD_IF_DEBUG("set");
+        //HWC2_LOGD_IF("set");
         mAcquireFence_ = acquireFence;
     }
 
     int WaitAcquireFence(int timeout) {
         std::lock_guard<std::mutex> lock(mtx_);
         if (mAcquireFence_ && mAcquireFence_->isValid()) {
-            //HWC2_ALOGD_IF_DEBUG("wait for %d ms",timeout);
+            //HWC2_LOGD_IF("wait for %d ms",timeout);
             return mAcquireFence_->wait(timeout);
         }
         return 0;
@@ -125,7 +128,7 @@ class VpBufferInfo {
     int CloseAcquireFence() {
         std::lock_guard<std::mutex> lock(mtx_);
         if (mAcquireFence_ && mAcquireFence_->isValid()) {
-            //HWC2_ALOGD_IF_DEBUG("close");
+            //HWC2_LOGD_IF("close");
             mAcquireFence_ = NULL;
         }
         return 0;
@@ -141,14 +144,14 @@ class VpBufferInfo {
 
     void SetPqAcqurieFence(sp<AcquireFence> acquireFence) {
         std::lock_guard<std::mutex> lock(mtx_);
-        //HWC2_ALOGD_IF_DEBUG("set");
+        //HWC2_LOGD_IF("set");
         mPqReleaseFence_ = acquireFence;
     }
 
     int WaitPqAcquireFence(int timeout) {
         std::lock_guard<std::mutex> lock(mtx_);
         if (mPqReleaseFence_ && mPqReleaseFence_->isValid()) {
-            //HWC2_ALOGD_IF_DEBUG("wait for %d ms",timeout);
+            //HWC2_LOGD_IF("wait for %d ms",timeout);
             return mPqReleaseFence_->wait(timeout);
         }
         return 0;
@@ -160,11 +163,10 @@ class VpBufferInfo {
         clock_gettime(CLOCK_MONOTONIC, &ts);
         int64_t mCommitFrameTimestamp_ = ts.tv_sec * 1000 * 1000 + ts.tv_nsec / 1000;
 
-        HWC2_ALOGD_IF_DEBUG("display_id=%d Queue->Acquire=%" PRIi64
-                            "us "
-                            "Queue->Commit=%" PRIi64 "us",
-                            display_id, (iAcquireTimestamp_ - iQueuedTimestamp_),
-                            (mCommitFrameTimestamp_ - iQueuedTimestamp_));
+        HWC2_LOGD_IF("display_id=%d hnd_buffer_id=0x%" PRIx64 " buffer_id=0x%" PRIx64 " Queue->Acquire=%" PRIi64
+                     "us Queue->Commit=%" PRIi64 "us",
+                     display_id, mDrmBuffer_->GetExternalId(), mDrmBuffer_->GetBufferId(),
+                     (iAcquireTimestamp_ - iQueuedTimestamp_), (mCommitFrameTimestamp_ - iQueuedTimestamp_));
 
         return 0;
     }
@@ -197,7 +199,7 @@ class VpContext {
     // ConnectionCnt
     int ConnectionCnt();
     // Get Buffer cache
-    std::shared_ptr<DrmBuffer> GetBufferCache(vt_buffer_t* buffer);
+    std::shared_ptr<DrmBuffer> GetBufferCache(vt_buffer_t* buffer, bool* use_cache);
     // Get VpBuffer
     vt_buffer_t* GetVpBufferInfo(uint64_t buffer_id);
     // Release VpBuffer

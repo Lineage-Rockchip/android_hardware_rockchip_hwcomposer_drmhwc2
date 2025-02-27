@@ -181,14 +181,14 @@ class DrmConnector {
             mirror_primary = true;
             if (connected_mirror_display_id_set.count(mirror_display_id) == 0) {
                 connected_mirror_display_id_set.insert(mirror_display_id);
-                HWC2_ALOGI("MirrorDisplay: MirrorPrimary display-id=%d, insert display-id=%d, mirror display size=%zu",
-                           display_, mirror_display_id, connected_mirror_display_id_set.size());
+                HWC2_LOGI("MirrorDisplay: MirrorPrimary display-id=%d, insert display-id=%d, mirror display size=%zu",
+                          display_, mirror_display_id, connected_mirror_display_id_set.size());
             }
         } else {
             mirror_primary = false;
             connected_mirror_display_id_set.clear();
-            HWC2_ALOGI("MirrorDisplay: MirrorExternal display-id=%d, MirrorPrimary display-id=%d", mirror_display_id,
-                       primary_display_id);
+            HWC2_LOGI("MirrorDisplay: MirrorExternal display-id=%d, MirrorPrimary display-id=%d", mirror_display_id,
+                      primary_display_id);
         }
     }
 
@@ -196,8 +196,8 @@ class DrmConnector {
         if (mirror_primary) {
             if (connected_mirror_display_id_set.count(display_id) > 0) {
                 connected_mirror_display_id_set.erase(display_id);
-                HWC2_ALOGI("MirrorDisplay: MirrorPrimary display-id=%d, Mirror display-id=%d connected_mirror_cnt=%zu",
-                           display_, display_id, connected_mirror_display_id_set.size());
+                HWC2_LOGI("MirrorDisplay: MirrorPrimary display-id=%d, Mirror display-id=%d connected_mirror_cnt=%zu",
+                          display_, display_id, connected_mirror_display_id_set.size());
             }
 
             if (connected_mirror_display_id_set.size() == 0) {

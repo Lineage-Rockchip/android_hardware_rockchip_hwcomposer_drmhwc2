@@ -34,13 +34,13 @@ class SolidColorBuffer {
                     "SolidColor");
 
             if (drmBuffer_->Init() != 0) {
-                HWC2_ALOGE("Failed to init DrmBuffer");
+                HWC2_LOGE("Failed to init DrmBuffer");
                 return;
             }
 
             auto initEnd = std::chrono::steady_clock::now();
             auto initDuration = std::chrono::duration_cast<std::chrono::microseconds>(initEnd - initStart).count();
-            HWC2_ALOGD_IF_DEBUG("SolidColorBuffer DrmBuffer init took %lld us", initDuration);
+            HWC2_LOGD_IF("SolidColorBuffer DrmBuffer init took %lld us", initDuration);
 
             initCompleted_.store(true, std::memory_order_release);
 
@@ -50,7 +50,7 @@ class SolidColorBuffer {
 
         auto totalDuration =
                 std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-        HWC2_ALOGD_IF_DEBUG("SolidColorBuffer creation took %lld us", totalDuration);
+        HWC2_LOGD_IF("SolidColorBuffer creation took %lld us", totalDuration);
     }
 
     ~SolidColorBuffer() {
@@ -127,14 +127,14 @@ class SolidColorBuffer {
                 im_state = imfill(src, src_rect, rgba_);
 
                 if (im_state == IM_STATUS_SUCCESS) {
-                    HWC2_ALOGD_IF_DEBUG("SolidColorBuffer: call im2d convert to rgb888 Success");
+                    HWC2_LOGD_IF("SolidColorBuffer: call im2d convert to rgb888 Success");
                     fillSuccess = true;
                 } else {
-                    HWC2_ALOGE("SolidColorBuffer: call im2d convert to rgb888 failed");
+                    HWC2_LOGE("SolidColorBuffer: call im2d convert to rgb888 failed");
                 }
                 auto fillEnd = std::chrono::steady_clock::now();
                 auto fillDuration = std::chrono::duration_cast<std::chrono::microseconds>(fillEnd - fillStart).count();
-                HWC2_ALOGD_IF_DEBUG("SolidColorBuffer: RGA Color fill took %lld us", fillDuration);
+                HWC2_LOGD_IF("SolidColorBuffer: RGA Color fill took %lld us", fillDuration);
                 fillCompleted_.store(true, std::memory_order_release);
             }
 
@@ -146,7 +146,7 @@ class SolidColorBuffer {
                     auto fillEnd = std::chrono::steady_clock::now();
                     auto fillDuration =
                             std::chrono::duration_cast<std::chrono::microseconds>(fillEnd - fillStart).count();
-                    HWC2_ALOGD_IF_DEBUG("SolidColorBuffer: Color fill took %lld us", fillDuration);
+                    HWC2_LOGD_IF("SolidColorBuffer: Color fill took %lld us", fillDuration);
 
                     drmBuffer_->Unlock();
                     fillCompleted_.store(true, std::memory_order_release);
@@ -182,7 +182,7 @@ class SolidColorManager {
                 auto duration =
                         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start)
                                 .count();
-                HWC2_ALOGD_IF_DEBUG("Buffer cache hit took %lld us", duration);
+                HWC2_LOGD_IF("Buffer cache hit took %lld us", duration);
                 return buffer;
             }
             bufferMap_.erase(it);
@@ -198,8 +198,7 @@ class SolidColorManager {
                 std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - createStart)
                         .count();
 
-        HWC2_ALOGD_IF_DEBUG("Buffer creation took %lld us, total getOrCreate took %lld us", createDuration,
-                            totalDuration);
+        HWC2_LOGD_IF("Buffer creation took %lld us, total getOrCreate took %lld us", createDuration, totalDuration);
 
         return buffer;
     }

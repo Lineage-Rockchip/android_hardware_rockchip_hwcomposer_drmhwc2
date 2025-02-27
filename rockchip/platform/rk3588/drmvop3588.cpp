@@ -80,7 +80,7 @@ int Vop3588::InitSvep() {
     if (ret != 4) {
         ret = sscanf(SR_VERSION, "Sr-%d.%d.%d", &intput_major, &input_minor, &input_patch_level);
         if (ret != 3) {
-            HWC2_ALOGW("Unable to parse %s version number", SR_VERSION);
+            HWC2_LOGW("Unable to parse %s version number", SR_VERSION);
         }
     }
     mSrSupportScale_ = false;
@@ -91,7 +91,7 @@ int Vop3588::InitSvep() {
         mSrSupportScale_ = true;
     }
 
-    HWC2_ALOGI("Init SVEP verison=%s SupportScale=%d", SR_VERSION SVEPSR_VERSION_SUFFIX, mSrSupportScale_);
+    HWC2_LOGI("Init SVEP verison=%s SupportScale=%d", SR_VERSION SVEPSR_VERSION_SUFFIX, mSrSupportScale_);
 
     InitSvepSrEnv();
 #endif
@@ -112,16 +112,16 @@ int Vop3588::InitSvepSrEnv() {
     tinyxml2::XMLDocument doc;
     int ret = doc.LoadFile(xml_path);
     if (ret) {
-        HWC2_ALOGW("Can't find %s file. ret=%d", xml_path, ret);
+        HWC2_LOGW("Can't find %s file. ret=%d", xml_path, ret);
         return -1;
     }
 
-    HWC2_ALOGI("Load %s success.", xml_path);
+    HWC2_LOGI("Load %s success.", xml_path);
 
     tinyxml2::XMLElement* HwcSvepEnv = doc.RootElement();
     /* usr tingxml2 to parse resolution.xml */
     if (!HwcSvepEnv) {
-        HWC2_ALOGW("Can't %s:RootElement fail.", xml_path);
+        HWC2_LOGW("Can't %s:RootElement fail.", xml_path);
         return -1;
     }
 
@@ -131,7 +131,7 @@ int Vop3588::InitSvepSrEnv() {
     const char* verison = "1.1.1";
     ret = HwcSvepEnv->QueryStringAttribute("Version", &verison);
     if (ret) {
-        HWC2_ALOGW("Can't find %s verison info. ret=%d", xml_path, ret);
+        HWC2_LOGW("Can't find %s verison info. ret=%d", xml_path, ret);
         return -1;
     }
 
@@ -139,16 +139,16 @@ int Vop3588::InitSvepSrEnv() {
 
     tinyxml2::XMLElement* pWhitelist = HwcSvepEnv->FirstChildElement("Whitelist");
     if (!pWhitelist) {
-        HWC2_ALOGW("Can't %s:Whitelist fail. Maybe not set.", xml_path);
+        HWC2_LOGW("Can't %s:Whitelist fail. Maybe not set.", xml_path);
     } else {
         int iLayerNameCnt = 0;
         tinyxml2::XMLElement* pWhiteKey = pWhitelist->FirstChildElement("WhiteKeywords");
         if (!pWhiteKey) {
-            HWC2_ALOGW("index=%d failed to parse %s\n", iLayerNameCnt, "WhiteKeywords");
+            HWC2_LOGW("index=%d failed to parse %s\n", iLayerNameCnt, "WhiteKeywords");
         } else {
             while (pWhiteKey) {
                 mSrEnv_.mSvepWhitelist_.emplace_back(pWhiteKey->GetText());
-                HWC2_ALOGI("SR Whitelist[%d]=%s", iLayerNameCnt, mSrEnv_.mSvepWhitelist_[iLayerNameCnt].c_str());
+                HWC2_LOGI("SR Whitelist[%d]=%s", iLayerNameCnt, mSrEnv_.mSvepWhitelist_[iLayerNameCnt].c_str());
                 iLayerNameCnt++;
                 pWhiteKey = pWhiteKey->NextSiblingElement();
             }
@@ -157,17 +157,17 @@ int Vop3588::InitSvepSrEnv() {
 
     tinyxml2::XMLElement* pBlacklist = HwcSvepEnv->FirstChildElement("Blacklist");
     if (!pBlacklist) {
-        HWC2_ALOGW("Can't %s:Blacklist fail. Maybe not set.", xml_path);
+        HWC2_LOGW("Can't %s:Blacklist fail. Maybe not set.", xml_path);
     } else {
         int iLayerNameCnt = 0;
         tinyxml2::XMLElement* pBlackKey = pBlacklist->FirstChildElement("BlackKeywords");
         if (!pBlackKey) {
-            HWC2_ALOGW("index=%d failed to parse %s\n", iLayerNameCnt, "BlackKeywords");
+            HWC2_LOGW("index=%d failed to parse %s\n", iLayerNameCnt, "BlackKeywords");
         } else {
             while (pBlackKey) {
                 mSrEnv_.mSvepBlacklist_.emplace_back(pBlackKey->GetText());
 
-                HWC2_ALOGI("SR Blacklist[%d]=%s", iLayerNameCnt, mSrEnv_.mSvepBlacklist_[iLayerNameCnt].c_str());
+                HWC2_LOGI("SR Blacklist[%d]=%s", iLayerNameCnt, mSrEnv_.mSvepBlacklist_[iLayerNameCnt].c_str());
                 iLayerNameCnt++;
                 pBlackKey = pBlackKey->NextSiblingElement();
             }
@@ -183,7 +183,7 @@ bool Vop3588::SvepSrAllowedByBlacklist(DrmHwcLayer* layer) {
         // 此黑名单内的应用名不参与 SR 处理
         for (auto& black_key : mSrEnv_.mSvepBlacklist_) {
             if (layer->sLayerName_.find(black_key) != std::string::npos) {
-                HWC2_ALOGD_IF_DEBUG("Sr %s in BlackList! not to SR.", layer->sLayerName_.c_str());
+                HWC2_LOGD_IF("Sr %s in BlackList! not to SR.", layer->sLayerName_.c_str());
                 return false;
             }
         }
@@ -196,7 +196,7 @@ bool Vop3588::SvepSrAllowedByWhitelist(DrmHwcLayer* layer) {
         // 此白名单内的应用名直接参与 SR 处理
         for (auto& white_key : mSrEnv_.mSvepWhitelist_) {
             if (layer->sLayerName_.find(white_key) != std::string::npos) {
-                HWC2_ALOGD_IF_DEBUG("Sr %s in Whitelist! force to SR.", layer->sLayerName_.c_str());
+                HWC2_LOGD_IF("Sr %s in Whitelist! force to SR.", layer->sLayerName_.c_str());
                 if (mSrEnv_.mSvepWhitelistUid_.size() > 3) {
                     mSrEnv_.mSvepWhitelistUid_.clear();
                 }
@@ -211,7 +211,7 @@ bool Vop3588::SvepSrAllowedByWhitelist(DrmHwcLayer* layer) {
         }
     }
     if (mSrEnv_.mSvepWhitelistUid_.count(layer->uId_) > 0) {
-        HWC2_ALOGD_IF_DEBUG("Sr uid=%d is %s in Whitelist! force to SR.", layer->uId_, layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("Sr uid=%d is %s in Whitelist! force to SR.", layer->uId_, layer->sLayerName_.c_str());
         return true;
     }
     return false;
@@ -221,22 +221,22 @@ bool Vop3588::SvepSrAllowedByWhitelist(DrmHwcLayer* layer) {
 bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // 视频大于4K则不使用 SR.
     if (layer->iWidth_ > 4096) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: intput too big, input-info (%d,%d) name=%s", layer->iWidth_, layer->iHeight_,
-                            layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: intput too big, input-info (%d,%d) name=%s", layer->iWidth_, layer->iHeight_,
+                     layer->sLayerName_.c_str());
         return false;
     }
 
     // 如果不是视频格式，并且不在白名单内，则不使用SR
     if (!layer->bYuv_ && !SvepSrAllowedByWhitelist(layer)) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: %s-YUV, can't find in Whitelist name=%s", (layer->bYuv_ ? "Is" : "Not"),
-                            layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: %s-YUV, can't find in Whitelist name=%s", (layer->bYuv_ ? "Is" : "Not"),
+                     layer->sLayerName_.c_str());
         return false;
     }
 
     // 如果SurfaceFlinger 请求Client合成，则不采用SR策略
     // 例如高斯模糊效果
     if (layer->sf_composition == HWC2::Composition::Client) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: SF request Client, name=%s", layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: SF request Client, name=%s", layer->sLayerName_.c_str());
         return false;
     }
 
@@ -255,7 +255,7 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
 
     // 10bit 视频不使用SR
     if (yuv_10bit) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: is 10bit YUV, SR unsupport, name=%s", layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: is 10bit YUV, SR unsupport, name=%s", layer->sLayerName_.c_str());
         return false;
     }
 
@@ -275,14 +275,14 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // }
 
     // if(unsupport_yuv_p){
-    //   HWC2_ALOGD_IF_DEBUG("disable-sr: unsupport yuv p format. fourcc=%x", layer->uFourccFormat_);
+    //   HWC2_LOGD_IF("disable-sr: unsupport yuv p format. fourcc=%x", layer->uFourccFormat_);
     //   return false;
     // }
 
     // 如果图层本身就是2倍缩小的场景，则不建议使用SR.
     if (layer->fHScaleMul_ > 2.0 && layer->fVScaleMul_ > 2.0) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: scale-rate is too big fHScaleMul_=%f fVScaleMul_=%f SR unsupport, name=%s",
-                            layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: scale-rate is too big fHScaleMul_=%f fVScaleMul_=%f SR unsupport, name=%s",
+                     layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
         return false;
     }
 
@@ -290,7 +290,7 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     char value[PROPERTY_VALUE_MAX];
     property_get("service.bootanim.exit", value, "0");
     if (atoi(value) == 0) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: during bootanim disable SR, name=%s", layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: during bootanim disable SR, name=%s", layer->sLayerName_.c_str());
         return false;
     }
 
@@ -303,14 +303,13 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // 100 表示屏占比 100%，
     uint64_t video_area_rate = dis_area_size * 100 / screen_size;
     if (video_area_rate < allow_rate) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: video_area_rate=%" PRIu64 "%% name=%s", video_area_rate,
-                            layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: video_area_rate=%" PRIu64 "%% name=%s", video_area_rate, layer->sLayerName_.c_str());
         return false;
     }
 
     // HWC内部会计算图层刷新率，若刷新率大于35帧，则关闭SR-SR功能
     if (layer->fFps_ > SVEP_SUPPORT_MAX_FPS) {
-        HWC2_ALOGD_IF_DEBUG("disable-sr: video_max_fps=%f name=%s", layer->fFps_, layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-sr: video_max_fps=%f name=%s", layer->fFps_, layer->sLayerName_.c_str());
         return false;
     }
 
@@ -328,16 +327,16 @@ int Vop3588::InitSvepMemcEnv() {
     tinyxml2::XMLDocument doc;
     int ret = doc.LoadFile(xml_path);
     if (ret) {
-        HWC2_ALOGW("Can't find %s file. ret=%d", xml_path, ret);
+        HWC2_LOGW("Can't find %s file. ret=%d", xml_path, ret);
         return -1;
     }
 
-    HWC2_ALOGI("Load %s success.", xml_path);
+    HWC2_LOGI("Load %s success.", xml_path);
 
     tinyxml2::XMLElement* HwcSvepEnv = doc.RootElement();
     /* usr tingxml2 to parse resolution.xml */
     if (!HwcSvepEnv) {
-        HWC2_ALOGW("Can't %s:RootElement fail.", xml_path);
+        HWC2_LOGW("Can't %s:RootElement fail.", xml_path);
         return -1;
     }
 
@@ -347,7 +346,7 @@ int Vop3588::InitSvepMemcEnv() {
     const char* verison = "1.1.1";
     ret = HwcSvepEnv->QueryStringAttribute("Version", &verison);
     if (ret) {
-        HWC2_ALOGW("Can't find %s verison info. ret=%d", xml_path, ret);
+        HWC2_LOGW("Can't find %s verison info. ret=%d", xml_path, ret);
         return -1;
     }
 
@@ -355,16 +354,16 @@ int Vop3588::InitSvepMemcEnv() {
 
     tinyxml2::XMLElement* pWhitelist = HwcSvepEnv->FirstChildElement("Whitelist");
     if (!pWhitelist) {
-        HWC2_ALOGW("Can't %s:Whitelist fail. Maybe not set.", xml_path);
+        HWC2_LOGW("Can't %s:Whitelist fail. Maybe not set.", xml_path);
     } else {
         int iLayerNameCnt = 0;
         tinyxml2::XMLElement* pWhiteKey = pWhitelist->FirstChildElement("WhiteKeywords");
         if (!pWhiteKey) {
-            HWC2_ALOGW("index=%d failed to parse %s\n", iLayerNameCnt, "WhiteKeywords");
+            HWC2_LOGW("index=%d failed to parse %s\n", iLayerNameCnt, "WhiteKeywords");
         } else {
             while (pWhiteKey) {
                 mMemcEnv_.mSvepWhitelist_.emplace_back(pWhiteKey->GetText());
-                HWC2_ALOGI("MEMC Whitelist[%d]=%s", iLayerNameCnt, mMemcEnv_.mSvepWhitelist_[iLayerNameCnt].c_str());
+                HWC2_LOGI("MEMC Whitelist[%d]=%s", iLayerNameCnt, mMemcEnv_.mSvepWhitelist_[iLayerNameCnt].c_str());
                 iLayerNameCnt++;
                 pWhiteKey = pWhiteKey->NextSiblingElement();
             }
@@ -373,17 +372,17 @@ int Vop3588::InitSvepMemcEnv() {
 
     tinyxml2::XMLElement* pBlacklist = HwcSvepEnv->FirstChildElement("Blacklist");
     if (!pBlacklist) {
-        HWC2_ALOGW("Can't %s:Blacklist fail. Maybe not set.", xml_path);
+        HWC2_LOGW("Can't %s:Blacklist fail. Maybe not set.", xml_path);
     } else {
         int iLayerNameCnt = 0;
         tinyxml2::XMLElement* pBlackKey = pBlacklist->FirstChildElement("BlackKeywords");
         if (!pBlackKey) {
-            HWC2_ALOGW("index=%d failed to parse %s\n", iLayerNameCnt, "BlackKeywords");
+            HWC2_LOGW("index=%d failed to parse %s\n", iLayerNameCnt, "BlackKeywords");
         } else {
             while (pBlackKey) {
                 mMemcEnv_.mSvepBlacklist_.emplace_back(pBlackKey->GetText());
 
-                HWC2_ALOGI("MEMC Blacklist[%d]=%s", iLayerNameCnt, mMemcEnv_.mSvepBlacklist_[iLayerNameCnt].c_str());
+                HWC2_LOGI("MEMC Blacklist[%d]=%s", iLayerNameCnt, mMemcEnv_.mSvepBlacklist_[iLayerNameCnt].c_str());
                 iLayerNameCnt++;
                 pBlackKey = pBlackKey->NextSiblingElement();
             }
@@ -399,7 +398,7 @@ bool Vop3588::SvepMemcAllowedByBlacklist(DrmHwcLayer* layer) {
         // 此黑名单内的应用名不参与 SR 处理
         for (auto& black_key : mMemcEnv_.mSvepBlacklist_) {
             if (layer->sLayerName_.find(black_key) != std::string::npos) {
-                HWC2_ALOGD_IF_DEBUG("Sr %s in BlackList! not to SR.", layer->sLayerName_.c_str());
+                HWC2_LOGD_IF("Sr %s in BlackList! not to SR.", layer->sLayerName_.c_str());
                 return false;
             }
         }
@@ -412,7 +411,7 @@ bool Vop3588::SvepMemcAllowedByWhitelist(DrmHwcLayer* layer) {
         // 此白名单内的应用名直接参与 SR 处理
         for (auto& white_key : mMemcEnv_.mSvepWhitelist_) {
             if (layer->sLayerName_.find(white_key) != std::string::npos) {
-                HWC2_ALOGD_IF_DEBUG("Sr %s in Whitelist! force to SR.", layer->sLayerName_.c_str());
+                HWC2_LOGD_IF("Sr %s in Whitelist! force to SR.", layer->sLayerName_.c_str());
                 return true;
             }
         }
@@ -462,7 +461,7 @@ bool Vop3588::SvepMemcAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // }
 
     // if(unsupport_yuv_p){
-    //   HWC2_ALOGD_IF_DEBUG("disable-memc: unsupport yuv p format. fourcc=%x", layer->uFourccFormat_);
+    //   HWC2_LOGD_IF("disable-memc: unsupport yuv p format. fourcc=%x", layer->uFourccFormat_);
     //   return false;
     // }
 
@@ -475,7 +474,7 @@ bool Vop3588::SvepMemcAllowedByLocalPolicy(DrmHwcLayer* layer) {
 
     // HWC内部会计算图层刷新率，若刷新率大于40帧，则关闭SR-MEMC功能
     if (layer->fFps_ > SVEP_MEMC_SUPPORT_MAX_FPS) {
-        HWC2_ALOGD_IF_DEBUG("disable-memc: video_max_fps=%f name=%s", layer->fFps_, layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("disable-memc: video_max_fps=%f name=%s", layer->fFps_, layer->sLayerName_.c_str());
         return false;
     }
 
@@ -597,8 +596,8 @@ int Vop3588::IsXIntersect(hwc_rect_t* rec, hwc_rect_t* rec2) {
 
 bool Vop3588::IsRec1IntersectRec2(hwc_rect_t* rec1, hwc_rect_t* rec2) {
     int iMaxLeft, iMaxTop, iMinRight, iMinBottom;
-    HWC2_ALOGD_IF_VERBOSE("is_not_intersect: rec1[%d,%d,%d,%d],rec2[%d,%d,%d,%d]", rec1->left, rec1->top, rec1->right,
-                          rec1->bottom, rec2->left, rec2->top, rec2->right, rec2->bottom);
+    HWC2_LOGV_IF("is_not_intersect: rec1[%d,%d,%d,%d],rec2[%d,%d,%d,%d]", rec1->left, rec1->top, rec1->right,
+                 rec1->bottom, rec2->left, rec2->top, rec2->right, rec2->bottom);
 
     iMaxLeft = rec1->left > rec2->left ? rec1->left : rec2->left;
     iMaxTop = rec1->top > rec2->top ? rec1->top : rec2->top;
@@ -628,8 +627,8 @@ bool Vop3588::IsLayerCombine(DrmHwcLayer* layer_one, DrmHwcLayer* layer_two) {
         ((layer_one->bBackgraoundLayer_ && layer_two->bBackgraoundLayer_)
                  ? false
                  : IsXIntersect(&layer_one->display_frame, &layer_two->display_frame))) {
-        HWC2_ALOGD_IF_VERBOSE("is_layer_combine layer one alpha=%d,is_scale=%d", layer_one->alpha, layer_one->bScale_);
-        HWC2_ALOGD_IF_VERBOSE("is_layer_combine layer two alpha=%d,is_scale=%d", layer_two->alpha, layer_two->bScale_);
+        HWC2_LOGV_IF("is_layer_combine layer one alpha=%d,is_scale=%d", layer_one->alpha, layer_one->bScale_);
+        HWC2_LOGV_IF("is_layer_combine layer two alpha=%d,is_scale=%d", layer_two->alpha, layer_two->bScale_);
         return false;
     }
 
@@ -733,7 +732,7 @@ int Vop3588::CombineLayer(LayerMap& layer_map, std::vector<DrmHwcLayer*>& layers
             for (i = 0; i < iter->second.size() - 1; i++) {
                 for (j = i + 1; j < iter->second.size(); j++) {
                     if (iter->second[i]->display_frame.top > iter->second[j]->display_frame.top) {
-                        HWC2_ALOGD_IF_VERBOSE("swap %d and %d", iter->second[i]->uId_, iter->second[j]->uId_);
+                        HWC2_LOGV_IF("swap %d and %d", iter->second[i]->uId_, iter->second[j]->uId_);
                         std::swap(iter->second[i], iter->second[j]);
                     }
                 }
@@ -862,15 +861,14 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
 
     //loop plane groups.
     for (iter = plane_groups.begin(); iter != plane_groups.end(); ++iter) {
-        HWC2_ALOGD_IF_VERBOSE("line=%d,last zpos=%d,group(%" PRIu64
-                              ") zpos=%d,group bUse=%d,crtc=0x%x,"
-                              "current_crtc=0x%x,possible_crtcs=0x%x",
-                              __LINE__, zpos, (*iter)->share_id, (*iter)->zpos, (*iter)->bUse, (1 << crtc->pipe()),
-                              (*iter)->current_crtc_, (*iter)->possible_crtcs);
+        HWC2_LOGV_IF("line=%d,last zpos=%d,group(%" PRIu64
+                     ") zpos=%d,group bUse=%d,crtc=0x%x,"
+                     "current_crtc=0x%x,possible_crtcs=0x%x",
+                     __LINE__, zpos, (*iter)->share_id, (*iter)->zpos, (*iter)->bUse, (1 << crtc->pipe()),
+                     (*iter)->current_crtc_, (*iter)->possible_crtcs);
         //find the match zpos plane group
         if (!(*iter)->bUse && !(*iter)->bReserved && (((1 << crtc->pipe()) & (*iter)->current_crtc_) > 0)) {
-            HWC2_ALOGD_IF_VERBOSE("line=%d,layer_size=%d,planes size=%zu", __LINE__, layer_size,
-                                  (*iter)->planes.size());
+            HWC2_LOGV_IF("line=%d,layer_size=%d,planes size=%zu", __LINE__, layer_size, (*iter)->planes.size());
 
             //find the match combine layer count with plane size.
             if (layer_size <= (*iter)->planes.size()) {
@@ -884,9 +882,9 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
 
                     if (match_best || (*iter_layer)->iBestPlaneType > 0) {
                         if (!((*iter)->win_type & (*iter_layer)->iBestPlaneType)) {
-                            HWC2_ALOGD_IF_VERBOSE("line=%d, plane_group win-type = 0x%" PRIx64
-                                                  " , layer best-type = %x, not match ",
-                                                  __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
+                            HWC2_LOGV_IF("line=%d, plane_group win-type = 0x%" PRIx64
+                                         " , layer best-type = %x, not match ",
+                                         __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
                             continue;
                         }
                     }
@@ -894,9 +892,9 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     //loop plane
                     for (std::vector<DrmPlane*>::const_iterator iter_plane = (*iter)->planes.begin();
                          !(*iter)->planes.empty() && iter_plane != (*iter)->planes.end(); ++iter_plane) {
-                        HWC2_ALOGD_IF_VERBOSE("line=%d,crtc=0x%x,%s is_use=%d,possible_crtc_mask=0x%x", __LINE__,
-                                              (1 << crtc->pipe()), (*iter_plane)->name(), (*iter_plane)->is_use(),
-                                              (*iter_plane)->get_possible_crtc_mask());
+                        HWC2_LOGV_IF("line=%d,crtc=0x%x,%s is_use=%d,possible_crtc_mask=0x%x", __LINE__,
+                                     (1 << crtc->pipe()), (*iter_plane)->name(), (*iter_plane)->is_use(),
+                                     (*iter_plane)->get_possible_crtc_mask());
 
                         if (!(*iter_plane)->is_use() && (*iter_plane)->GetCrtcSupported(*crtc)) {
                             bool bNeed = false;
@@ -1076,8 +1074,8 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
 
                             if ((!(*iter_layer)->bFbTarget_) && rm->isWBMode() && rm->IsWriteBackByRga()) {
                                 if (!hwc_rga_utils::isRK3588RGA3SupportFormat((*iter_layer)->iFormat_)) {
-                                    HWC2_ALOGD_IF_DEBUG("WriteBackByRga is enabled, format %d is not support by RGA3.",
-                                                        (*iter_layer)->iFormat_);
+                                    HWC2_LOGD_IF("WriteBackByRga is enabled, format %d is not support by RGA3.",
+                                                 (*iter_layer)->iFormat_);
                                     continue;
                                 }
                             }
@@ -1348,7 +1346,7 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     }
                 }
                 if (combine_layer_count == layer_size) {
-                    ALOGD_IF(LogLevel(DBG_VERBOSE), "line=%d all match", __LINE__);
+                    HWC2_LOGV_IF("line=%d all match", __LINE__);
                     (*iter)->bUse = true;
                     return 0;
                 }
@@ -1440,11 +1438,10 @@ int Vop3588::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
                 if (layer->iSize_ > 0) {
                     total_size += layer->iSize_;
                 }
-                HWC2_ALOGD_IF_DEBUG(" total_size =%d + %s size=%d", total_size, layer->sLayerName_.c_str(),
-                                    layer->iSize_);
+                HWC2_LOGD_IF(" total_size =%d + %s size=%d", total_size, layer->sLayerName_.c_str(), layer->iSize_);
             }
             if (total_size > 4096 * 2160 * 4 * ctx.state.iVopMaxOverlay4KPlane) {
-                HWC2_ALOGD_IF_DEBUG("total_size (%d) is too big to fail match policy.", total_size);
+                HWC2_LOGD_IF("total_size (%d) is too big to fail match policy.", total_size);
                 ResetLayer(layers);
                 ResetPlaneGroups(plane_groups);
                 composition->clear();
@@ -1550,7 +1547,7 @@ void Vop3588::OutputMatchLayer(int iFirst, int iLast, std::vector<DrmHwcLayer*>&
                                std::vector<DrmHwcLayer*>& tmp_layers) {
     int interval = layers.size() - 1 - iLast;
     if (iFirst < 0 || iLast < 0 || iFirst > iLast || interval < 0 || iLast > (layers.size() - 1)) {
-        HWC2_ALOGD_IF_DEBUG("invalid value iFirst=%d, iLast=%d layer.size=%zu ", iFirst, iLast, layers.size());
+        HWC2_LOGD_IF("invalid value iFirst=%d, iLast=%d layer.size=%zu ", iFirst, iLast, layers.size());
         return;
     }
 
@@ -1605,7 +1602,7 @@ bool Vop3588::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
 
     // RGA 最大宽度仅支持8176
     if (layer->iWidth_ > 8176) {
-        HWC2_ALOGD_IF_DEBUG("RGA can't handle iWidth_=%d yuv layer, rga max is 8176.", layer->iWidth_);
+        HWC2_LOGD_IF("RGA can't handle iWidth_=%d yuv layer, rga max is 8176.", layer->iWidth_);
         return false;
     }
 
@@ -1620,9 +1617,8 @@ bool Vop3588::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
     // 2. 不存在几何变换，视频放大场景
     if (layer->transform == DRM_MODE_ROTATE_0) {
         if (layer->fHScaleMul_ <= 2.0 && layer->fVScaleMul_ <= 2.0) {
-            HWC2_ALOGD_IF_DEBUG(
-                    "disable-rga-policy: scale-rate is fHScaleMul_=%f fVScaleMul_=%f no need rga policy, name=%s",
-                    layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
+            HWC2_LOGD_IF("disable-rga-policy: scale-rate is fHScaleMul_=%f fVScaleMul_=%f no need rga policy, name=%s",
+                         layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
             return false;
         }
     }
@@ -1633,16 +1629,16 @@ bool Vop3588::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
     DrmDevice* drm = crtc->getDrmDevice();
     DrmConnector* conn = drm->GetConnectorForDisplay(crtc->display());
     if (conn && conn->current_mode().h_display() <= 3840 && layer->iWidth_ * layer->iHeight_ > 7680 * 4320 / 2) {
-        HWC2_ALOGD_IF_DEBUG("iWidth_=%d, iHeight_=%d Performance may be insufficient with RGA Policy, fallback to GPU.",
-                            layer->iWidth_, layer->iHeight_);
+        HWC2_LOGD_IF("iWidth_=%d, iHeight_=%d Performance may be insufficient with RGA Policy, fallback to GPU.",
+                     layer->iWidth_, layer->iHeight_);
         return false;
     }
 
     // 目前由于RK3588 RGA2仅支持4G 地址，所以如果存在RGA3不支持的格式，则直接判定无法使用RGA合成策略
     if (!hwc_rga_utils::isRK3588RGA3SupportFormat(layer->iFormat_)) {
-        HWC2_ALOGD_IF_DEBUG("FourccFormat_=%c%c%c%c, rk3588 rga3 not supported, layerName:%s", layer->uFourccFormat_,
-                            layer->uFourccFormat_ >> 8, layer->uFourccFormat_ >> 16, layer->uFourccFormat_ >> 24,
-                            layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("FourccFormat_=%c%c%c%c, rk3588 rga3 not supported, layerName:%s", layer->uFourccFormat_,
+                     layer->uFourccFormat_ >> 8, layer->uFourccFormat_ >> 16, layer->uFourccFormat_ >> 24,
+                     layer->sLayerName_.c_str());
         return false;
     }
 
@@ -1687,7 +1683,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                             drmLayer->SetTransform(HWC2::Transform::FlipVRotate90);
                             break;
                         default:
-                            HWC2_ALOGW("SplitMode: invalid transform=%d", transform);
+                            HWC2_LOGW("SplitMode: invalid transform=%d", transform);
                             drmLayer->SetTransform(HWC2::Transform::None);
                             break;
                     }
@@ -1749,7 +1745,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             // if(drmLayer->bAfbcd_){
             //   int crop_w =  (int)(drmLayer->source_crop.right - drmLayer->source_crop.left);
             //   if(crop_w != drmLayer->iStride_){
-            //     HWC2_ALOGD_IF_DEBUG("RGA can't handle crop_w=%d stride=%d afbc yuv layer.",
+            //     HWC2_LOGD_IF("RGA can't handle crop_w=%d stride=%d afbc yuv layer.",
             //                crop_w, drmLayer->iStride_);
             //     continue;
             //   }
@@ -1768,7 +1764,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                                                            "SplitModeView");
 
             if (dst_buffer == NULL) {
-                HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                 continue;
             }
 
@@ -1780,8 +1776,8 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             }
 
             if (src_handle == 0) {
-                HWC2_ALOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
-                           drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
+                HWC2_LOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
+                          drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
                 continue;
             }
             // RGA 特殊修改，需要调整传入的format
@@ -1802,8 +1798,8 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             // 获取 rga dst hanlde
             rga_buffer_handle_t dst_handle = dst_buffer->GetRgaHandle();
             if (dst_handle == 0) {
-                HWC2_ALOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
-                           dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
+                HWC2_LOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
+                          dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
                 continue;
             }
 
@@ -1893,7 +1889,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             // Call Im2d 格式转换
             im_state = imcheck_composite(src, dst, pat, src_rect, dst_rect, pat_rect, usage);
             if (im_state != IM_STATUS_NOERROR) {
-                HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                 break;
             }
 
@@ -1917,7 +1913,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             dst_buffer = rgaBufferQueue_->BackDrmBuffer();
 
             if (dst_buffer == NULL) {
-                HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                 break;
             }
 
@@ -1959,7 +1955,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                             acquire_fence = dup(drmLayer->acquire_fence->getFd());
                         } else {
                             if (drmLayer->acquire_fence->wait(500)) {
-                                HWC2_ALOGE(
+                                HWC2_LOGE(
                                         "Wait AcquireFence 500ms failed! Info: size=%d act=%d signal=%d err=%d "
                                         ",LayerName=%s ",
                                         drmLayer->acquire_fence->getSize(), drmLayer->acquire_fence->getActiveCount(),
@@ -1971,7 +1967,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                     IM_STATUS im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, acquire_fence,
                                                    &releaseFence, &imOpt, usage);
                     if (im_state != IM_STATUS_SUCCESS) {
-                        HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                        HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                         rgaBufferQueue_->QueueBuffer(dst_buffer);
                         drmLayer->ResetInfoFromStore();
                         drmLayer->bUseRga_ = false;
@@ -1989,7 +1985,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             ResetLayerFromTmp(layers, tmp_layers);
             return ret;
         } else {  // Match fail, skip rga policy
-            HWC2_ALOGD_IF_DEBUG(" MatchPlanes fail! reset DrmHwcLayer.");
+            HWC2_LOGD_IF(" MatchPlanes fail! reset DrmHwcLayer.");
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseRga_) {
                     rgaBufferQueue_->QueueBuffer(dst_buffer);
@@ -2009,11 +2005,11 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             ret = TryOverlayPolicy(composition, layers, crtc, plane_groups);
         }
         if (!ret) {  // Match sucess, to call im2d interface
-            HWC2_ALOGD_IF_DEBUG("Use last rga layer.");
+            HWC2_LOGD_IF("Use last rga layer.");
             return ret;
         }
     }
-    HWC2_ALOGD_IF_DEBUG("fail!, No layer use RGA policy.");
+    HWC2_LOGD_IF("fail!, No layer use RGA policy.");
     ResetLayerFromTmp(layers, tmp_layers);
     return -1;
 }
@@ -2021,7 +2017,7 @@ int Vop3588::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
 int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers,
                                  DrmCrtc* crtc, std::vector<PlaneGroup*>& plane_groups) {
     if (!ctx.state.bRgaPolicyEnable) {
-        HWC2_ALOGD_IF_DEBUG("bRgaPolicyEnable=%d skip TryRgaOverlayPolicy", ctx.state.bRgaPolicyEnable);
+        HWC2_LOGD_IF("bRgaPolicyEnable=%d skip TryRgaOverlayPolicy", ctx.state.bRgaPolicyEnable);
         return -1;
     }
     ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d", __FUNCTION__, __LINE__);
@@ -2053,10 +2049,10 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
             if (last_buffer_id != drmLayer->uBufferId_) {
                 // 目前由于RK3588 RGA2仅支持4G 地址，所以如果存在RGA3不支持的格式，则直接判定无法使用RGA合成策略
                 if (!hwc_rga_utils::isRK3588RGA3SupportFormat(drmLayer->iFormat_)) {
-                    HWC2_ALOGD_IF_DEBUG("FourccFormat_=%c%c%c%c, rk3588 rga3 not supported, layerName:%s",
-                                        drmLayer->uFourccFormat_, drmLayer->uFourccFormat_ >> 8,
-                                        drmLayer->uFourccFormat_ >> 16, drmLayer->uFourccFormat_ >> 24,
-                                        drmLayer->sLayerName_.c_str());
+                    HWC2_LOGD_IF("FourccFormat_=%c%c%c%c, rk3588 rga3 not supported, layerName:%s",
+                                 drmLayer->uFourccFormat_, drmLayer->uFourccFormat_ >> 8,
+                                 drmLayer->uFourccFormat_ >> 16, drmLayer->uFourccFormat_ >> 24,
+                                 drmLayer->sLayerName_.c_str());
                     continue;
                 }
 
@@ -2065,7 +2061,7 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 // if(drmLayer->bAfbcd_){
                 //   int crop_w =  (int)(drmLayer->source_crop.right - drmLayer->source_crop.left);
                 //   if(crop_w != drmLayer->iStride_){
-                //     HWC2_ALOGD_IF_DEBUG("RGA can't handle crop_w=%d stride=%d afbc yuv layer.",
+                //     HWC2_LOGD_IF("RGA can't handle crop_w=%d stride=%d afbc yuv layer.",
                 //                crop_w, drmLayer->iStride_);
                 //     continue;
                 //   }
@@ -2104,7 +2100,7 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 }
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     continue;
                 }
 
@@ -2116,8 +2112,8 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 }
 
                 if (src_handle == 0) {
-                    HWC2_ALOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
-                               drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
+                    HWC2_LOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
+                              drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
                     continue;
                 }
 
@@ -2146,8 +2142,8 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 // 获取 rga dst hanlde
                 rga_buffer_handle_t dst_handle = dst_buffer->GetRgaHandle();
                 if (dst_handle == 0) {
-                    HWC2_ALOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
-                               dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
+                    HWC2_LOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
+                              dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
                     continue;
                 }
 
@@ -2246,7 +2242,7 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 // Call Im2d 格式转换
                 im_state = imcheck_composite(src, dst, pat, src_rect, dst_rect, pat_rect, usage | IM_ASYNC);
                 if (im_state != IM_STATUS_NOERROR) {
-                    HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                    HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                     break;
                 }
 
@@ -2271,7 +2267,7 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 dst_buffer = rgaBufferQueue_->BackDrmBuffer();
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     break;
                 }
 
@@ -2316,7 +2312,7 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                     IM_STATUS im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, 0, &releaseFence,
                                                    &imOpt, usage | IM_ASYNC);
                     if (im_state != IM_STATUS_SUCCESS) {
-                        HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                        HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                         rgaBufferQueue_->QueueBuffer(dst_buffer);
                         drmLayer->ResetInfoFromStore();
                         drmLayer->bUseRga_ = false;
@@ -2334,7 +2330,7 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
             ResetLayerFromTmp(layers, tmp_layers);
             return ret;
         } else {  // Match fail, skip rga policy
-            HWC2_ALOGD_IF_DEBUG(" MatchPlanes fail! reset DrmHwcLayer.");
+            HWC2_LOGD_IF(" MatchPlanes fail! reset DrmHwcLayer.");
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseRga_) {
                     rgaBufferQueue_->QueueBuffer(dst_buffer);
@@ -2357,11 +2353,11 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
             }
         }
         if (!ret) {  // Match sucess, to call im2d interface
-            HWC2_ALOGD_IF_DEBUG("Use last rga layer.");
+            HWC2_LOGD_IF("Use last rga layer.");
             return ret;
         }
     }
-    HWC2_ALOGD_IF_DEBUG("fail!, No layer use RGA policy.");
+    HWC2_LOGD_IF("fail!, No layer use RGA policy.");
     ResetLayerFromTmp(layers, tmp_layers);
     return -1;
 }
@@ -2596,7 +2592,7 @@ int Vop3588::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         return -1;
     }
 
-    HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
+    HWC2_LOGD_IF("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
     OutputMatchLayer(skip_layer_indices.first, skip_layer_indices.second, layers, tmp_layers);
     int ret = MatchPlanes(composition, layers, crtc, plane_groups);
     if (!ret) {
@@ -2607,7 +2603,7 @@ int Vop3588::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         int last = skip_layer_indices.second;
         // 建议zpos大的图层走GPU合成
         for (last++; last < layers.size(); last++) {
-            HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
+            HWC2_LOGD_IF("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
             OutputMatchLayer(first, last, layers, tmp_layers);
             ret = MatchPlanes(composition, layers, crtc, plane_groups);
             if (ret) {
@@ -2622,7 +2618,7 @@ int Vop3588::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         last = layers.size() - 1;
         // 逐步建议知道zpos=0走GPU合成，即全GPU合成
         for (first--; first >= 0; first--) {
-            HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
+            HWC2_LOGD_IF("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
             OutputMatchLayer(first, last, layers, tmp_layers);
             ret = MatchPlanes(composition, layers, crtc, plane_groups);
             if (ret) {
@@ -2646,7 +2642,7 @@ int Vop3588::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     DrmConnector* conn = drm->GetConnectorForDisplay(crtc->display());
     // 只有主屏可以享受视频 SR 效果
     if (conn && conn->state() == DRM_MODE_CONNECTED && conn->display() != 0) {
-        HWC2_ALOGD_IF_DEBUG("Only Primary Display enable SR function. display=%d", conn->display());
+        HWC2_LOGD_IF("Only Primary Display enable SR function. display=%d", conn->display());
         return -1;
     }
 
@@ -2655,10 +2651,10 @@ int Vop3588::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     if (hwc_get_int_property(SR_MODE_NAME, "0") > 0) {
         ret = TrySrPolicy(composition, layers, crtc, plane_groups);
         if (ret) {
-            HWC2_ALOGD_IF_DEBUG("TrySrPolicy match fail.");
+            HWC2_LOGD_IF("TrySrPolicy match fail.");
             last_sr_mode = false;
         } else {
-            HWC2_ALOGD_IF_DEBUG("TrySrPolicy match success.");
+            HWC2_LOGD_IF("TrySrPolicy match success.");
 #ifdef USE_LIBSVEP_MEMC
             ClearMemcJob();
 #endif
@@ -2676,11 +2672,11 @@ int Vop3588::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     if (hwc_get_int_property(MEMC_MODE_NAME, "0") > 0) {
         ret = TryMemcPolicy(composition, layers, crtc, plane_groups);
         if (ret) {
-            HWC2_ALOGD_IF_DEBUG("TryMemcPolicy match fail.");
+            HWC2_LOGD_IF("TryMemcPolicy match fail.");
             ClearMemcJob();
             last_memc_mode = false;
         } else {
-            HWC2_ALOGD_IF_DEBUG("TryMemcPolicy match success.");
+            HWC2_LOGD_IF("TryMemcPolicy match success.");
             return ret;
         }
     } else {
@@ -2716,7 +2712,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     int svep_runtime_disable = hwc_get_int_property(SR_RUNTIME_DISABLE_NAME, "0");
     bool sr_mode = false;
     // Match policy first
-    HWC2_ALOGD_IF_DEBUG("%s=%d bSrReady_=%d", SR_MODE_NAME, svep_mode, bSrReady_);
+    HWC2_LOGD_IF("%s=%d bSrReady_=%d", SR_MODE_NAME, svep_mode, bSrReady_);
     // 只有主屏可以享受视频 SR 效果
     if (svep_runtime_disable == 0) {
         // Match policy first
@@ -2738,13 +2734,13 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                 svep_sr_ = std::make_shared<SvepSr>();
                 error = svep_sr_->Init(SR_VERSION, true);
                 if (error != SrError::None) {
-                    HWC2_ALOGD_IF_DEBUG("Sr Init fail, plase check License.\n");
+                    HWC2_LOGD_IF("Sr Init fail, plase check License.\n");
                     return -1;
                 } else {
                     bSrReady_ = true;
                 }
             } else {
-                HWC2_ALOGD_IF_DEBUG("Sr Init fail, plase check License.\n");
+                HWC2_LOGD_IF("Sr Init fail, plase check License.\n");
                 return -1;
             }
         }
@@ -2785,21 +2781,21 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                 // 2. 设置SR强度
                 SrError error = svep_sr_->SetEnhancementRate(enhancement_rate);
                 if (error != SrError::None) {
-                    HWC2_ALOGE("Sr SetEnhancementRate fail.\n");
+                    HWC2_LOGE("Sr SetEnhancementRate fail.\n");
                     continue;
                 }
 
                 // 3. 设置SR对比模式为扫描模式
                 error = svep_sr_->SetContrastMode(contrast_mode, contrast_offset);
                 if (error != SrError::None) {
-                    HWC2_ALOGE("Sr SetContrastMode fail.\n");
+                    HWC2_LOGE("Sr SetContrastMode fail.\n");
                     continue;
                 }
 
                 // 4. 设置SR OSD模式与字符串
                 error = svep_sr_->SetOsdMode(SR_OSD_ENABLE_VIDEO, SR_OSD_VIDEO_STR);
                 if (error != SrError::None) {
-                    HWC2_ALOGE("Sr SetOsdMode fail.\n");
+                    HWC2_LOGE("Sr SetOsdMode fail.\n");
                     continue;
                 }
 
@@ -2838,7 +2834,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                 // 4. 设置SR rotate 模式
                 error = svep_sr_->SetRotateMode(rotate);
                 if (error != SrError::None) {
-                    HWC2_ALOGE("Sr SetOsdMode fail.\n");
+                    HWC2_LOGE("Sr SetOsdMode fail.\n");
                     continue;
                 }
 
@@ -2905,7 +2901,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                         "SR-SurfaceView", drmLayer->uId_);
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     continue;
                 }
 
@@ -2939,7 +2935,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
 
                 error = svep_sr_->SetOsdMode(osd_mode, osd_str);
                 if (error != SrError::None) {
-                    HWC2_ALOGE("Sr SetOsdMode fail.\n");
+                    HWC2_LOGE("Sr SetOsdMode fail.\n");
                     continue;
                 }
                 // 5. Set buffer Info
@@ -2993,7 +2989,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
             } else {
                 std::shared_ptr<DrmBuffer> output_buffer = bufferQueue_->BackDrmBuffer();
                 if (output_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     break;
                 }
                 int left = 0, top = 0, right = 0, bottom = 0;
@@ -3047,7 +3043,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                     // 13. RunAsync
                     SrError error = svep_sr_->RunAsync(&sr_src_, &sr_dst_, &output_fence);
                     if (error != SrError::None) {
-                        HWC2_ALOGD_IF_DEBUG("RunAsync fail!");
+                        HWC2_LOGD_IF("RunAsync fail!");
                         drmLayer->bUseSr_ = false;
                         drmLayer->ResetInfoFromStore();
                         bufferQueue_->QueueBuffer(dst_buffer);
@@ -3069,7 +3065,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
             ResetLayerFromTmp(layers, tmp_layers);
             return ret;
         } else {  // Match fail, skip rga policy
-            HWC2_ALOGD_IF_DEBUG(" MatchPlanes fail! reset DrmHwcLayer.");
+            HWC2_LOGD_IF(" MatchPlanes fail! reset DrmHwcLayer.");
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseSr_) {
                     bufferQueue_->QueueBuffer(dst_buffer);
@@ -3092,7 +3088,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
             }
         }
         if (!ret) {  // Match sucess, to call im2d interface
-            HWC2_ALOGD_IF_DEBUG("Use last SR layer.");
+            HWC2_LOGD_IF("Use last SR layer.");
             return ret;
         } else {
             for (auto& drmLayer : layers) {
@@ -3108,7 +3104,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
             }
         }
     }
-    HWC2_ALOGD_IF_DEBUG("fail!, No layer use SR policy.");
+    HWC2_LOGD_IF("fail!, No layer use SR policy.");
     ResetLayerFromTmp(layers, tmp_layers);
     return -1;
 }
@@ -3119,7 +3115,7 @@ int Vop3588::ClearMemcJob() {
     // memc初始化
     if (svep_memc_.get() != NULL) {
         if (!bMemcReady_) {
-            HWC2_ALOGD_IF_DEBUG("Memc init failed.");
+            HWC2_LOGD_IF("Memc init failed.");
             return -1;
         }
     }
@@ -3127,11 +3123,11 @@ int Vop3588::ClearMemcJob() {
     // 创建ctx参数
     int ret = svep_memc_->ClearResource();
     if (ret) {
-        HWC2_ALOGD_IF_ERR("Memc MpClearResource failed. ret=%d", ret);
+        HWC2_LOGE_IF("Memc MpClearResource failed. ret=%d", ret);
         return ret;
     }
 
-    HWC2_ALOGD_IF_DEBUG("Memc MpClearResource success.");
+    HWC2_LOGD_IF("Memc MpClearResource success.");
     return 0;
 }
 
@@ -3146,7 +3142,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     // 例如 30帧以上片源 或 低延迟场景
     int svep_runtime_disable = hwc_get_int_property(MEMC_RUNTIME_DISABLE_NAME, "0");
     bool memc_mode = false;
-    HWC2_ALOGD_IF_DEBUG("%s=%d bMemcReady_=%d", MEMC_MODE_NAME, HWC2_SR_MEMC, bMemcReady_);
+    HWC2_LOGD_IF("%s=%d bMemcReady_=%d", MEMC_MODE_NAME, HWC2_SR_MEMC, bMemcReady_);
     // 只有主屏可以享受视频 MEMC 效果
     if (svep_runtime_disable == 0) {
         // Match policy first
@@ -3161,7 +3157,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     // memc初始化
     if (svep_memc_.get() != NULL) {
         if (svep_memc_->Init(MEMC_VERSION, true)) {
-            HWC2_ALOGD_IF_DEBUG("Memc init failed.");
+            HWC2_LOGD_IF("Memc init failed.");
             return -1;
         } else {
             bMemcReady_ = true;
@@ -3194,7 +3190,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             const int skip_memc_num = 10;
             if ((ctx.request.frame_no_ - uMemcFrameNo_ != 1) || (last_layer_uid != drmLayer->uId_)) {
                 ClearMemcJob();
-                HWC2_ALOGD_IF_DEBUG("skip memc success, last_uid=%u uid=%u.", last_layer_uid, drmLayer->uId_);
+                HWC2_LOGD_IF("skip memc success, last_uid=%u uid=%u.", last_layer_uid, drmLayer->uId_);
                 uMemcFrameNo_ = ctx.request.frame_no_;
                 last_layer_uid = drmLayer->uId_;
                 skip_memc_cnt = 0;
@@ -3203,7 +3199,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             // 为了避免Memc影响视频切换过渡, 暂不执行Memc
             skip_memc_cnt++;
             if (skip_memc_cnt <= skip_memc_num) {
-                HWC2_ALOGD_IF_DEBUG("skip memc success.");
+                HWC2_LOGD_IF("skip memc success.");
                 uMemcFrameNo_ = ctx.request.frame_no_;
                 last_layer_uid = drmLayer->uId_;
                 continue;
@@ -3227,13 +3223,13 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
             int ret = svep_memc_->EnableSvepSr(enableSr);
             if (ret != MemcError::MEMC_NO_ERROR) {
-                HWC2_ALOGE("Memc EnableSvepSr fail.\n");
+                HWC2_LOGE("Memc EnableSvepSr fail.\n");
                 continue;
             }
 
             ret = svep_memc_->SetFpsInfo(drmLayer->fFps_, ctx.state.fScreenRefresh_);
             if (ret != MemcError::MEMC_NO_ERROR) {
-                HWC2_ALOGD_IF_DEBUG("Memc SetFpsInfo fail!, skip this policy. ret=%d", ret);
+                HWC2_LOGD_IF("Memc SetFpsInfo fail!, skip this policy. ret=%d", ret);
                 drmLayer->bUseMemc_ = false;
                 continue;
             }
@@ -3300,7 +3296,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             }
             ret = svep_memc_->SetRotateMode(rotate);
             if (ret != MemcError::MEMC_NO_ERROR) {
-                HWC2_ALOGE("Memc SetOsdMode fail.\n");
+                HWC2_LOGE("Memc SetOsdMode fail.\n");
                 continue;
             }
 
@@ -3310,7 +3306,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             memcSrcInfo.mCrop_.iBottom_ = drmLayer->source_crop.bottom;
             ret = svep_memc_->MatchMemcMode(&memcSrcInfo, &memc_match_mode);
             if (ret != MemcError::MEMC_NO_ERROR) {
-                HWC2_ALOGD_IF_DEBUG("MatchMemcMode fail!, skip this policy. ret=%d", ret);
+                HWC2_LOGD_IF("MatchMemcMode fail!, skip this policy. ret=%d", ret);
                 drmLayer->bUseMemc_ = false;
                 continue;
             }
@@ -3318,7 +3314,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             //get dst info
             ret = svep_memc_->GetDstImageInfo(&memcDstInfo);
             if (ret != MemcError::MEMC_NO_ERROR) {
-                HWC2_ALOGD_IF_DEBUG("GetDstImageInfo fail!, skip this policy. ret=%d", ret);
+                HWC2_LOGD_IF("GetDstImageInfo fail!, skip this policy. ret=%d", ret);
                 continue;
             }
 
@@ -3368,7 +3364,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
                     if (memc_new_buffer) {
                         ret = svep_memc_->SetSrcImage(&memcSrcInfo);
                         if (ret != MemcError::MEMC_NO_ERROR) {
-                            HWC2_ALOGD_IF_DEBUG("SetSrcImage fail!, skip this policy. ret=%d", ret);
+                            HWC2_LOGD_IF("SetSrcImage fail!, skip this policy. ret=%d", ret);
                             drmLayer->ResetInfoFromStore();
                             drmLayer->bUseMemc_ = false;
                             break;
@@ -3382,7 +3378,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             ResetLayerFromTmp(layers, tmp_layers);
             return ret;
         } else {  // Match fail, skip rga policy
-            HWC2_ALOGD_IF_DEBUG("MatchPlanes fail! reset DrmHwcLayer.");
+            HWC2_LOGD_IF("MatchPlanes fail! reset DrmHwcLayer.");
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseMemc_) {
                     drmLayer->ResetInfoFromStore();
@@ -3394,7 +3390,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
         }
     }
 
-    HWC2_ALOGD_IF_DEBUG("fail!, No layer use MEMC policy.");
+    HWC2_LOGD_IF("fail!, No layer use MEMC policy.");
     ResetLayerFromTmp(layers, tmp_layers);
     return -1;
 }
@@ -3684,8 +3680,8 @@ void Vop3588::UpdateResevedPlane(DrmCrtc* crtc) {
                         if (!strcmp(p->name(), reserved_name.c_str())) {
                             plane_group->bReserved = true;
                             int reserved_plane_win_type = plane_group->win_type;
-                            HWC2_ALOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name,
-                                       reserved_plane_win_type);
+                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name,
+                                      reserved_plane_win_type);
                             break;
                         } else {
                             plane_group->bReserved = false;
@@ -3708,7 +3704,7 @@ void Vop3588::UpdateResevedPlane(DrmCrtc* crtc) {
 bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
     // RK356x can't overlay RGBA1010102
     // if(layer->iFormat_ == HAL_PIXEL_FORMAT_RGBA_1010102){
-    //   HWC2_ALOGD_IF_DEBUG("[%s]：RGBA1010102 format, not support overlay.",
+    //   HWC2_LOGD_IF("[%s]：RGBA1010102 format, not support overlay.",
     //             layer->sLayerName_.c_str());
     //   return true;
     // }
@@ -3720,8 +3716,8 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
 
     // RK platform VOP can't display src/dst w/h < 4 layer.
     if (act_w < 4 || act_h < 4 || dst_w < 4 || dst_h < 4) {
-        HWC2_ALOGD_IF_DEBUG("[%s]：[%dx%d] => [%dx%d] too small to use GLES composer.", layer->sLayerName_.c_str(),
-                            act_w, act_h, dst_w, dst_h);
+        HWC2_LOGD_IF("[%s]：[%dx%d] => [%dx%d] too small to use GLES composer.", layer->sLayerName_.c_str(), act_w,
+                     act_h, dst_w, dst_h);
         return true;
     }
 
@@ -3729,7 +3725,7 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
     if (layer->bAfbcd_) {
         // RK3588 不存在以下限制
         // if(act_w % 4 != 0){
-        //   HWC2_ALOGD_IF_DEBUG("[%s]：act_w=%d Cluster must act_w %% 4 != 0.",
+        //   HWC2_LOGD_IF("[%s]：act_w=%d Cluster must act_w %% 4 != 0.",
         //           layer->sLayerName_.c_str(),act_w);
         //   return true;
         // }
@@ -3741,7 +3737,7 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
         //     property_get("vendor.hwc.cluster_afbc_decode_max_rate", value, "0");
         //     double cluster_afbc_decode_max_rate = atof(value);
 
-        //     HWC2_ALOGD_IF_VERBOSE("[%s]：scale-rate=%f, allow_rate = %f, "
+        //     HWC2_LOGV_IF("[%s]：scale-rate=%f, allow_rate = %f, "
         //               "property_rate=%f, fHScaleMul_ = %f, fVScaleMul_ = %f, uAclk_ = %d, uDclk_=%d ",
         //               layer->sLayerName_.c_str(),
         //               (layer->fHScaleMul_ * layer->fVScaleMul_) / (layer->uAclk_/(layer->uDclk_ * 1.0)),
@@ -3749,7 +3745,7 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
         //               layer->fHScaleMul_ ,layer->fVScaleMul_ ,layer->uAclk_ ,layer->uDclk_);
         //   if(cluster_afbc_decode_max_rate > 0){
         //     if((layer->fHScaleMul_ * layer->fVScaleMul_) / (layer->uAclk_/(layer->uDclk_ * 1.0)) > cluster_afbc_decode_max_rate){
-        //       HWC2_ALOGD_IF_DEBUG("[%s]：scale too large(%f) to use GLES composer, allow_rate = %f, "
+        //       HWC2_LOGD_IF("[%s]：scale too large(%f) to use GLES composer, allow_rate = %f, "
         //                 "property_rate=%f, fHScaleMul_ = %f, fVScaleMul_ = %f, uAclk_ = %d, uDclk_=%d ",
         //                 layer->sLayerName_.c_str(),
         //                 (layer->fHScaleMul_ * layer->fVScaleMul_) / (layer->uAclk_/(layer->uDclk_ * 1.0)),
@@ -3759,7 +3755,7 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
         //       return true;
         //     }
         //   }else if((layer->fHScaleMul_ * layer->fVScaleMul_) / (layer->uAclk_/(layer->uDclk_ * 1.0)) > CLUSTER_AFBC_DECODE_MAX_RATE){
-        //     HWC2_ALOGD_IF_DEBUG("[%s]：scale too large(%f) to use GLES composer, allow_rate = %f, "
+        //     HWC2_LOGD_IF("[%s]：scale too large(%f) to use GLES composer, allow_rate = %f, "
         //               "property_rate=%f, fHScaleMul_ = %f, fVScaleMul_ = %f, uAclk_ = %d, uDclk_=%d ",
         //               layer->sLayerName_.c_str(),
         //               (layer->fHScaleMul_ * layer->fVScaleMul_) / (layer->uAclk_/(layer->uDclk_ * 1.0)),
@@ -3774,21 +3770,21 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
     // RK356x Esmart can't overlay act_w % 16 == 1 and fHScaleMul_ < 1.0 layer.
     // if(!layer->bAfbcd_){
     //   if(act_w % 16 == 1 && layer->fHScaleMul_ < 1.0){
-    //     HWC2_ALOGD_IF_DEBUG("[%s]：RK356x Esmart can't overlay act_w %% 16 == 1 and fHScaleMul_ < 1.0 layer.",
+    //     HWC2_LOGD_IF("[%s]：RK356x Esmart can't overlay act_w %% 16 == 1 and fHScaleMul_ < 1.0 layer.",
     //             layer->sLayerName_.c_str());
     //     return true;
     //   }
 
     //   int dst_w = static_cast<int>(layer->display_frame.right - layer->display_frame.left);
     //   if(dst_w % 2 == 1 && layer->fHScaleMul_ < 1.0){
-    //     HWC2_ALOGD_IF_DEBUG("[%s]：RK356x Esmart can't overlay dst_w %% 2 == 1 and fHScaleMul_ < 1.0 layer.",
+    //     HWC2_LOGD_IF("[%s]：RK356x Esmart can't overlay dst_w %% 2 == 1 and fHScaleMul_ < 1.0 layer.",
     //             layer->sLayerName_.c_str());
     //     return true;
     //   }
     // }
 
     if (layer->transform == -1) {
-        HWC2_ALOGD_IF_DEBUG("[%s]：layer->transform = %d is invalidate", layer->sLayerName_.c_str(), layer->transform);
+        HWC2_LOGD_IF("[%s]：layer->transform = %d is invalidate", layer->sLayerName_.c_str(), layer->transform);
         return true;
     }
 
@@ -3797,11 +3793,11 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
         ((layer->eDataSpace_ & HAL_DATASPACE_RANGE_FULL) > 0)) {
         // vop不支持输入bt709，但是sideband又要求vop输入, 此时 driver 会使用 bt601-f 处理
         if (layer->bSidebandStreamLayer_) {
-            HWC2_ALOGD_IF_DEBUG("[%s]:sideband layer->dataspace= 0x%" PRIx32 " is BT709-Full, force cvt BT601-F",
-                                layer->sLayerName_.c_str(), layer->eDataSpace_);
+            HWC2_LOGD_IF("[%s]:sideband layer->dataspace= 0x%" PRIx32 " is BT709-Full, force cvt BT601-F",
+                         layer->sLayerName_.c_str(), layer->eDataSpace_);
         } else {
-            HWC2_ALOGD_IF_DEBUG("[%s]:layer->dataspace= 0x%" PRIx32 " is BT709-Full, vop npsupport input.",
-                                layer->sLayerName_.c_str(), layer->eDataSpace_);
+            HWC2_LOGD_IF("[%s]:layer->dataspace= 0x%" PRIx32 " is BT709-Full, vop npsupport input.",
+                         layer->sLayerName_.c_str(), layer->eDataSpace_);
             return true;
         }
     }
@@ -3811,8 +3807,8 @@ bool Vop3588::CheckGLESLayer(DrmHwcLayer* layer) {
             if (layer->bYuv_ && layer->sf_handle != NULL) {
                 return false;
             } else {
-                HWC2_ALOGD_IF_DEBUG("[%s]：sf_composition =0x%x not support overlay.", layer->sLayerName_.c_str(),
-                                    layer->sf_composition);
+                HWC2_LOGD_IF("[%s]：sf_composition =0x%x not support overlay.", layer->sLayerName_.c_str(),
+                             layer->sf_composition);
                 return true;
             }
             break;
@@ -3956,9 +3952,9 @@ void Vop3588::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
     ctx.state.iVopMaxOverlay4KPlane = hwc_get_int_property("vendor.hwc.vop_max_overlay_4k_plane", "0");
     ctx.state.bRgaPolicyEnable = hwc_get_int_property("vendor.hwc.enable_rga_policy", "1") > 0;
     ctx.state.bUseSwPq = false;
-    HWC2_ALOGD_IF_DEBUG("bMultiAreaEnable=%d, bMultiAreaScaleEnable=%d iVopMaxOverlay4KPlane=%d bRgaPolicyEnable=%d",
-                        ctx.state.bMultiAreaEnable, ctx.state.bMultiAreaScaleEnable, ctx.state.iVopMaxOverlay4KPlane,
-                        ctx.state.bRgaPolicyEnable);
+    HWC2_LOGD_IF("bMultiAreaEnable=%d, bMultiAreaScaleEnable=%d iVopMaxOverlay4KPlane=%d bRgaPolicyEnable=%d",
+                 ctx.state.bMultiAreaEnable, ctx.state.bMultiAreaScaleEnable, ctx.state.iVopMaxOverlay4KPlane,
+                 ctx.state.bRgaPolicyEnable);
 
     ctx.state.iDisplayId = crtc->display();
     // Check dispaly Mode : 8K Mode or 4K 120 Mode
@@ -3972,10 +3968,10 @@ void Vop3588::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
         DrmMode mode = conn->current_mode();
         ctx.state.fScreenRefresh_ = mode.v_refresh();
         if (ctx.state.b8kMode_ != mode.is_8k_mode()) {
-            HWC2_ALOGD_IF_DEBUG("%s 8K Mode.", mode.is_8k_mode() ? "Enter" : "Quit");
+            HWC2_LOGD_IF("%s 8K Mode.", mode.is_8k_mode() ? "Enter" : "Quit");
         }
         if (ctx.state.b4k120pMode_ != mode.is_4k120p_mode()) {
-            HWC2_ALOGD_IF_DEBUG("%s 4K 120 Mode.", mode.is_4k120p_mode() ? "Enter" : "Quit");
+            HWC2_LOGD_IF("%s 4K 120 Mode.", mode.is_4k120p_mode() ? "Enter" : "Quit");
         }
         // Story Display Mode
         ctx.state.iDisplayWidth_ = mode.h_display();
@@ -3992,13 +3988,13 @@ void Vop3588::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
                         p->win_type() & PLANE_RK3588_ALL_ESMART1_MASK ||
                         p->win_type() & PLANE_RK3588_ALL_ESMART3_MASK) {
                         plane_group->bReserved = true;
-                        HWC2_ALOGD_IF_DEBUG("Reserved 8K plane name=%s", p->name());
+                        HWC2_LOGD_IF("Reserved 8K plane name=%s", p->name());
                     }
                 }
             }
             for (auto& layer : layers) {
                 if (layer->bFbTarget_) {
-                    HWC2_ALOGD_IF_DEBUG("8K Mode, disable Fb-target Afbc");
+                    HWC2_LOGD_IF("8K Mode, disable Fb-target Afbc");
                     layer->bAfbcd_ = 0;
                 }
             }
@@ -4121,7 +4117,7 @@ int Vop3588::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
 #ifdef USE_LIBPQ
     int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
     // Match policy first
-    HWC2_ALOGD_IF_DEBUG("%s=%d ", "persist.vendor.tvinput.rkpq.mode", iPqMode);
+    HWC2_LOGD_IF("%s=%d ", "persist.vendor.tvinput.rkpq.mode", iPqMode);
     if (iPqMode > 0) {
         ctx.state.bUseSwPq = true;
         //   DrmDevice *drm = crtc->getDrmDevice();

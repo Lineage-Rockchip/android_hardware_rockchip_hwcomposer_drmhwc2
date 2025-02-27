@@ -642,7 +642,7 @@ void DrmPlane::mark_type_by_name() {
             }
         }
     } else {
-        HWC2_ALOGE("Can't find soc_id is %x", soc_id_);
+        HWC2_LOGE("Can't find soc_id is %x", soc_id_);
     }
 }
 
@@ -659,10 +659,10 @@ void DrmPlane::AddLocalPlaneInfo() {
             output_w_max_ = 2560;
             output_h_max_ = 8192;
         } else {
-            HWC2_ALOGE("name:%s,UNKNOW Layer", name_);
+            HWC2_LOGE("name:%s,UNKNOW Layer", name_);
         }
-        HWC2_ALOGD_IF_DEBUG("name:%s,fixing input and output size:%d,%d,%d,%d", name_, input_w_max_, input_h_max_,
-                            output_w_max_, output_h_max_);
+        HWC2_LOGD_IF("name:%s,fixing input and output size:%d,%d,%d,%d", name_, input_w_max_, input_h_max_,
+                     output_w_max_, output_h_max_);
         if (win_type_ & (DRM_PLANE_TYPE_VOP1_WIN0 | DRM_PLANE_TYPE_VOP0_WIN0 | DRM_PLANE_TYPE_VOP0_WIN1)) {
             scale_max_ = 8.0f;
             scale_min_ = 1.0f / 8.0f;
@@ -672,11 +672,10 @@ void DrmPlane::AddLocalPlaneInfo() {
             scale_min_ = 1.0f;
             b_scale_ = false;
         }
-        HWC2_ALOGD_IF_DEBUG("name:%s,fixing scale:%s(%f - %f)", name_, b_scale_ ? "true" : "false", scale_min_,
-                            scale_max_);
+        HWC2_LOGD_IF("name:%s,fixing scale:%s(%f - %f)", name_, b_scale_ ? "true" : "false", scale_min_, scale_max_);
         if (win_type_ & DRM_PLANE_TYPE_VOP1_MASK) {
             b_afbdc_ = false;
-            HWC2_ALOGD_IF_DEBUG("VOP_LIT,not support afbc");
+            HWC2_LOGD_IF("VOP_LIT,not support afbc");
         }
     }
 }

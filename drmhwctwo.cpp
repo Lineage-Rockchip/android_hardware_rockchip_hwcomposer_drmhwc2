@@ -141,8 +141,8 @@ DrmHwcTwo::DrmHwcTwo() : resource_manager_(ResourceManager::getInstance()) {
 }
 
 HWC2::Error DrmHwcTwo::CreateDisplay(hwc2_display_t displ, HWC2::DisplayType type) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 " type=%s", displ,
-                          (type == HWC2::DisplayType::Physical ? "Physical" : "Virtual"));
+    HWC2_LOGV_IF("display-id=%" PRIu64 " type=%s", displ,
+                 (type == HWC2::DisplayType::Physical ? "Physical" : "Virtual"));
 
     DrmDevice* drm = resource_manager_->GetDrmDevice(displ);
     std::shared_ptr<Importer> importer = resource_manager_->GetImporter(displ);
@@ -158,7 +158,7 @@ HWC2::Error DrmHwcTwo::CreateDisplay(hwc2_display_t displ, HWC2::DisplayType typ
 }
 
 HWC2::Error DrmHwcTwo::Init() {
-    HWC2_ALOGD_IF_VERBOSE();
+    HWC2_LOGV_IF();
     int rv = resource_manager_->Init(this);
     if (rv) {
         ALOGE("Can't initialize the resource manager %d", rv);
@@ -181,7 +181,7 @@ HWC2::Error DrmHwcTwo::Init() {
 
     // drm event 异步消息处理线程
     if (eventWorker_.Init(this)) {
-        HWC2_ALOGE("EventWorker init fail.");
+        HWC2_LOGE("EventWorker init fail.");
     }
 
 #ifdef USE_LIBEBOOK
@@ -211,17 +211,17 @@ HWC2::Error DrmHwcTwo::Init() {
         if (drm) {
             for (auto& conn : drm->connectors()) {
                 if (conn->display() != 0) {
-                    HWC2_ALOGI("SingleDisplayMode disable display %d (%s-%d).", conn->display(),
-                               drm->connector_type_str(conn->type()), conn->type_id());
+                    HWC2_LOGI("SingleDisplayMode disable display %d (%s-%d).", conn->display(),
+                              drm->connector_type_str(conn->type()), conn->type_id());
 
                     int ret = drm->ReleaseDpyRes(conn->display());
                     if (ret) {
-                        HWC2_ALOGE("Failed to disable Display %d, ret=%d", conn->display(), ret);
+                        HWC2_LOGE("Failed to disable Display %d, ret=%d", conn->display(), ret);
                     }
                 }
             }
         } else {
-            HWC2_ALOGE("Failed to get DrmDevice for Display 0");
+            HWC2_LOGE("Failed to get DrmDevice for Display 0");
         }
     }
 
@@ -247,7 +247,7 @@ static inline void supported(char const* func) {
 }
 
 HWC2::Error DrmHwcTwo::CreateVirtualDisplay(uint32_t width, uint32_t height, int32_t* format, hwc2_display_t* display) {
-    HWC2_ALOGD_IF_VERBOSE("w=%u,h=%u,f=%d", width, height, *format);
+    HWC2_LOGV_IF("w=%u,h=%u,f=%d", width, height, *format);
     HWC2::Error ret = HWC2::Error::None;
     int physical_display_num = resource_manager_->getDisplayCount();
     int virtual_display_id = physical_display_num + mVirtualDisplayCount_;
@@ -269,7 +269,7 @@ HWC2::Error DrmHwcTwo::CreateVirtualDisplay(uint32_t width, uint32_t height, int
         *format = HAL_PIXEL_FORMAT_RGBA_8888;
         mVirtualDisplayCount_++;
         resource_manager_->EnableWriteBackMode(write_back_id);
-        HWC2_ALOGI("Support VDS: w=%u,h=%u,f=%d display-id=%d", width, height, *format, virtual_display_id);
+        HWC2_LOGI("Support VDS: w=%u,h=%u,f=%d display-id=%d", width, height, *format, virtual_display_id);
         auto& display = resource_manager_->GetHwc2()->displays_.at(0);
         display.InvalidateControl(30, -1);
         return HWC2::Error::None;
@@ -279,12 +279,12 @@ HWC2::Error DrmHwcTwo::CreateVirtualDisplay(uint32_t width, uint32_t height, int
 }
 
 HWC2::Error DrmHwcTwo::DestroyVirtualDisplay(hwc2_display_t display) {
-    HWC2_ALOGD_IF_VERBOSE();
+    HWC2_LOGV_IF();
     auto virtual_display = displays_.find(display);
     if (virtual_display != displays_.end()) {
         displays_.erase(virtual_display);
         resource_manager_->DisableWriteBackMode(resource_manager_->GetWBDisplay());
-        HWC2_ALOGI("VDS: display-id=%" PRIu64, display);
+        HWC2_LOGI("VDS: display-id=%" PRIu64, display);
         mVirtualDisplayCount_--;
         auto& display = resource_manager_->GetHwc2()->displays_.at(0);
         display.InvalidateControl(30, 0);
@@ -302,12 +302,8 @@ void DrmHwcTwo::Dump(uint32_t* size, char* buffer) {
     }
     String8 output;
 
-    char acVersion[50] = {0};
-    strcpy(acVersion, GHWC_VERSION);
-
-    output.appendFormat("-- HWC2 Version %s by bin.li@rock-chips.com --\n", acVersion);
+    output.appendFormat("HWC2 Version %s-%s by bin.li@rock-chips.com\n", GHWC_VERSION, GHWC_VERSION_NOTES);
     for (auto& map_disp : displays_) {
-        output.append("\n");
         if ((map_disp.second.DumpDisplayInfo(output)) < 0) continue;
     }
     mDumpString = output;
@@ -316,11 +312,11 @@ void DrmHwcTwo::Dump(uint32_t* size, char* buffer) {
 }
 
 uint32_t DrmHwcTwo::GetMaxVirtualDisplayCount() {
-    HWC2_ALOGI();
+    HWC2_LOGI();
 
     // DSI 固件不支持 HW VirtualDisplay.
     if (hwc_get_int_property("ro.vendor.rk_sdk", "0") == 0) {
-        HWC2_ALOGI("Maybe GSI SDK, to disable HW VirtualDisplay\n");
+        HWC2_LOGI("Maybe GSI SDK, to disable HW VirtualDisplay\n");
         return 0;
     }
 
@@ -352,7 +348,7 @@ static bool isValid(HWC2::Callback descriptor) {
 
 HWC2::Error DrmHwcTwo::RegisterCallback(int32_t descriptor, hwc2_callback_data_t data,
                                         hwc2_function_pointer_t function) {
-    HWC2_ALOGD_IF_VERBOSE();
+    HWC2_LOGV_IF();
 
     auto callback = static_cast<HWC2::Callback>(descriptor);
 
@@ -427,7 +423,7 @@ HWC2::Error DrmHwcTwo::RegisterCallback(int32_t descriptor, hwc2_callback_data_t
 #if PLATFORM_SDK_VERSION >= 34
 HWC2::Error DrmHwcTwo::GetLayerGenericMetadataKey(uint32_t keyIndex, uint32_t* outKeyLength, char* outKey,
                                                   bool* outMandatory) {
-    HWC2_ALOGD_IF_VERBOSE();
+    HWC2_LOGV_IF();
     return unsupported(__func__, keyIndex, outKeyLength, outKey, outMandatory);
 }
 #endif
@@ -457,7 +453,7 @@ int DrmHwcTwo::HwcDisplay::ClearDisplay() {
 #endif
 
     if (!init_success_) {
-        HWC2_ALOGE("display=%" PRIu64 " init_success_=%d skip.", handle_, init_success_);
+        HWC2_LOGE("display=%" PRIu64 " init_success_=%d skip.", handle_, init_success_);
         return -1;
     }
 
@@ -465,7 +461,7 @@ int DrmHwcTwo::HwcDisplay::ClearDisplay() {
         compositor_->ClearDisplay();
     }
 
-    HWC2_ALOGD_IF_INFO("display-id=%" PRIu64, handle_);
+    HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
     return 0;
 }
 
@@ -488,7 +484,7 @@ int DrmHwcTwo::HwcDisplay::ResetDisplay() {
     if (compositor_ != NULL) {
         compositor_->ClearDisplay();
     }
-    HWC2_ALOGD_IF_INFO("display-id=%" PRIu64, handle_);
+    HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
     return 0;
 };
 
@@ -510,7 +506,7 @@ int DrmHwcTwo::HwcDisplay::DisconnectDisplay() {
     if (compositor_ != NULL) {
         compositor_->ClearDisplay();
     }
-    HWC2_ALOGD_IF_INFO("display-id=%" PRIu64, handle_);
+    HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
     return 0;
 }
 int DrmHwcTwo::HwcDisplay::ConnectDisplay() {
@@ -527,28 +523,28 @@ int DrmHwcTwo::HwcDisplay::ConnectDisplay() {
 #endif
 
     force_disconneted_ = false;
-    HWC2_ALOGD_IF_INFO("display-id=%" PRIu64, handle_);
+    HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
     return 0;
 }
 
 int DrmHwcTwo::HwcDisplay::ActiveModeChange(bool change) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     bActiveModeChange_ = change;
     return 0;
 }
 
 bool DrmHwcTwo::HwcDisplay::IsActiveModeChange() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return bActiveModeChange_;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::Init() {
-    HWC2_ALOGD_IF_VERBOSE("HwcDisplay::Init display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("HwcDisplay::Init display-id=%" PRIu64, handle_);
 
     int display = static_cast<int>(handle_);
 
     if (sync_timeline_.isValid()) {
-        HWC2_ALOGD_IF_INFO("sync_timeline_ fd = %d isValid", sync_timeline_.getFd());
+        HWC2_LOGI_IF("sync_timeline_ fd = %d isValid", sync_timeline_.getFd());
     }
 
     connector_ = drm_->GetConnectorForDisplay(display);
@@ -582,7 +578,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::Init() {
         if (primary && primary->state() == DRM_MODE_CONNECTED) {
             ret = drm_->ReleaseDpyRes(handle_);
             if (ret) {
-                HWC2_ALOGE("Failed to ReleaseDpyRes for display=%d %d\n", display, ret);
+                HWC2_LOGE("Failed to ReleaseDpyRes for display=%d %d\n", display, ret);
                 return HWC2::Error::NoResources;
             }
             return HWC2::Error::None;
@@ -591,25 +587,25 @@ HWC2::Error DrmHwcTwo::HwcDisplay::Init() {
 
     ret = GetCurrentDisplayMode();
     if (ret) {
-        HWC2_ALOGE("Failed to GetCurrentDisplayMode for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to GetCurrentDisplayMode for display=%d %d\n", display, ret);
         return HWC2::Error::NoResources;
     }
 
     ret = drm_->BindDpyRes(handle_);
     if (ret) {
-        HWC2_ALOGE("Failed to BindDpyRes for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to BindDpyRes for display=%d %d\n", display, ret);
         return HWC2::Error::NoResources;
     }
     UpdateDisplayInfo();
 
     ret = drm_->UpdateDisplayGamma(handle_);
     if (ret) {
-        HWC2_ALOGE("Failed to UpdateDisplayGamma for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to UpdateDisplayGamma for display=%d %d\n", display, ret);
     }
 
     ret = drm_->UpdateDisplay3DLut(handle_);
     if (ret) {
-        HWC2_ALOGE("Failed to UpdateDisplay3DLut for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to UpdateDisplay3DLut for display=%d %d\n", display, ret);
     }
 
     crtc_ = drm_->GetCrtcForDisplay(display);
@@ -649,7 +645,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::Init() {
         composition->SetDpmsMode(DRM_MODE_DPMS_ON);
         ret = compositor_->QueueComposition(std::move(composition));
         if (ret) {
-            HWC2_ALOGE("Failed to apply the dpms composition ret=%d", ret);
+            HWC2_LOGE("Failed to apply the dpms composition ret=%d", ret);
         }
     }
 
@@ -682,8 +678,8 @@ HWC2::Error DrmHwcTwo::HwcDisplay::Init() {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::InitVirtual() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 " type=%s", handle_,
-                          (type_ == HWC2::DisplayType::Physical ? "Physical" : "Virtual"));
+    HWC2_LOGV_IF("display-id=%" PRIu64 " type=%s", handle_,
+                 (type_ == HWC2::DisplayType::Physical ? "Physical" : "Virtual"));
 
     int display = static_cast<int>(handle_);
 
@@ -702,14 +698,14 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitVirtual() {
 
 #ifdef USE_LIBEBOOK
 HWC2::Error DrmHwcTwo::HwcDisplay::InitEBook() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 " type=%s", handle_,
-                          (type_ == HWC2::DisplayType::Physical ? "Physical" : "Ebook"));
+    HWC2_LOGV_IF("display-id=%" PRIu64 " type=%s", handle_,
+                 (type_ == HWC2::DisplayType::Physical ? "Physical" : "Ebook"));
 
     int display = static_cast<int>(handle_);
 
     mEBookApi_ = std::shared_ptr<EBookApi>(new EBookApi());
     if (mEBookApi_ == NULL) {
-        HWC2_ALOGE("EBookApi init fail check\n");
+        HWC2_LOGE("EBookApi init fail check\n");
         return HWC2::Error::BadDisplay;
     }
 
@@ -717,21 +713,20 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitEBook() {
     // 2. 初始化
     error = mEBookApi_->Init(EBOOK_VERSION);
     if (error != EBookError::None) {
-        HWC2_ALOGE("EBook Init fail.\n");
+        HWC2_LOGE("EBook Init fail.\n");
         return HWC2::Error::BadDisplay;
     }
 
     error = mEBookApi_->GetEBookInfo(&ebook_framebuffer_width, &ebook_framebuffer_height, &ebook_framebuffer_mmwidth,
                                      &ebook_framebuffer_mmheight);
     if (error != EBookError::None) {
-        HWC2_ALOGE("EBook Init fail.\n");
+        HWC2_LOGE("EBook Init fail.\n");
         return HWC2::Error::BadDisplay;
         ;
     }
 
-    HWC2_ALOGI("EBookInfo: resolution : width=%d height=%d. physical: width=%d mmheight=%d mm\n",
-               ebook_framebuffer_width, ebook_framebuffer_height, ebook_framebuffer_mmwidth,
-               ebook_framebuffer_mmheight);
+    HWC2_LOGI("EBookInfo: resolution : width=%d height=%d. physical: width=%d mmheight=%d mm\n",
+              ebook_framebuffer_width, ebook_framebuffer_height, ebook_framebuffer_mmwidth, ebook_framebuffer_mmheight);
 
     connector_ = drm_->GetWritebackConnectorForDisplay(0);
     if (!connector_) {
@@ -747,7 +742,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitEBook() {
 }
 #endif
 HWC2::Error DrmHwcTwo::HwcDisplay::CheckStateAndReinit(bool clear_layer) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     // 虚拟屏不执行此逻辑
     if (isVirtual()) {
@@ -777,13 +772,13 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CheckStateAndReinit(bool clear_layer) {
 
     int ret = GetCurrentDisplayMode();
     if (ret) {
-        HWC2_ALOGE("Failed to GetCurrentDisplayMode for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to GetCurrentDisplayMode for display=%d %d\n", display, ret);
         return HWC2::Error::NoResources;
     }
 
     ret = drm_->BindDpyRes(handle_);
     if (ret) {
-        HWC2_ALOGE("Failed to BindDpyRes for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to BindDpyRes for display=%d %d\n", display, ret);
         return HWC2::Error::NoResources;
     }
 
@@ -799,12 +794,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CheckStateAndReinit(bool clear_layer) {
 
     ret = drm_->UpdateDisplayGamma(handle_);
     if (ret) {
-        HWC2_ALOGE("Failed to UpdateDisplayGamma for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to UpdateDisplayGamma for display=%d %d\n", display, ret);
     }
 
     ret = drm_->UpdateDisplay3DLut(handle_);
     if (ret) {
-        HWC2_ALOGE("Failed to UpdateDisplay3DLut for display=%d %d\n", display, ret);
+        HWC2_LOGE("Failed to UpdateDisplay3DLut for display=%d %d\n", display, ret);
     }
 
     // Reset HwcLayer resource
@@ -862,7 +857,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CheckStateAndReinit(bool clear_layer) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::CheckDisplayState() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     int display = static_cast<int>(handle_);
 
     if (!init_success_) {
@@ -904,7 +899,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CheckDisplayState() {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::ChosePreferredConfig() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     // Fetch the number of modes from the display
     uint32_t num_configs;
     HWC2::Error err = GetDisplayConfigs(&num_configs, NULL);
@@ -919,34 +914,34 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ChosePreferredConfig() {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::RegisterVsyncCallback(hwc2_callback_data_t data, hwc2_function_pointer_t func) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     auto callback = std::make_shared<DrmVsyncCallback>(data, func);
     vsync_worker_.RegisterCallback(std::move(callback));
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::RegisterInvalidateCallback(hwc2_callback_data_t data, hwc2_function_pointer_t func) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     auto callback = std::make_shared<DrmInvalidateCallback>(data, func);
     invalidate_worker_.RegisterCallback(std::move(callback));
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::UnregisterVsyncCallback() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     ;
     vsync_worker_.RegisterCallback(NULL);
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::UnregisterInvalidateCallback() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     invalidate_worker_.RegisterCallback(NULL);
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::AcceptDisplayChanges() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) l.second.accept_type_change();
     return HWC2::Error::None;
 }
@@ -956,13 +951,13 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateLayer(hwc2_layer_t* layer) {
     layers_.emplace(static_cast<hwc2_layer_t>(layer_idx_), HwcLayer(layer_idx_, drm_));
     *layer = static_cast<hwc2_layer_t>(layer_idx_);
     ++layer_idx_;
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", layer-id=%" PRIu64, handle_, *layer);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", layer-id=%" PRIu64, handle_, *layer);
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::DestroyLayer(hwc2_layer_t layer) {
     std::unique_lock<std::recursive_mutex> lock(mDisplayMutex_);
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", layer-id=%" PRIu64, handle_, layer);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", layer-id=%" PRIu64, handle_, layer);
     auto map_layer = layers_.find(layer);
     if (map_layer != layers_.end()) {
         map_layer->second.clear();
@@ -974,7 +969,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::DestroyLayer(hwc2_layer_t layer) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetActiveConfig(hwc2_config_t* config) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     if (ctx_.bStandardSwitchResolution) {
         DrmMode const& mode = connector_->active_mode();
@@ -1021,13 +1016,13 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetActiveConfig(hwc2_config_t* config) {
                                    .bottom = ctx_.framebuffer_height + 0.0f};
         client_layer_.SetLayerSourceCrop(source_crop);
     }
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 " config-id=%d", handle_, *config);
+    HWC2_LOGV_IF("display-id=%" PRIu64 " config-id=%d", handle_, *config);
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetChangedCompositionTypes(uint32_t* num_elements, hwc2_layer_t* layers,
                                                               int32_t* types) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     uint32_t num_changes = 0;
     for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
         if (l.second.type_changed()) {
@@ -1044,7 +1039,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetChangedCompositionTypes(uint32_t* num_elem
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetSupport(uint32_t width, uint32_t height, int32_t /*format*/,
                                                           int32_t dataspace) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     std::pair<uint32_t, uint32_t> min = drm_->min_resolution();
     std::pair<uint32_t, uint32_t> max = drm_->max_resolution();
 
@@ -1060,7 +1055,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetSupport(uint32_t width, uint32
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetColorModes(uint32_t* num_modes, int32_t* modes) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     if (!modes) *num_modes = 1;
 
     if (modes) *modes = HAL_COLOR_MODE_NATIVE;
@@ -1069,13 +1064,13 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetColorModes(uint32_t* num_modes, int32_t* m
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayAttribute(hwc2_config_t config, int32_t attribute_in, int32_t* value) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     if (ctx_.bStandardSwitchResolution) {
         auto mode = std::find_if(sf_modes_.begin(), sf_modes_.end(),
                                  [config](DrmMode const& m) { return m.id() == config; });
         if (mode == sf_modes_.end()) {
-            HWC2_ALOGE("Could not find active mode for %d", config);
+            HWC2_LOGE("Could not find active mode for %d", config);
             return HWC2::Error::BadConfig;
         }
 
@@ -1208,7 +1203,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayAttribute(hwc2_config_t config, int
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConfigs(uint32_t* num_configs, hwc2_config_t* configs) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     // Since this callback is normally invoked twice (once to get the count, and
     // once to populate configs), we don't really want to read the edid
     // redundantly. Instead, only update the modes on the first invocation. While
@@ -1374,13 +1369,13 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConfigs(uint32_t* num_configs, hwc2
             if (isRK356x(resource_manager_->getSocId())) {
                 if (ctx_.framebuffer_width % 4 != 0) {
                     disable_afbdc = true;
-                    HWC2_ALOGI("RK356x primary framebuffer size %dx%d not support AFBC, to disable AFBC\n",
-                               ctx_.framebuffer_width, ctx_.framebuffer_height);
+                    HWC2_LOGI("RK356x primary framebuffer size %dx%d not support AFBC, to disable AFBC\n",
+                              ctx_.framebuffer_width, ctx_.framebuffer_height);
                 }
             }
             if (hwc_get_int_property("ro.vendor.rk_sdk", "0") == 0) {
                 disable_afbdc = true;
-                HWC2_ALOGI("Maybe GSI SDK, to disable AFBC\n");
+                HWC2_LOGI("Maybe GSI SDK, to disable AFBC\n");
             }
             if (disable_afbdc) {
                 property_set("vendor.gralloc.no_afbc_for_fb_target_layer", "1");
@@ -1412,7 +1407,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConfigs(uint32_t* num_configs, hwc2
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayName(uint32_t* size, char* name) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     std::ostringstream stream;
     stream << "display-" << connector_->id();
     std::string string = stream.str();
@@ -1429,11 +1424,11 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayName(uint32_t* size, char* name) {
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayRequests(int32_t* display_requests, uint32_t* num_elements,
                                                       hwc2_layer_t* layers, int32_t* layer_requests) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     uint32_t num_request = 0;
     if (hwc_get_int_property("ro.vendor.rk_sdk", "0") == 0) {
-        HWC2_ALOGD_IF_INFO("Maybe GSI SDK, to disable AFBC\n");
+        HWC2_LOGI_IF("Maybe GSI SDK, to disable AFBC\n");
         if (!layers || !layer_requests) {
             *num_elements = num_request;
             return HWC2::Error::None;
@@ -1488,20 +1483,20 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayRequests(int32_t* display_requests,
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayType(int32_t* type) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     *type = static_cast<int32_t>(type_);
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDozeSupport(int32_t* support) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     *support = 0;
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetHdrCapabilities(uint32_t* num_types, int32_t* types, float* max_luminance,
                                                       float* max_average_luminance, float* min_luminance) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     int display = static_cast<int>(handle_);
     int HdrIndex = 0;
@@ -1536,7 +1531,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetHdrCapabilities(uint32_t* num_types, int32
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetReleaseFences(uint32_t* num_elements, hwc2_layer_t* layers, int32_t* fences) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     uint32_t num_layers = 0;
 
@@ -1552,12 +1547,11 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetReleaseFences(uint32_t* num_elements, hwc2
         layers[num_layers - 1] = l.first;
         fences[num_layers - 1] = l.second.release_fence()->isValid() ? dup(l.second.release_fence()->getFd()) : -1;
         if (LogLevel(DBG_VERBOSE))
-            HWC2_ALOGD_IF_VERBOSE(
-                    "Check Layer %" PRIu64 " Release(%d) %s Info: size=%d act=%d signal=%d err=%d", l.first,
-                    l.second.release_fence()->isValid(), l.second.release_fence()->getName().c_str(),
-                    l.second.release_fence()->getSize(), l.second.release_fence()->getActiveCount(),
-                    l.second.release_fence()->getSignaledCount(), l.second.release_fence()->getErrorCount());
-        // HWC2_ALOGD_IF_DEBUG("GetReleaseFences [%" PRIu64 "][%d]",layers[num_layers - 1],fences[num_layers - 1]);
+            HWC2_LOGV_IF("Check Layer %" PRIu64 " Release(%d) %s Info: size=%d act=%d signal=%d err=%d", l.first,
+                         l.second.release_fence()->isValid(), l.second.release_fence()->getName().c_str(),
+                         l.second.release_fence()->getSize(), l.second.release_fence()->getActiveCount(),
+                         l.second.release_fence()->getSignaledCount(), l.second.release_fence()->getErrorCount());
+        // HWC2_LOGD_IF("GetReleaseFences [%" PRIu64 "][%d]",layers[num_layers - 1],fences[num_layers - 1]);
         // the new fence semantics for a frame n by returning the fence from frame n-1. For frame 0,
         // the adapter returns NO_FENCE.
     }
@@ -1566,7 +1560,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetReleaseFences(uint32_t* num_elements, hwc2
 }
 
 void DrmHwcTwo::HwcDisplay::AddFenceToRetireFence(int fd) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     char acBuf[32];
     int retire_fence_fd = -1;
@@ -1590,11 +1584,11 @@ void DrmHwcTwo::HwcDisplay::AddFenceToRetireFence(int fd) {
                     if (retire_fence_merge > 0) {
                         close(retire_fence_fd);
                         retire_fence_fd = retire_fence_merge;
-                        HWC2_ALOGD_IF_DEBUG("RetireFence(%d) %s frame = %d merge %s sucess!", retire_fence_fd, acBuf,
-                                            frame_no_, rf->getName().c_str());
+                        HWC2_LOGV_IF("RetireFence(%d) %s frame = %d merge %s sucess!", retire_fence_fd, acBuf,
+                                     frame_no_, rf->getName().c_str());
                     } else {
-                        HWC2_ALOGE("RetireFence(%d) %s frame = %d merge %s faile!", retire_fence_fd, acBuf, frame_no_,
-                                   rf->getName().c_str());
+                        HWC2_LOGE("RetireFence(%d) %s frame = %d merge %s faile!", retire_fence_fd, acBuf, frame_no_,
+                                  rf->getName().c_str());
                     }
                 } else {
                     retire_fence_fd = dup(rf->getFd());
@@ -1665,7 +1659,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
     // 遍历所有删除 bBackgroundSkip_ = true 的图层，并重新排序
     auto it = std::remove_if(drm_hwc_layers_.begin(), drm_hwc_layers_.end(), [](const DrmHwcLayer& layer) {
         if (layer.bBackgroundSkip_) {
-            HWC2_ALOGI("Delete Background Skip Layer, id=%d, z_order=%d", layer.uId_, layer.iZpos_);
+            HWC2_LOGI("Delete Background Skip Layer, id=%d, z_order=%d", layer.uId_, layer.iZpos_);
             return true;
         }
         return false;
@@ -1683,7 +1677,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
             int ret = 0;
             ret = client_layer_.DoHwPq(true, &client_target_layer, &ctx_);
             if (ret) {
-                HWC2_ALOGE("ClientLayer DoPq fail, ret = %d", ret);
+                HWC2_LOGE("ClientLayer DoPq fail, ret = %d", ret);
             }
         }
     } else
@@ -1693,7 +1687,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
         int ret = 0;
         ret = client_layer_.DoSwPq(true, &client_target_layer, &ctx_);
         if (ret) {
-            HWC2_ALOGE("ClientLayer DoPq fail, ret = %d", ret);
+            HWC2_LOGE("ClientLayer DoPq fail, ret = %d", ret);
         }
     }
 #endif
@@ -1704,7 +1698,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::ValidatePlanes() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     int ret;
 
     InitDrmHwcLayer();
@@ -1735,11 +1729,10 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidatePlanes() {
             if (plane_group->is_will_disable() == false) {
                 plane_groups.push_back(plane_group);
             } else {
-                HWC2_ALOGD_IF_DEBUG("%s will disable, display-id(%" PRIi64 "->%" PRIi64 ") crtc_mask(0x%" PRIx32
-                                    " -> 0x%" PRIx32 ")",
-                                    plane_group->planes[0]->name(), plane_group->possible_display_,
-                                    plane_group->next_possible_display_, plane_group->current_crtc_,
-                                    plane_group->next_crtc_);
+                HWC2_LOGD_IF("%s will disable, display-id(%" PRIi64 "->%" PRIi64 ") crtc_mask(0x%" PRIx32
+                             " -> 0x%" PRIx32 ")",
+                             plane_group->planes[0]->name(), plane_group->possible_display_,
+                             plane_group->next_possible_display_, plane_group->current_crtc_, plane_group->next_crtc_);
                 continue;
             }
         }
@@ -1788,7 +1781,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidatePlanes() {
                              drm_hwc_layer.sLayerName_.c_str());
                     break;
                 default:
-                    HWC2_ALOGE("invalid Composition =%d", map_hwc2layer->second.sf_type());
+                    HWC2_LOGE("invalid Composition =%d", map_hwc2layer->second.sf_type());
             }
         } else {
             auto map_hwc2layer = layers_.find(drm_hwc_layer.uId_);
@@ -1825,7 +1818,7 @@ void DrmHwcTwo::HwcDisplay::UpdateSvepState() {
         // update ddr state
         int fd_ddr_state = open("/sys/class/devfreq/dmc/system_status", O_WRONLY);
         if (fd_ddr_state < 0) {
-            HWC2_ALOGD_IF_DEBUG("failed to open /sys/class/devfreq/dmc/system_status ret =%d", fd_ddr_state);
+            HWC2_LOGD_IF("failed to open /sys/class/devfreq/dmc/system_status ret =%d", fd_ddr_state);
         } else {
             if (exist_svep_layer) {
                 // S 状态是专门提供给SVEP的场景变频, 进入SVEP场景变频
@@ -1853,7 +1846,7 @@ int DrmHwcTwo::HwcDisplay::CollectInfoForHwPqUIMode() {
     DrmGralloc* gralloc = DrmGralloc::getInstance();
 
     if (gralloc == NULL) {
-        HWC2_ALOGD_IF_INFO("DrmGralloc is null, Can not get PQ Metadata");
+        HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
     } else {
         for (auto& layer : drm_hwc_layers_) {
             if (layer.bYuv_ && layer.bHasMetadata_) {
@@ -1862,8 +1855,8 @@ int DrmHwcTwo::HwcDisplay::CollectInfoForHwPqUIMode() {
                     ctx_.hwpq_meta_fd = layer.iFd_;
                     ctx_.hwpq_meta_offset = iMetaDataOffset_;
                     ctx_.hwpq_meta_size = layer.iSize_;
-                    HWC2_ALOGD_IF_DEBUG("Pq metadata:fd=%d offset=%" PRIi64 " name:%s", ctx_.hwpq_meta_fd,
-                                        ctx_.hwpq_meta_offset, layer.sLayerName_.c_str());
+                    HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " name:%s", ctx_.hwpq_meta_fd,
+                                 ctx_.hwpq_meta_offset, layer.sLayerName_.c_str());
                     break;
                 }
             }
@@ -1936,8 +1929,8 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
                 if (client_layer_.isAfbc() != fourcc_mod_is_vendor(drm_hwc_layer.uModifier_, ARM)) {
                     //如果AFBC状态与匹配的状态不一致，说明Client layer可能下发失败
                     //此状态一般热插拔后第一帧复现，由于热插拔有强制刷新，后续必然存在正常下发的帧，丢弃第一帧影响不大。
-                    HWC2_ALOGW("Client Layer AFBC %s not match client buffer modifier 0x%" PRIx64 " skip frame.",
-                               client_layer_.isAfbc() ? "[Enabled]" : "[Disabled]", drm_hwc_layer.uModifier_);
+                    HWC2_LOGW("Client Layer AFBC %s not match client buffer modifier 0x%" PRIx64 " skip frame.",
+                              client_layer_.isAfbc() ? "[Enabled]" : "[Disabled]", drm_hwc_layer.uModifier_);
                     return -1;
                 }
 #ifdef USE_LIBPQ
@@ -1952,7 +1945,7 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
                         if (handle_ == 0) {
                     ret = client_layer_.DoSwPq(false, &drm_hwc_layer, &ctx_);
                     if (ret) {
-                        HWC2_ALOGE("ClientLayer DoPq fail, ret = %d", ret);
+                        HWC2_LOGE("ClientLayer DoPq fail, ret = %d", ret);
                     }
                 }
 #endif
@@ -1985,7 +1978,7 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     int ret;
 
     std::vector<DrmCompositionDisplayLayersMap> layers_map;
@@ -1996,7 +1989,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
 
     ret = ImportBuffers();
     if (ret) {
-        HWC2_ALOGE("Failed to ImportBuffers, ret=%d", ret);
+        HWC2_LOGE("Failed to ImportBuffers, ret=%d", ret);
         return HWC2::Error::NoResources;
     }
 
@@ -2058,12 +2051,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
 HWC2::Error DrmHwcTwo::HwcDisplay::PresentVirtualDisplay(int32_t* retire_fence) {
     ATRACE_CALL();
 
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     *retire_fence = -1;
     // 若虚拟屏图层数为0，则不做任何处理
     if (!layers_.size()) {
-        HWC2_ALOGD_IF_INFO("display %" PRIu64 " layer size is %zu", handle_, layers_.size());
+        HWC2_LOGI_IF("display %" PRIu64 " layer size is %zu", handle_, layers_.size());
         return HWC2::Error::None;
     }
 
@@ -2178,10 +2171,10 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentVirtualDisplay(int32_t* retire_fence) 
                 im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, 0, NULL, &imOpt, 0);
 
                 if (im_state == IM_STATUS_SUCCESS) {
-                    HWC2_ALOGD_IF_DEBUG("call im2d reset Success");
+                    HWC2_LOGD_IF("call im2d reset Success");
                     mHasResetBufferId_.insert(bufferinfo->uBufferId_);
                 } else {
-                    HWC2_ALOGE("call im2d reset fail, ret=%d Error=%s", im_state, imStrError(im_state));
+                    HWC2_LOGE("call im2d reset fail, ret=%d Error=%s", im_state, imStrError(im_state));
                 }
             }
 
@@ -2269,7 +2262,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentVirtualDisplay(int32_t* retire_fence) 
 
             int ret = resource_manager_->OutputWBBuffer((int)handle_, dst, dst_rect, retire_fence, &wb_frame_no_);
             if (ret) {
-                HWC2_ALOGE("OutputWBBuffer fail!");
+                HWC2_LOGE("OutputWBBuffer fail!");
             }
 
             // 添加调试接口，抓打印传递给SurfaceFlinger的 Buffer
@@ -2282,7 +2275,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentVirtualDisplay(int32_t* retire_fence) 
     } else {
         if (client_layer_.acquire_fence() != NULL) {
             if (client_layer_.acquire_fence()->wait(1500)) {
-                HWC2_ALOGE("WB client layer wait acquirefence 1500ms timeout!");
+                HWC2_LOGE("WB client layer wait acquirefence 1500ms timeout!");
             }
         }
     }
@@ -2328,7 +2321,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentEBookDisplay(int32_t* retire_fence) {
             int finish_fence = -1;
             EBookError error = mEBookApi_->Commit(&src, current_mode_, &finish_fence);
             if (error != EBookError::None) {
-                HWC2_ALOGE("EBook RunAsync fail\n");
+                HWC2_LOGE("EBook RunAsync fail\n");
                 return HWC2::Error::BadDisplay;
             }
             last_mode_ = current_mode_;
@@ -2392,7 +2385,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
 
     // 强制断开的屏幕不处理任何逻辑
     if (force_disconneted_) {
-        HWC2_ALOGD_IF_ERR("force_disconneted_=%d skip.", force_disconneted_);
+        HWC2_LOGE_IF("force_disconneted_=%d skip.", force_disconneted_);
         *retire_fence = merge_retire_fence;
         return HWC2::Error::None;
     }
@@ -2403,7 +2396,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
     }
 
     if (!init_success_) {
-        HWC2_ALOGD_IF_ERR("init_success_=%d skip.", init_success_);
+        HWC2_LOGE_IF("init_success_=%d skip.", init_success_);
         *retire_fence = merge_retire_fence;
         return HWC2::Error::None;
     }
@@ -2441,10 +2434,10 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
         // promote the next retire fence
         *retire_fence = d_retire_fence_.get()->isValid() ? dup(d_retire_fence_.get()->getFd()) : -1;
         if (LogLevel(DBG_DEBUG)) {
-            HWC2_ALOGD_IF_DEBUG("Return RetireFence(%d) %s frame = %d Info: size=%d act=%d signal=%d err=%d",
-                                d_retire_fence_.get()->isValid(), d_retire_fence_.get()->getName().c_str(), frame_no_,
-                                d_retire_fence_.get()->getSize(), d_retire_fence_.get()->getActiveCount(),
-                                d_retire_fence_.get()->getSignaledCount(), d_retire_fence_.get()->getErrorCount());
+            HWC2_LOGD_IF("Return RetireFence(%d) %s frame = %d Info: size=%d act=%d signal=%d err=%d",
+                         d_retire_fence_.get()->isValid(), d_retire_fence_.get()->getName().c_str(), frame_no_,
+                         d_retire_fence_.get()->getSize(), d_retire_fence_.get()->getActiveCount(),
+                         d_retire_fence_.get()->getSignaledCount(), d_retire_fence_.get()->getErrorCount());
         }
     }
 
@@ -2477,12 +2470,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetActiveConfig(hwc2_config_t config) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 " config=%d", handle_, config);
+    HWC2_LOGV_IF("display-id=%" PRIu64 " config=%d", handle_, config);
     if (ctx_.bStandardSwitchResolution) {
         auto mode = std::find_if(sf_modes_.begin(), sf_modes_.end(),
                                  [config](DrmMode const& m) { return m.id() == config; });
         if (mode == sf_modes_.end()) {
-            HWC2_ALOGE("Could not find active mode for %d", config);
+            HWC2_LOGE("Could not find active mode for %d", config);
             return HWC2::Error::BadConfig;
         }
 
@@ -2534,7 +2527,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetActiveConfig(hwc2_config_t config) {
                     return error;
                 }
             } else if (config != 0) {
-                HWC2_ALOGE("Could not find active mode for %d", config);
+                HWC2_LOGE("Could not find active mode for %d", config);
                 return HWC2::Error::BadConfig;
             }
 
@@ -2556,7 +2549,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetActiveConfig(hwc2_config_t config) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::UpdateRefreshRate(hwc2_config_t config) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 " config=%d", handle_, config);
+    HWC2_LOGV_IF("display-id=%" PRIu64 " config=%d", handle_, config);
     if (!bVrrDisplay_) return HWC2::Error::None;
 
     const std::vector<int> vrr_mode = connector_->vrr_modes();
@@ -2564,12 +2557,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::UpdateRefreshRate(hwc2_config_t config) {
         int refresh_rate = vrr_mode[config];
         int ret = drm_->UpdateVrrRefreshRate(handle_, refresh_rate);
         if (ret) {
-            HWC2_ALOGE("display=%" PRIu64 " config=%d refresh_rate=%d UpdateVrrRefreshRate fail!", handle_, config,
-                       refresh_rate);
+            HWC2_LOGE("display=%" PRIu64 " config=%d refresh_rate=%d UpdateVrrRefreshRate fail!", handle_, config,
+                      refresh_rate);
             return HWC2::Error::BadConfig;
         }
     } else {
-        HWC2_ALOGE("Could not find active mode for %d", config);
+        HWC2_LOGE("Could not find active mode for %d", config);
         return HWC2::Error::BadConfig;
     }
 
@@ -2578,13 +2571,13 @@ HWC2::Error DrmHwcTwo::HwcDisplay::UpdateRefreshRate(hwc2_config_t config) {
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetClientTarget(buffer_handle_t target, int32_t acquire_fence, int32_t dataspace,
                                                    hwc_region_t /*damage*/) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", Buffer=%p, acq_fence=%d, dataspace=%x", handle_, target,
-                          acquire_fence, dataspace);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", Buffer=%p, acq_fence=%d, dataspace=%x", handle_, target, acquire_fence,
+                 dataspace);
 
     // 动态切换刷新率过程中SurfaceFlinger会出现 SetClientTarget target=null的情况
     // 为了避免错误日志打印，故暂时对这种情况进行规避；
     if (target == NULL) {
-        HWC2_ALOGW("Buffer is NULL, skip SetClientTarget");
+        HWC2_LOGW("Buffer is NULL, skip SetClientTarget");
         return HWC2::Error::None;
     }
 
@@ -2595,7 +2588,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetClientTarget(buffer_handle_t target, int32
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetColorMode(int32_t mode) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", mode=%x", handle_, mode);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", mode=%x", handle_, mode);
 
     if (mode != HAL_COLOR_MODE_NATIVE) return HWC2::Error::BadParameter;
 
@@ -2604,7 +2597,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetColorMode(int32_t mode) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetColorTransform(const float* matrix, int32_t hint) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", hint=%x", handle_, hint);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", hint=%x", handle_, hint);
     // TODO: Force client composition if we get this
     // hint definition from android_color_transform_t in system/core/libsystem/include/system/graphics-base-v1.0.h
     force_gles_ = (hint > 0);
@@ -2613,7 +2606,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetColorTransform(const float* matrix, int32_
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetOutputBuffer(buffer_handle_t buffer, int32_t release_fence) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", buffer=%p, rel_fence=%d", handle_, buffer, release_fence);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", buffer=%p, rel_fence=%d", handle_, buffer, release_fence);
     // TODO: Need virtual display support
     output_layer_.set_output_buffer(buffer);
     if (release_fence > 0) {
@@ -2630,29 +2623,29 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetOutputBuffer(buffer_handle_t buffer, int32
         output.appendFormat("%s-F%" PRIu32 "-Fd%d", __FUNCTION__, frame_no_, new_release_fence);
         sp<ReleaseFence> release = sp<ReleaseFence>(new ReleaseFence(new_release_fence, output.c_str()));
         output_layer_.set_release_fence(release);
-        HWC2_ALOGD_IF_DEBUG("Release=%d(%d) %s Info: size=%d act=%d signal=%d err=%d", release->getFd(),
-                            release->isValid(), release->getName().c_str(), release->getSize(),
-                            release->getActiveCount(), release->getSignaledCount(), release->getErrorCount());
+        HWC2_LOGD_IF("Release=%d(%d) %s Info: size=%d act=%d signal=%d err=%d", release->getFd(), release->isValid(),
+                     release->getName().c_str(), release->getSize(), release->getActiveCount(),
+                     release->getSignaledCount(), release->getErrorCount());
     }
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SyncPowerMode() {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 " bNeedSyncPMState_=%d", handle_, bNeedSyncPMState_);
+    HWC2_LOGV_IF("display-id=%" PRIu64 " bNeedSyncPMState_=%d", handle_, bNeedSyncPMState_);
 
     if (!init_success_) {
-        HWC2_ALOGE("init_success_=%d skip.", init_success_);
+        HWC2_LOGE("init_success_=%d skip.", init_success_);
         return HWC2::Error::BadDisplay;
     }
 
     if (!bNeedSyncPMState_) {
-        HWC2_ALOGI("bNeedSyncPMState_=%d don't need to sync PowerMode state.", bNeedSyncPMState_);
+        HWC2_LOGI("bNeedSyncPMState_=%d don't need to sync PowerMode state.", bNeedSyncPMState_);
         return HWC2::Error::None;
     }
 
     HWC2::Error error = SetPowerMode((int32_t)mPowerMode_);
     if (error != HWC2::Error::None) {
-        HWC2_ALOGE("SetPowerMode fail %d", error);
+        HWC2_LOGE("SetPowerMode fail %d", error);
         return error;
     }
 
@@ -2661,20 +2654,20 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SyncPowerMode() {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", mode_in=%d", handle_, mode_in);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", mode_in=%d", handle_, mode_in);
 #ifdef USE_LIBEBOOK
     if (isEBook()) {
         HWC2::PowerMode old_mode = mPowerMode_;
         mPowerMode_ = static_cast<HWC2::PowerMode>(mode_in);
         if (mPowerMode_ == HWC2::PowerMode::On) {
-            HWC2_ALOGI("EBook PowerOn, enable force update frame.");
+            HWC2_LOGI("EBook PowerOn, enable force update frame.");
             ebook_stop_commit_util_power_on_ = false;
             // 如果电源模式切换为 PowerOn，则设置强制刷新帧率为10fps，刷新10帧
             InvalidateControl(10, 10);
 
             // 如果电源模式从PowerOff切换为PowerOn，则第一帧要全刷
             if (old_mode == HWC2::PowerMode::Off) {
-                HWC2_ALOGI("EBOOK RESUME");
+                HWC2_LOGI("EBOOK RESUME");
                 force_full_once_ = true;
             }
         }
@@ -2724,7 +2717,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
 
     ResourceManager* rm = ResourceManager::getInstance();
     if (!rm) {
-        HWC2_ALOGE("EventWorker::Routine: Can not get ResourceManager");
+        HWC2_LOGE("EventWorker::Routine: Can not get ResourceManager");
     } else {
         //Check if hotplug need to block in sleep
         if (rm->GetBlockHotplugInPowerOff() && handle_ == 0) {
@@ -2738,7 +2731,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
     }
     if (!init_success_) {
         bNeedSyncPMState_ = true;
-        HWC2_ALOGE("init_success_=%d skip.", init_success_);
+        HWC2_LOGE("init_success_=%d skip.", init_success_);
         return HWC2::Error::BadDisplay;
     }
 
@@ -2778,7 +2771,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
         ClearDisplay();
         ret = drm_->SetPowerMode(handle_, DRM_MODE_DPMS_OFF);
         if (ret) {
-            HWC2_ALOGE("Failed to ReleaseDpyRes for display=%" PRIu64 " %d\n", handle_, ret);
+            HWC2_LOGE("Failed to ReleaseDpyRes for display=%" PRIu64 " %d\n", handle_, ret);
             return HWC2::Error::BadParameter;
         }
         if (isRK3566(resource_manager_->getSocId())) {
@@ -2790,7 +2783,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
                 display.ClearDisplay();
                 ret = drm_->SetPowerMode(extend_display_id, DRM_MODE_DPMS_OFF);
                 if (ret) {
-                    HWC2_ALOGE("Failed to ReleaseDpyRes for display=%d %d\n", extend_display_id, ret);
+                    HWC2_LOGE("Failed to ReleaseDpyRes for display=%d %d\n", extend_display_id, ret);
                     return HWC2::Error::BadParameter;
                 }
             }
@@ -2799,19 +2792,19 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
         if (connector_->hotplug()) {
             ret = connector_->UpdateModes();
             if (ret) {
-                HWC2_ALOGE("Failed to UpdateModes for display=%" PRIu64 " ret=%d\n", handle_, ret);
+                HWC2_LOGE("Failed to UpdateModes for display=%" PRIu64 " ret=%d\n", handle_, ret);
                 return HWC2::Error::BadParameter;
             }
         }
         HoplugEventTmeline();
         ret = GetCurrentDisplayMode();
         if (ret) {
-            HWC2_ALOGE("Failed to GetCurrentDisplayMode for display=%" PRIu64 " ret=%d\n", handle_, ret);
+            HWC2_LOGE("Failed to GetCurrentDisplayMode for display=%" PRIu64 " ret=%d\n", handle_, ret);
             return HWC2::Error::BadParameter;
         }
         ret = drm_->SetPowerMode(handle_, DRM_MODE_DPMS_ON);
         if (ret) {
-            HWC2_ALOGE("Failed to BindDpyRes for display=%" PRIu64 " ret=%d\n", handle_, ret);
+            HWC2_LOGE("Failed to BindDpyRes for display=%" PRIu64 " ret=%d\n", handle_, ret);
             return HWC2::Error::BadParameter;
         }
         UpdateDisplayInfo();
@@ -2823,7 +2816,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
                 int extend_display_id = extend->display();
                 ret = drm_->SetPowerMode(extend_display_id, DRM_MODE_DPMS_ON);
                 if (ret) {
-                    HWC2_ALOGE("Failed to BindDpyRes for display=%d ret=%d\n", extend_display_id, ret);
+                    HWC2_LOGE("Failed to BindDpyRes for display=%d ret=%d\n", extend_display_id, ret);
                 }
             }
         }
@@ -2832,7 +2825,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetVsyncEnabled(int32_t enabled) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64 ", enable=%d", handle_, enabled);
+    HWC2_LOGV_IF("display-id=%" PRIu64 ", enable=%d", handle_, enabled);
     vsync_worker_.VSyncControl(HWC2_VSYNC_ENABLE == enabled);
     return HWC2::Error::None;
 }
@@ -2842,8 +2835,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
     }
 
     if (!layers_.size()) {
-        HWC2_ALOGI("display %" PRIu64 " layer size is %zu, %s,line=%d", handle_, layers_.size(), __FUNCTION__,
-                   __LINE__);
+        HWC2_LOGI("display %" PRIu64 " layer size is %zu, %s,line=%d", handle_, layers_.size(), __FUNCTION__, __LINE__);
         return HWC2::Error::None;
     }
 
@@ -2871,7 +2863,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
         }
     }
 
-    HWC2_ALOGD_IF_DEBUG("frame_no_ = %d", frame_no_);
+    HWC2_LOGD_IF("frame_no_ = %d", frame_no_);
 
     // 获取 WriteBack id
     int WBDisplayId = resource_manager_->GetWBDisplay();
@@ -2879,12 +2871,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
     if (WBDisplayId >= 0 && resource_manager_->isWBMode() && !resource_manager_->IsDisableHwVirtualDisplay()) {
         DrmConnector* connector = drm_->GetConnectorForDisplay(WBDisplayId);
         if (!connector) {
-            HWC2_ALOGD_IF_DEBUG("Failed to get WB connector for display=%" PRIu64 " wb-display %d frame_no=%d", handle_,
-                                WBDisplayId, frame_no_);
+            HWC2_LOGD_IF("Failed to get WB connector for display=%" PRIu64 " wb-display %d frame_no=%d", handle_,
+                         WBDisplayId, frame_no_);
             bUseWriteBack_ = false;
         } else {
             if (connector->state() != DRM_MODE_CONNECTED) {
-                HWC2_ALOGD_IF_DEBUG(
+                HWC2_LOGD_IF(
                         "WB Connector %u type=%s, type_id=%d, state is DRM_MODE_DISCONNECTED, skip init. "
                         "display=%" PRIu64 " wb-display %d frame_no=%d",
                         connector->id(), drm_->connector_type_str(connector->type()), connector->type_id(), handle_,
@@ -2895,13 +2887,13 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
 
             DrmCrtc* crtc = drm_->GetCrtcForDisplay(WBDisplayId);
             if (!crtc) {
-                HWC2_ALOGD_IF_DEBUG("Failed to get crtc for display=%" PRIu64 " wb-display %d frame_no=%d", handle_,
-                                    WBDisplayId, frame_no_);
+                HWC2_LOGD_IF("Failed to get crtc for display=%" PRIu64 " wb-display %d frame_no=%d", handle_,
+                             WBDisplayId, frame_no_);
                 bUseWriteBack_ = false;
             }
 
             // if(resource_manager_->GetFinishWBBufferSize() == 0){
-            //   HWC2_ALOGD_IF_DEBUG("WB buffer not ready, display=%" PRIu64 " wb-display %d frame_no=%d", handle_, WBDisplayId, frame_no_);
+            //   HWC2_LOGD_IF("WB buffer not ready, display=%" PRIu64 " wb-display %d frame_no=%d", handle_, WBDisplayId, frame_no_);
             //   bUseWriteBack_ = false;
             // }
 
@@ -2918,16 +2910,16 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
                 info.buffer_id = buffer_id;
                 info.name = layer.name();
                 if (!resource_manager_->IsWBMirrorDisplay(handle_, layer.z_order(), info)) {
-                    HWC2_ALOGD_IF_DEBUG("WB: Current display=%" PRIu64
-                                        " is not wb-display %d mirror display. disable VDS. frame_no=%d",
-                                        handle_, WBDisplayId, frame_no_);
+                    HWC2_LOGD_IF("WB: Current display=%" PRIu64
+                                 " is not wb-display %d mirror display. disable VDS. frame_no=%d",
+                                 handle_, WBDisplayId, frame_no_);
                     bUseWriteBack_ = false;
                 }
             }
         }
     } else {
         bUseWriteBack_ = false;
-        HWC2_ALOGD_IF_DEBUG("WB display %d is invalid, disable HW VDS.", WBDisplayId);
+        HWC2_LOGD_IF("WB display %d is invalid, disable HW VDS.", WBDisplayId);
     }
 
     for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
@@ -2958,8 +2950,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateEBookDisplay(uint32_t* num_types, uin
     }
 
     if (!layers_.size()) {
-        HWC2_ALOGI("display %" PRIu64 " layer size is %zu, %s,line=%d", handle_, layers_.size(), __FUNCTION__,
-                   __LINE__);
+        HWC2_LOGI("display %" PRIu64 " layer size is %zu, %s,line=%d", handle_, layers_.size(), __FUNCTION__, __LINE__);
         return HWC2::Error::None;
     }
 
@@ -2991,11 +2982,11 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateEBookDisplay(uint32_t* num_types, uin
         const std::shared_ptr<LayerInfoCache> bufferinfo = layer.GetBufferInfo();
         if (bufferinfo != NULL && bufferinfo->sLayerName_.empty() == false) {
             if (strstr(bufferinfo->sLayerName_.c_str(), "EBOOK_STANDBY")) {
-                HWC2_ALOGI("EBOOK STANDBY\n");
+                HWC2_LOGI("EBOOK STANDBY\n");
                 current_mode_ = EBOOK_FORCE_FULL;
                 ebook_commit_last_frame_and_stop_ = true;
             } else if (strstr(bufferinfo->sLayerName_.c_str(), "EBOOK_POWEROFF")) {
-                HWC2_ALOGI("EBOOK POWEROFF\n");
+                HWC2_LOGI("EBOOK POWEROFF\n");
                 current_mode_ = EBOOK_FORCE_FULL;
                 ebook_commit_last_frame_and_stop_ = true;
             }
@@ -3037,7 +3028,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateEBookDisplay(uint32_t* num_types, uin
 
 HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t* num_requests) {
     ATRACE_CALL();
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     // Enable/disable debug log
     UpdateLogLevel();
@@ -3045,21 +3036,19 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
     // 虚拟屏
     if (isVirtual()) {
         return ValidateVirtualDisplay(num_types, num_requests);
-        ;
     }
 
 #ifdef USE_LIBEBOOK
     // 虚拟屏
     if (isEBook()) {
         return ValidateEBookDisplay(num_types, num_requests);
-        ;
     }
 #endif
 
     if (LogLevel(DBG_DEBUG)) DumpDisplayLayersInfo();
 
     if (!init_success_ || force_disconneted_) {
-        HWC2_ALOGD_IF_ERR("init_success_=%d force_disconneted_=%d skip.", init_success_, force_disconneted_);
+        HWC2_LOGE_IF("init_success_=%d force_disconneted_=%d skip.", init_success_, force_disconneted_);
         if (connector_->IsSplitPrimary()) {
             for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
                 l.second.set_validated_type(HWC2::Composition::Client);
@@ -3160,7 +3149,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
         ++(*num_requests);
     }
     client_layer_.resetUpdate();
-    HWC2_ALOGD_IF_VERBOSE("num_requests=%" PRIu32 ",num_types=%" PRIu32, *num_requests, *num_types);
+    HWC2_LOGV_IF("num_requests=%" PRIu32 ",num_types=%" PRIu32, *num_requests, *num_types);
     validate_success_ = true;
     return *num_types ? HWC2::Error::HasChanges : HWC2::Error::None;
 }
@@ -3169,7 +3158,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
 #if PLATFORM_SDK_VERSION >= 34
 // Composer 2.4
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConnectionType(uint32_t* outType) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     if (connector_->internal())
         *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
     else if (connector_->external())
@@ -3181,7 +3170,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConnectionType(uint32_t* outType) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayVsyncPeriod(hwc2_vsync_period_t* outVsyncPeriod /* ns */) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     supported(__func__);
     DrmMode const& mode = connector_->active_mode();
     if (mode.id() == 0) return HWC2::Error::BadConfig;
@@ -3193,7 +3182,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayVsyncPeriod(hwc2_vsync_period_t* ou
 HWC2::Error DrmHwcTwo::HwcDisplay::SetActiveConfigWithConstraints(
         hwc2_config_t config, hwc_vsync_period_change_constraints_t* vsyncPeriodChangeConstraints,
         hwc_vsync_period_change_timeline_t* outTimeline) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     supported(__func__);
 
     if (vsyncPeriodChangeConstraints == nullptr || outTimeline == nullptr) {
@@ -3201,7 +3190,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetActiveConfigWithConstraints(
     }
     //HDMI等接口切换分辨率和帧率会闪黑，暂时不支持seamless切换模式
     if (vsyncPeriodChangeConstraints->seamlessRequired) {
-        HWC2_ALOGE("Not Support change seamlessly, configi= %u ", config);
+        HWC2_LOGE("Not Support change seamlessly, configi= %u ", config);
         return HWC2::Error::SeamlessNotAllowed;
     }
     //设置分辨率
@@ -3233,20 +3222,20 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetActiveConfigWithConstraints(
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetAutoLowLatencyMode(bool /*on*/) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return HWC2::Error::Unsupported;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetSupportedContentTypes(uint32_t* outNumSupportedContentTypes,
                                                             const uint32_t* outSupportedContentTypes) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     if (outSupportedContentTypes == nullptr) *outNumSupportedContentTypes = 0;
 
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetContentType(int32_t contentType) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     supported(__func__);
 
     if (contentType != HWC2_CONTENT_TYPE_NONE) return HWC2::Error::Unsupported;
@@ -3259,7 +3248,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetContentType(int32_t contentType) {
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetProperty(hwc_client_target_property_t* outClientTargetProperty) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     supported(__func__);
 
     return HWC2::Error::None;
@@ -3267,9 +3256,9 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetProperty(hwc_client_target_pro
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayIdentificationData(uint8_t* outPort, uint32_t* outDataSize,
                                                                 uint8_t* outData) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     if (!resource_manager_->GetEnableEdidReport()) {
-        HWC2_ALOGI("vendor.hwc.enable_edid_report = 0, disable GetDisplayIdentificationData support.");
+        HWC2_LOGI("vendor.hwc.enable_edid_report = 0, disable GetDisplayIdentificationData support.");
         return HWC2::Error::Unsupported;
     }
     supported(__func__);
@@ -3278,10 +3267,10 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayIdentificationData(uint8_t* outPort
     uint8_t* dummyEDID = NULL;
     uint32_t dummySize = 0;
     if (blob == nullptr) {
-        HWC2_ALOGD_IF_DEBUG("Failed to get blob, HWC generate one.");
+        HWC2_LOGD_IF("Failed to get blob, HWC generate one.");
         dummyEDID = connector_->MakeFakeEDID();
         if (dummyEDID == nullptr) {
-            HWC2_ALOGW("Failed to get blob, HWC generate Failed.");
+            HWC2_LOGW("Failed to get blob, HWC generate Failed.");
             return HWC2::Error::Unsupported;
         }
         dummySize = 128;
@@ -3316,7 +3305,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayIdentificationData(uint8_t* outPort
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayCapabilities(uint32_t* outNumCapabilities, uint32_t* outCapabilities) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     uint32_t capabilityNum = 0;
 
@@ -3334,38 +3323,38 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayCapabilities(uint32_t* outNumCapabi
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayBrightnessSupport(bool* supported) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     *supported = false;
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetDisplayBrightness(float /* brightness */) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return HWC2::Error::Unsupported;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayedContentSamplingAttributes(
         int32_t* /* android_pixel_format_t */ format, int32_t* /* android_dataspace_t */ dataspace,
         uint8_t* /* mask of android_component_t */ supported_components) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return HWC2::Error::Unsupported;
 }
 HWC2::Error DrmHwcTwo::HwcDisplay::SetDisplayedContentSamplingEnabled(
         int32_t /*hwc2_displayed_content_sampling_t*/ enabled, uint8_t /* mask of android_component_t */ component_mask,
         uint64_t max_frames) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return HWC2::Error::Unsupported;
 }
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayedContentSample(uint64_t max_frames, uint64_t timestamp,
                                                              uint64_t* frame_count, int32_t samples_size[4],
                                                              uint64_t* samples[4]) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return HWC2::Error::Unsupported;
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::GetRenderIntents(int32_t mode, uint32_t* outNumIntents,
                                                     int32_t* /*android_render_intent_v1_1_t*/ outIntents) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     if (mode != HAL_COLOR_MODE_NATIVE) {
         return HWC2::Error::BadParameter;
     }
@@ -3380,7 +3369,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetRenderIntents(int32_t mode, uint32_t* outN
 }
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetColorModeWithIntent(int32_t mode, int32_t intent) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     if (intent < HAL_RENDER_INTENT_COLORIMETRIC || intent > HAL_RENDER_INTENT_TONE_MAP_ENHANCE)
         return HWC2::Error::BadParameter;
 
@@ -3397,17 +3386,17 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetColorModeWithIntent(int32_t mode, int32_t 
 // TODO:
 HWC2::Error DrmHwcTwo::HwcDisplay::GetPerFrameMetadataKeys(uint32_t* outNumKeys,
                                                            int32_t* /*hwc2_per_frame_metadata_key_t*/ outKeys) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return unsupported(__func__, outNumKeys, outKeys);
 }
 // TODO:
 HWC2::Error DrmHwcTwo::HwcDisplay::GetReadbackBufferFence(int32_t* outFence) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return unsupported(__func__, outFence);
 }
 // TODO:
 HWC2::Error DrmHwcTwo::HwcDisplay::SetReadbackBuffer(buffer_handle_t buffer, int32_t releaseFence) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     if (releaseFence > 0) {
         close(releaseFence);
         releaseFence = -1;
@@ -3416,24 +3405,25 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetReadbackBuffer(buffer_handle_t buffer, int
 }
 HWC2::Error DrmHwcTwo::HwcDisplay::GetReadbackBufferAttributes(int32_t* /*android_pixel_format_t*/ outFormat,
                                                                int32_t* /*android_dataspace_t*/ outDataspace) {
-    HWC2_ALOGD_IF_VERBOSE("display-id=%" PRIu64, handle_);
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     return unsupported(__func__, outFormat, outDataspace);
 }
 
 #endif /* PLATFORM_SDK_VERSION >= 34 */
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetCursorPosition(int32_t x, int32_t y) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, x=%d, y=%d", id_, x, y);
+    HWC2_LOGV_IF("layer-id=%d, x=%d, y=%d", id_, x, y);
     mCurrentState.cursor_x_ = x;
     mCurrentState.cursor_y_ = y;
     return HWC2::Error::None;
 }
 
 int DrmHwcTwo::HwcDisplay::DumpDisplayInfo(String8& output) {
-    output.appendFormat(" DisplayId=%" PRIu64 ", Connector %u, Type = %s-%u, Connector state = %s\n", handle_,
-                        connector_->id(), isVirtual() ? "Virtual" : drm_->connector_type_str(connector_->type()),
-                        connector_->type_id(),
-                        connector_->state() == DRM_MODE_CONNECTED ? "DRM_MODE_CONNECTED" : "DRM_MODE_DISCONNECTED");
+    output.appendFormat(
+            "\nDisplayId=%" PRIu64 ", Connector %u, Type = %s-%u, Connector state = %s frame_no =%" PRIu32 "\n",
+            handle_, connector_->id(), isVirtual() ? "Virtual" : drm_->connector_type_str(connector_->type()),
+            connector_->type_id(),
+            connector_->state() == DRM_MODE_CONNECTED ? "DRM_MODE_CONNECTED" : "DRM_MODE_DISCONNECTED", frame_no_);
 
     if (connector_->state() != DRM_MODE_CONNECTED) return -1;
 
@@ -3476,10 +3466,14 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayInfo(String8& output) {
     }
 
     // clang-format off
-  output.append("------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
+    output.append("------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
     output.append("DrmHwcLayer Dump:\n");
     // clang-format on
     for (auto& drmHwcLayer : drm_hwc_layers_) drmHwcLayer.DumpInfo(output);
+
+    if (compositor_ != NULL) {
+        compositor_->Dump(output);
+    }
 
     return 0;
 }
@@ -3694,9 +3688,9 @@ int DrmHwcTwo::HwcDisplay::UpdateDisplayMode() {
                             event.connection = DRM_MODE_CONNECTED;
                             g_ctx->eventWorker_.SendDrmEvent(event);
                         } else {
-                            HWC2_ALOGW("MirrorDisplay: mirror_conn=%d, connection=%d crtc=%p state is error.",
-                                       conn_mirror->display(), conn_mirror->state(),
-                                       drm_->GetCrtcForDisplay(old_mirror_display_id));
+                            HWC2_LOGW("MirrorDisplay: mirror_conn=%d, connection=%d crtc=%p state is error.",
+                                      conn_mirror->display(), conn_mirror->state(),
+                                      drm_->GetCrtcForDisplay(old_mirror_display_id));
                         }
                     }
                 }
@@ -3805,7 +3799,7 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrModeRK3588() {
             if (drmHwcLayer.bHdr_) {
                 // 没有被硬件图层匹配，则说明使用GPU合成
                 if (!drmHwcLayer.bMatch_) {
-                    HWC2_ALOGD_IF_DEBUG("HDR video compose by GLES on 8k resolution, Fource Disable HDR mode.");
+                    HWC2_LOGD_IF("HDR video compose by GLES on 8k resolution, Fource Disable HDR mode.");
                     return true;
                 }
             }
@@ -3820,7 +3814,7 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
         DrmCrtc* crtc = connector_->encoder()->crtc();
         // 不支持则关闭HDR
         if (crtc != NULL && crtc->get_hdr() == false) {
-            HWC2_ALOGD_IF_DEBUG("crtc-id=%d port-id=%d unsupport hdr.", crtc->id(), crtc->get_port_id());
+            HWC2_LOGD_IF("crtc-id=%d port-id=%d unsupport hdr.", crtc->id(), crtc->get_port_id());
             return true;
         }
     }
@@ -3851,10 +3845,10 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
         property_get("persist.vendor.hwc.hdr_force_disable", value, "0");
         if (atoi(value) > 0) {
             if (ctx_.hdr_mode != DRM_HWC_SDR) {
-                HWC2_ALOGD_IF_DEBUG("Exit HDR mode success");
+                HWC2_LOGD_IF("Exit HDR mode success");
                 property_set("vendor.hwc.hdr_state", "FORCE-NORMAL");
             }
-            HWC2_ALOGD_IF_DEBUG("Fource Disable HDR mode.");
+            HWC2_LOGD_IF("Fource Disable HDR mode.");
             return true;
         }
 
@@ -3862,10 +3856,10 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
         property_get("persist.vendor.hwc.hdr_video_area", value, "6");
         if (atoi(value) > hdr_area_ratio) {
             if (ctx_.hdr_mode != DRM_HWC_SDR) {
-                HWC2_ALOGD_IF_DEBUG("Exit HDR mode success");
+                HWC2_LOGD_IF("Exit HDR mode success");
                 property_set("vendor.hwc.hdr_state", "FORCE-NORMAL");
             }
-            HWC2_ALOGD_IF_DEBUG("Force Disable HDR mode.");
+            HWC2_LOGD_IF("Force Disable HDR mode.");
             return true;
         }
     }
@@ -3892,38 +3886,38 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
 }
 
 int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
-    HWC2_ALOGD_IF_INFO("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
+    HWC2_LOGI_IF("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
 
     if (ctx_.display_type == DRM_MODE_CONNECTOR_TV) {
-        HWC2_ALOGD_IF_INFO("RK3528 TV unsupport HDR2SDR, Id=%d Name=%s eDataSpace_=0x%x eotf=%d", hdrLayer.uId_,
-                           hdrLayer.sLayerName_.c_str(), hdrLayer.eDataSpace_, hdrLayer.uEOTF);
+        HWC2_LOGI_IF("RK3528 TV unsupport HDR2SDR, Id=%d Name=%s eDataSpace_=0x%x eotf=%d", hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str(), hdrLayer.eDataSpace_, hdrLayer.uEOTF);
         return -1;
     }
 
     if (hdrLayer.bSideband2_) {
-        HWC2_ALOGD_IF_ERR("Sideband2 layer skip, Id=%d Name=%s zpos=%d match=%d", hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str(), hdrLayer.iZpos_, hdrLayer.bMatch_);
+        HWC2_LOGE_IF("Sideband2 layer skip, Id=%d Name=%s zpos=%d match=%d", hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str(), hdrLayer.iZpos_, hdrLayer.bMatch_);
         return -1;
     }
 
     // Next hdr zpos must be 0
     if (hdrLayer.iZpos_ > 0) {
-        HWC2_ALOGD_IF_ERR("Next hdr zpos must be 0, Id=%d Name=%s zpos=%d", hdrLayer.uId_, hdrLayer.sLayerName_.c_str(),
-                          hdrLayer.iZpos_);
+        HWC2_LOGE_IF("Next hdr zpos must be 0, Id=%d Name=%s zpos=%d", hdrLayer.uId_, hdrLayer.sLayerName_.c_str(),
+                     hdrLayer.iZpos_);
         return -1;
     }
 
     if (!hdrLayer.bMatch_) {
-        HWC2_ALOGD_IF_ERR("Next hdr not overlay, Id=%d Name=%s zpos=%d match=%d", hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str(), hdrLayer.iZpos_, hdrLayer.bMatch_);
+        HWC2_LOGE_IF("Next hdr not overlay, Id=%d Name=%s zpos=%d match=%d", hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str(), hdrLayer.iZpos_, hdrLayer.bMatch_);
         return -1;
     }
 
     // 算法解析库是否存在
     DrmHdrParser* dhp = DrmHdrParser::Get();
     if (dhp == NULL) {
-        HWC2_ALOGD_IF_ERR("Fail to get DrmHdrParser, use SDR mode, Id=%d Name=%s ", hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str());
+        HWC2_LOGE_IF("Fail to get DrmHdrParser, use SDR mode, Id=%d Name=%s ", hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str());
         return -1;
     }
 
@@ -3960,13 +3954,13 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
 
     // 如果输入是 SDR 且输出为SDR,则不需要进行任何处理
     if (is_input_hdr == false && is_output_hdr == false) {
-        HWC2_ALOGD_IF_INFO("Use SDR2SDR mode.");
+        HWC2_LOGI_IF("Use SDR2SDR mode.");
         return -1;
     }
 
     DrmGralloc* gralloc = DrmGralloc::getInstance();
     if (gralloc == NULL) {
-        HWC2_ALOGD_IF_INFO("DrmGralloc is null, Use SDR2SDR mode.");
+        HWC2_LOGI_IF("DrmGralloc is null, Use SDR2SDR mode.");
         return -1;
     }
 
@@ -3991,12 +3985,11 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
     // 获取存储 metadata 信息的offset
     int64_t offset = hdrLayer.bHasMetadata_ ? gralloc->hwc_get_offset_of_dynamic_hdr_metadata(hdr_handle) : 0;
     if (offset < 0) {
-        HWC2_ALOGD_IF_ERR("Fail to get hdr metadata offset, Id=%d Name=%s ", hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str());
+        HWC2_LOGE_IF("Fail to get hdr metadata offset, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
     }
     // offset > 0 则认为存在 Metadata
     codec_meta_exist = offset > 0;
-    HWC2_ALOGD_IF_INFO("dynamic_hdr_metadata offset=%" PRIi64, offset);
+    HWC2_LOGI_IF("dynamic_hdr_metadata offset=%" PRIi64, offset);
 
     // 初始化参数
     memset(&hdrLayer.metadataHdrParam_, 0x00, sizeof(rk_hdr_parser_params_t));
@@ -4060,7 +4053,7 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
             cpu_addr = gralloc->hwc_get_handle_lock(hdr_handle, hdr_width, hdr_height);
         }
         if (cpu_addr == NULL) {
-            HWC2_ALOGD_IF_ERR("Fail to lock dma buffer, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
+            HWC2_LOGE_IF("Fail to lock dma buffer, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
             hdrLayer.metadataHdrParam_.codec_meta_exist = false;
             hdrLayer.metadataHdrParam_.p_hdr_codec_meta = NULL;
         } else {
@@ -4078,19 +4071,19 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
             if (hdrLayer.uEOTF == HLG && hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf == SINK_EOTF_HLG) {
                 int ret = dhp->MetadataHdrparserFormat(&hdrLayer.metadataHdrParam_, &hdrLayer.metadataHdrFmtInfo_);
                 if (ret) {
-                    HWC2_ALOGD_IF_ERR("MetadataHdrparserFormat, Id=%d Name=%s ", hdrLayer.uId_,
-                                      hdrLayer.sLayerName_.c_str());
+                    HWC2_LOGE_IF("MetadataHdrparserFormat, Id=%d Name=%s ", hdrLayer.uId_,
+                                 hdrLayer.sLayerName_.c_str());
                     hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_ST2084;
                 } else {
                     if (hdrLayer.metadataHdrFmtInfo_.hdr_format == HDRVIVID) {
                         if (connector_->isSupportSt2084()) {
                             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_ST2084;
-                            HWC2_ALOGD_IF_INFO("Id=%d Name=%s is HLG dynamic, convert to HDR10.", hdrLayer.uId_,
-                                               hdrLayer.sLayerName_.c_str());
+                            HWC2_LOGI_IF("Id=%d Name=%s is HLG dynamic, convert to HDR10.", hdrLayer.uId_,
+                                         hdrLayer.sLayerName_.c_str());
                         } else {
                             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_GAMMA_SDR;
-                            HWC2_ALOGD_IF_INFO("Id=%d Name=%s is HLG dynamic, convert to SDR.", hdrLayer.uId_,
-                                               hdrLayer.sLayerName_.c_str());
+                            HWC2_LOGI_IF("Id=%d Name=%s is HLG dynamic, convert to SDR.", hdrLayer.uId_,
+                                         hdrLayer.sLayerName_.c_str());
                         }
                     }
                 }
@@ -4192,13 +4185,13 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
                 hwc_get_int_property("vendor.hwc.vivid_hdr_log_level", "7");
     }
 
-    HWC2_ALOGD_IF_INFO(
+    HWC2_LOGI_IF(
             "hdr_hdmi_meta: user_hdr_mode(%d) layer eDataSpace=0x%x eotf=%d => codec_meta_exist(%d) "
             "hdr_dataspace_info: color_prim=%d eotf=%d range=%d",
             user_hdr_mode, hdrLayer.eDataSpace_, hdrLayer.uEOTF, hdrLayer.metadataHdrParam_.codec_meta_exist,
             hdrLayer.metadataHdrParam_.hdr_dataspace_info.color_prim,
             hdrLayer.metadataHdrParam_.hdr_dataspace_info.eotf, hdrLayer.metadataHdrParam_.hdr_dataspace_info.range);
-    HWC2_ALOGD_IF_INFO(
+    HWC2_LOGI_IF(
             "hdr_hdmi_meta: color_prim=%d eotf=%d red_x=%d red_y=%d green_x=%d green_y=%d white_point_x=%d "
             "white_point_y=%d dst_min=%d dst_max=%d",
             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.color_prim, hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf,
@@ -4208,7 +4201,7 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.white_point_y, hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_min,
             hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_max);
 
-    HWC2_ALOGD_IF_INFO(
+    HWC2_LOGI_IF(
             "hdr_user_cfg: hdr_pq_max_y_mode=%d hdr_dst_gamma=%f s2h_sm_ratio=%f s2h_scale_ratio=%f "
             "s2h_sdr_color_space=%d print_input_meta=%d hdr_log_level=%d",
             hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_pq_max_y_mode,
@@ -4220,8 +4213,8 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
 
     int ret = dhp->MetadataHdrParser(&hdrLayer.metadataHdrParam_);
     if (ret) {
-        HWC2_ALOGD_IF_ERR("Fail to call MetadataHdrParser ret=%d Id=%d Name=%s ", ret, hdrLayer.uId_,
-                          hdrLayer.sLayerName_.c_str());
+        HWC2_LOGE_IF("Fail to call MetadataHdrParser ret=%d Id=%d Name=%s ", ret, hdrLayer.uId_,
+                     hdrLayer.sLayerName_.c_str());
         if (cpu_addr != NULL) {
             if (usemmap)
                 DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
@@ -4240,12 +4233,12 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
     hdrLayer.IsMetadataHdr_ = true;
     ctx_.hdr_mode = DRM_HWC_METADATA_HDR;
     ctx_.dataspace = hdrLayer.eDataSpace_;
-    HWC2_ALOGD_IF_INFO("Use HdrParser mode.");
+    HWC2_LOGI_IF("Use HdrParser mode.");
     return 0;
 }
 
 int DrmHwcTwo::HwcDisplay::EnableHdrMode(DrmHwcLayer& hdrLayer) {
-    HWC2_ALOGD_IF_INFO("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
+    HWC2_LOGI_IF("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
     if (connector_->is_hdmi_support_hdr()) {
         if (ctx_.hdr_mode != DRM_HWC_HDR10) {
             ALOGD_IF(LogLevel(DBG_DEBUG), "Enable HDR mode success");
@@ -4289,22 +4282,21 @@ int DrmHwcTwo::HwcDisplay::UpdateSidebandMode() {
                 // tunnel id 不一致则先断开连接旧连接
                 int ret = dvp->DestoryConnection((int(handle_) + 1000), iLastTunnelId_);
                 if (ret) {
-                    HWC2_ALOGD_IF_ERR("DestoryConnection display=%" PRIu64 " tunnel-id=%d fail ret=%d", handle_,
-                                      iLastTunnelId_, ret);
+                    HWC2_LOGE_IF("DestoryConnection display=%" PRIu64 " tunnel-id=%d fail ret=%d", handle_,
+                                 iLastTunnelId_, ret);
                 } else {
-                    HWC2_ALOGD_IF_INFO("DestoryConnection display=%" PRIu64 " tunnel-id=%d success ret=%d", handle_,
-                                       iLastTunnelId_, ret);
+                    HWC2_LOGI_IF("DestoryConnection display=%" PRIu64 " tunnel-id=%d success ret=%d", handle_,
+                                 iLastTunnelId_, ret);
                 }
             }
             // 创建新连接
             int ret = dvp->CreateConnection((int(handle_) + 1000), tunnel_id, dataspace, DRM_MODE_ROTATE_0);
             if (ret) {
-                HWC2_ALOGD_IF_ERR("CreateConnection display=%" PRIu64 " fail tunnel-id=%d ret=%d", handle_, tunnel_id,
-                                  ret);
+                HWC2_LOGE_IF("CreateConnection display=%" PRIu64 " fail tunnel-id=%d ret=%d", handle_, tunnel_id, ret);
             } else {
                 dvp->SetProducerFps(tunnel_id, fps);
-                HWC2_ALOGD_IF_INFO("CreateConnection display=%" PRIu64 " tunnel-id=%d success ret=%d", handle_,
-                                   tunnel_id, ret);
+                HWC2_LOGI_IF("CreateConnection display=%" PRIu64 " tunnel-id=%d success ret=%d", handle_, tunnel_id,
+                             ret);
             }
             iLastTunnelId_ = tunnel_id;
         }
@@ -4313,11 +4305,11 @@ int DrmHwcTwo::HwcDisplay::UpdateSidebandMode() {
             // tunnel id 不一致则先断开连接旧连接
             int ret = dvp->DestoryConnection((int(handle_) + 1000), iLastTunnelId_);
             if (ret) {
-                HWC2_ALOGD_IF_ERR("DestoryConnection display=%" PRIu64 " tunnel-id=%d fail ret=%d", handle_,
-                                  iLastTunnelId_, ret);
+                HWC2_LOGE_IF("DestoryConnection display=%" PRIu64 " tunnel-id=%d fail ret=%d", handle_, iLastTunnelId_,
+                             ret);
             } else {
-                HWC2_ALOGD_IF_INFO("DestoryConnection display=%" PRIu64 " tunnel-id=%d success ret=%d", handle_,
-                                   iLastTunnelId_, ret);
+                HWC2_LOGI_IF("DestoryConnection display=%" PRIu64 " tunnel-id=%d success ret=%d", handle_,
+                             iLastTunnelId_, ret);
                 iLastTunnelId_ = 0;
             }
         }
@@ -4406,7 +4398,7 @@ int DrmHwcTwo::HwcDisplay::UpdateTimerEnable() {
 
 #ifdef USE_LIBPQ_HWPQ
         if (drmHwcLayer.hwPqReg_ != NULL) {
-            HWC2_ALOGD_IF_DEBUG("drmHwcLayer.hwPqReg_ != NULL , Disable Timer.");
+            HWC2_LOGD_IF("drmHwcLayer.hwPqReg_ != NULL , Disable Timer.");
             enable_timer = false;
         }
 #endif
@@ -4421,14 +4413,14 @@ int DrmHwcTwo::HwcDisplay::SelfRefreshEnable() {
 #if (defined USE_LIBSR) || (defined USE_LIBSVEP_MEMC)
         // Sr
         if (drmHwcLayer.bUseSr_) {
-            HWC2_ALOGD_IF_DEBUG("Sr Enable SelfRefresh!");
+            HWC2_LOGD_IF("Sr Enable SelfRefresh!");
             enable_self_refresh = true;
             self_fps = 10;
             break;
         }
         // MEMC
         // if(drmHwcLayer.bUseMemc_){
-        //   HWC2_ALOGD_IF_DEBUG("Memc Enable SelfRefresh!");
+        //   HWC2_LOGD_IF("Memc Enable SelfRefresh!");
         //   enable_self_refresh = true;
         //   self_fps = 60;
         //   break;
@@ -4462,11 +4454,11 @@ int DrmHwcTwo::HwcDisplay::UpdateTimerState(bool gles_comp) {
         interval_value = interval_value < 250 ? 250 : interval_value;
         tv.it_value.tv_sec = interval_value / 1000;
         tv.it_value.tv_usec = (interval_value % 1000) * 1000;
-        HWC2_ALOGD_IF_VERBOSE("reset timer! interval_value = %d", interval_value);
+        HWC2_LOGV_IF("reset timer! interval_value = %d", interval_value);
     } else {
         static_screen_opt_ = false;
         tv.it_value.tv_usec = 0;
-        ALOGD_IF(LogLevel(DBG_DEBUG), "close timer!");
+        HWC2_LOGV_IF("close timer!");
     }
     setitimer(ITIMER_REAL, &tv, NULL);
     return 0;
@@ -4523,11 +4515,11 @@ int DrmHwcTwo::HwcDisplay::DoMirrorDisplay(int32_t* retire_fence) {
                 if (plane_group->is_will_disable() == false) {
                     plane_groups.push_back(plane_group);
                 } else {
-                    HWC2_ALOGD_IF_DEBUG("%s will disable, display-id(%" PRIi64 "->%" PRIi64 ") crtc_mask(0x%" PRIx32
-                                        " -> 0x%" PRIx32 ")",
-                                        plane_group->planes[0]->name(), plane_group->possible_display_,
-                                        plane_group->next_possible_display_, plane_group->current_crtc_,
-                                        plane_group->next_crtc_);
+                    HWC2_LOGD_IF("%s will disable, display-id(%" PRIi64 "->%" PRIi64 ") crtc_mask(0x%" PRIx32
+                                 " -> 0x%" PRIx32 ")",
+                                 plane_group->planes[0]->name(), plane_group->possible_display_,
+                                 plane_group->next_possible_display_, plane_group->current_crtc_,
+                                 plane_group->next_crtc_);
                     continue;
                 }
             }
@@ -4572,8 +4564,8 @@ int DrmHwcTwo::HwcDisplay::DoMirrorDisplay(int32_t* retire_fence) {
                             merge_rt_fence = rt->merge(merge_rt_fence, acBuf);
                             close(merge_rt_fence_temp);
                         } else {
-                            HWC2_ALOGE("connector %u type=%s, type_id=%d is MirrorDisplay get retireFence fail.\n",
-                                       conn->id(), drm_->connector_type_str(conn->type()), conn->type_id());
+                            HWC2_LOGE("connector %u type=%s, type_id=%d is MirrorDisplay get retireFence fail.\n",
+                                      conn->id(), drm_->connector_type_str(conn->type()), conn->type_id());
                         }
                     } else {
                         merge_rt_fence = rt_fence;
@@ -4619,15 +4611,15 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetOrCreateDummyLayer() {
             case static_cast<int32_t>(HWC2::Transform::FlipVRotate90):
                 break;
             default:
-                HWC2_ALOGW("SplitMode: invalid transform=%d", transform);
+                HWC2_LOGW("SplitMode: invalid transform=%d", transform);
                 transform = 0;
                 break;
         }
         dummy_layer.SetLayerTransform(transform);
-        HWC2_ALOGI("SplitMode: display=%" PRIu64 " Create dummylayer = %" PRIu64
-                   " crop=[%f,%f,%f,%f] frame=[%d,%d,%d,%d] transform=%s",
-                   handle_, uCropSplitDummyLayer_, crop.left, crop.top, crop.right, crop.bottom, frame.left, frame.top,
-                   frame.right, frame.bottom, getTransformName(static_cast<hwc_transform_t>(transform)));
+        HWC2_LOGI("SplitMode: display=%" PRIu64 " Create dummylayer = %" PRIu64
+                  " crop=[%f,%f,%f,%f] frame=[%d,%d,%d,%d] transform=%s",
+                  handle_, uCropSplitDummyLayer_, crop.left, crop.top, crop.right, crop.bottom, frame.left, frame.top,
+                  frame.right, frame.bottom, getTransformName(static_cast<hwc_transform_t>(transform)));
         return HWC2::Error::None;
     }
 }
@@ -4635,7 +4627,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetOrCreateDummyLayer() {
 HWC2::Error DrmHwcTwo::HwcDisplay::DestoryDummyLayer() {
     std::unique_lock<std::recursive_mutex> lock(mDisplayMutex_);
     if (uCropSplitDummyLayer_ > 0 && has_layer(uCropSplitDummyLayer_)) {
-        HWC2_ALOGI("SplitMode: display=%" PRIu64 " Destory dummylayer = %" PRIu64, handle_, uCropSplitDummyLayer_);
+        HWC2_LOGI("SplitMode: display=%" PRIu64 " Destory dummylayer = %" PRIu64, handle_, uCropSplitDummyLayer_);
         auto ret = DestroyLayer(uCropSplitDummyLayer_);
         uCropSplitDummyLayer_ = 0;
         return ret;
@@ -4645,7 +4637,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::DestoryDummyLayer() {
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBlendMode(int32_t mode) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, blend=%d", id_, mode);
+    HWC2_LOGV_IF("layer-id=%d, blend=%d", id_, mode);
     mCurrentState.blending_ = static_cast<HWC2::BlendMode>(mode);
     bUpdate_ = true;
     return HWC2::Error::None;
@@ -4659,7 +4651,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBlendMode(int32_t mode) {
 #define RK_DECODING_CALCULATION(value, shift) (((value * (-1)) >> shift) & 0xff)
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBuffer(buffer_handle_t buffer, int32_t acquire_fence) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, buffer=%p, acq_fence=%d", id_, buffer, acquire_fence);
+    HWC2_LOGV_IF("layer-id=%d, buffer=%p, acq_fence=%d", id_, buffer, acquire_fence);
     //Deleting the following logic may cause the problem that the handle cannot be updated
     // The buffer and acquire_fence are handled elsewhere
     //  if (sf_type_ == HWC2::Composition::Client ||
@@ -4673,7 +4665,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBuffer(buffer_handle_t buffer, int32_t 
     // 动态切换刷新率过程中SurfaceFlinger会出现 SetLayerBuffer target=null的情况
     // 为了避免错误日志打印，故暂时对这种情况进行规避；
     if (buffer == NULL) {
-        HWC2_ALOGW("Buffer is NULL, skip SetLayerBuffer");
+        HWC2_LOGW("Buffer is NULL, skip SetLayerBuffer");
         if (acquire_fence > 0) {
             close(acquire_fence);
         }
@@ -4703,7 +4695,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBuffer(buffer_handle_t buffer, int32_t 
         bUseSlotCache = RK_DECODING_CALCULATION(acquire_fence, RK_BUFFER_CACHE_SHIFT) == RK_BUFFER_USE_CACHE_FLAG;
         uCacheSlot = RK_DECODING_CALCULATION(acquire_fence, RK_BUFFER_SLOT_SHIFT);
         if (uCacheSlot >= 0) {
-            HWC2_ALOGD_IF_DEBUG("use_cache=%d cache_slot=%d", bUseSlotCache, uCacheSlot);
+            HWC2_LOGD_IF("use_cache=%d cache_slot=%d", bUseSlotCache, uCacheSlot);
             return HWC2::Error::None;
         }
     }
@@ -4741,7 +4733,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBuffer(buffer_handle_t buffer, int32_t 
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColor(hwc_color_t color) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, color [r,g,b,a]=[%d,%d,%d,%d]", id_, color.r, color.g, color.b, color.a);
+    HWC2_LOGV_IF("layer-id=%d, color [r,g,b,a]=[%d,%d,%d,%d]", id_, color.r, color.g, color.b, color.a);
     // TODO: Punt to client composition here?
     mCurrentState.color_ = color;
     ResourceManager* rm = ResourceManager::getInstance();
@@ -4760,7 +4752,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColor(hwc_color_t color) {
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerCompositionType(int32_t type) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, type=0x%x", id_, type);
+    HWC2_LOGV_IF("layer-id=%d, type=0x%x", id_, type);
 #if PLATFORM_SDK_VERSION >= 34
     mCurrentState.hwc3_sf_type_ = type;
     if (mCurrentState.hwc3_sf_type_ == HWC3_COMPOSITION_DISPLAY_DECORATION) return HWC2::Error::Unsupported;
@@ -4772,44 +4764,43 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerCompositionType(int32_t type) {
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerDataspace(int32_t dataspace) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, dataspace=0x%x", id_, dataspace);
+    HWC2_LOGV_IF("layer-id=%d, dataspace=0x%x", id_, dataspace);
     mCurrentState.dataspace_ = static_cast<android_dataspace_t>(dataspace);
     bUpdate_ = true;
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerDisplayFrame(hwc_rect_t frame) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, frame=[%d,%d,%d,%d]", id_, frame.left, frame.top, frame.right, frame.bottom);
+    HWC2_LOGV_IF("layer-id=%d, frame=[%d,%d,%d,%d]", id_, frame.left, frame.top, frame.right, frame.bottom);
     mCurrentState.display_frame_ = frame;
     bUpdate_ = true;
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerPlaneAlpha(float alpha) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, alpha=%f", id_, alpha);
+    HWC2_LOGV_IF("layer-id=%d, alpha=%f", id_, alpha);
     mCurrentState.alpha_ = alpha;
     bUpdate_ = true;
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSidebandStream(const native_handle_t* stream) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d stream=%p", id_, stream);
+    HWC2_LOGV_IF("layer-id=%d stream=%p", id_, stream);
     ResourceManager* rm = ResourceManager::getInstance();
     if (rm->IsSidebandStream2Mode()) {
         if (stream != NULL) {
             vt_sideband_data_t* sbi = (vt_sideband_data_t*)(stream->data);
             // 如果 Tunnel Id 有效，并且是未连接状态，则创建连接
             if (sbi->tunnel_id != mSidebandInfo_.tunnel_id) {
-                HWC2_ALOGD_IF_DEBUG("SidebandStream: layer-id=%d. version=%d numFds=%d numInts=%d", id_,
-                                    stream->version, stream->numFds, stream->numInts);
-                HWC2_ALOGD_IF_DEBUG("SidebandStream: version=%d sizeof=%zu tunnel-id=%d session-id=%" PRIu64
-                                    " crop[%d,%d,%d,%d]  w=%d h=%d ws=%d hs=%d bs=%d f=%d transform=%d size=%d "
-                                    "modifier=%d usage=0x%" PRIx64 " dataSpace=0x%" PRIx64 " afbc=%d fps=%" PRIu64 "",
-                                    stream->data[0], sizeof(vt_sideband_data_t), sbi->tunnel_id, sbi->session_id,
-                                    sbi->crop.left, sbi->crop.top, sbi->crop.right, sbi->crop.bottom, sbi->width,
-                                    sbi->height, sbi->hor_stride, sbi->ver_stride, sbi->byte_stride, sbi->format,
-                                    sbi->transform, sbi->size, sbi->modifier, sbi->usage, sbi->data_space,
-                                    sbi->compress_mode, sbi->fps);
+                HWC2_LOGD_IF("SidebandStream: layer-id=%d. version=%d numFds=%d numInts=%d", id_, stream->version,
+                             stream->numFds, stream->numInts);
+                HWC2_LOGD_IF("SidebandStream: version=%d sizeof=%zu tunnel-id=%d session-id=%" PRIu64
+                             " crop[%d,%d,%d,%d]  w=%d h=%d ws=%d hs=%d bs=%d f=%d transform=%d size=%d "
+                             "modifier=%d usage=0x%" PRIx64 " dataSpace=0x%" PRIx64 " afbc=%d fps=%" PRIu64 "",
+                             stream->data[0], sizeof(vt_sideband_data_t), sbi->tunnel_id, sbi->session_id,
+                             sbi->crop.left, sbi->crop.top, sbi->crop.right, sbi->crop.bottom, sbi->width, sbi->height,
+                             sbi->hor_stride, sbi->ver_stride, sbi->byte_stride, sbi->format, sbi->transform, sbi->size,
+                             sbi->modifier, sbi->usage, sbi->data_space, sbi->compress_mode, sbi->fps);
                 bSideband2Valid_ = true;
                 memcpy(&mSidebandInfo_, sbi, sizeof(vt_sideband_data_t));
             }
@@ -4830,14 +4821,14 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSidebandStream(const native_handle_t* s
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSourceCrop(hwc_frect_t crop) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, frame=[%f,%f,%f,%f]", id_, crop.left, crop.top, crop.right, crop.bottom);
+    HWC2_LOGV_IF("layer-id=%d, frame=[%f,%f,%f,%f]", id_, crop.left, crop.top, crop.right, crop.bottom);
     mCurrentState.source_crop_ = crop;
     bUpdate_ = true;
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSurfaceDamage(hwc_region_t damage) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    HWC2_LOGV_IF("layer-id=%d", id_);
     // TODO: We don't use surface damage, marking as unsupported
     unsupported(__func__, damage);
     bUpdate_ = true;
@@ -4845,14 +4836,14 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSurfaceDamage(hwc_region_t damage) {
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerTransform(int32_t transform) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, transform=%x", id_, transform);
+    HWC2_LOGV_IF("layer-id=%d, transform=%x", id_, transform);
     mCurrentState.transform_ = static_cast<HWC2::Transform>(transform);
     bUpdate_ = true;
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerVisibleRegion(hwc_region_t visible) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    HWC2_LOGV_IF("layer-id=%d", id_);
     // TODO: We don't use this information, marking as unsupported
     unsupported(__func__, visible);
     bUpdate_ = true;
@@ -4860,7 +4851,7 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerVisibleRegion(hwc_region_t visible) {
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerZOrder(uint32_t order) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d, z=%d", id_, order);
+    HWC2_LOGV_IF("layer-id=%d, z=%d", id_, order);
     mCurrentState.z_order_ = order;
     bUpdate_ = true;
     return HWC2::Error::None;
@@ -4871,12 +4862,12 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerZOrder(uint32_t order) {
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerPerFrameMetadata(uint32_t numElements,
                                                           const int32_t* /*hw2_per_frame_metadata_key_t*/ keys,
                                                           const float* metadata) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    HWC2_LOGV_IF("layer-id=%d", id_);
     return HWC2::Error::None;
 }
 // TODO:
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerFloatColor(hwc_float_color_t color) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    HWC2_LOGV_IF("layer-id=%d", id_);
     return HWC2::Error::None;
 }
 
@@ -4884,17 +4875,17 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerFloatColor(hwc_float_color_t color) {
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerPerFrameMetadataBlobs(uint32_t numElements,
                                                                const int32_t* /*hw2_per_frame_metadata_key_t*/ keys,
                                                                const uint32_t* sizes, const uint8_t* metadata) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    HWC2_LOGV_IF("layer-id=%d", id_);
     return HWC2::Error::None;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerColorTransform(const float* matrix) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    HWC2_LOGV_IF("layer-id=%d", id_);
     return HWC2::Error::None;
 }
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerGenericMetadata(uint32_t keyLength, const char* key, bool mandatory,
                                                          uint32_t valueLength, const uint8_t* value) {
-    HWC2_ALOGD_IF_VERBOSE("layer-id=%d", id_);
+    HWC2_LOGV_IF("layer-id=%d", id_);
     return HWC2::Error::None;
 }
 
@@ -4933,7 +4924,7 @@ void DrmHwcTwo::HwcLayer::PopulateSidebandLayer(DrmHwcLayer* drmHwcLayer, hwc2_d
             // 通过 Sideband Handle compress_mode 来判断图层是否为AFBC压缩格式
             if (mSidebandInfo_.compress_mode > 0) {
                 if (gIsRK3576()) {
-                    HWC2_ALOGD_IF_DEBUG("TODO: AFBC/RFBC Need to be updated for RK3576!!!");
+                    HWC2_LOGD_IF("TODO: AFBC/RFBC Need to be updated for RK3576!!!");
                     drmHwcLayer->uModifier_ = AFBC_FORMAT_MOD_BLOCK_SIZE_32x8;
                 } else {
                     drmHwcLayer->uModifier_ = AFBC_FORMAT_MOD_BLOCK_SIZE_16x16;
@@ -5061,8 +5052,8 @@ bool DrmHwcTwo::HwcLayer::CanSkipSolidColorLayer(int have_skip_layer_zpos) {
 
         if (mCurrentState.z_order_ == have_skip_layer_zpos && mCurrentState.color_.r == 0 &&
             mCurrentState.color_.g == 0 && mCurrentState.color_.b == 0) {
-            HWC2_ALOGD_IF_DEBUG("Skip Solid Color Layer, z_order=%d, color=(%d,%d,%d)", mCurrentState.z_order_,
-                                mCurrentState.color_.r, mCurrentState.color_.g, mCurrentState.color_.b);
+            HWC2_LOGD_IF("Skip Solid Color Layer, z_order=%d, color=(%d,%d,%d)", mCurrentState.z_order_,
+                         mCurrentState.color_.r, mCurrentState.color_.g, mCurrentState.color_.b);
             set_validated_type(sf_type());
             return true;
         }
@@ -5183,7 +5174,7 @@ void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer* d
         if (enable_prescale_video > 0 && drmHwcLayer->bYuv_) {
             metadata_for_rkvdec_scaling_t* metadata = NULL;
             drmGralloc_->lock_rkvdec_scaling_metadata(buffer_, &metadata);
-            HWC2_ALOGD_IF_INFO("lock_rkvdec_scaling_metadata buffer_=%p metadata=%p", buffer_, metadata);
+            HWC2_LOGI_IF("lock_rkvdec_scaling_metadata buffer_=%p metadata=%p", buffer_, metadata);
             if (metadata != NULL) {
                 metadata->requestMask = enable_prescale_video;
                 if (metadata->replyMask > 0) {
@@ -5210,18 +5201,18 @@ void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer* d
                 }
 
                 // 打印参数
-                HWC2_ALOGD_IF_INFO("Name=%s metadata = %p", pBufferInfo_->sLayerName_.c_str(), metadata);
-                HWC2_ALOGD_IF_INFO(
-                        "version=0x%" PRIx64 " requestMask=0x%" PRIx64 " replyMask=0x%" PRIx64 " BufferId=0x%" PRIx64,
-                        metadata->version, metadata->requestMask, metadata->replyMask, drmHwcLayer->uBufferId_);
-                HWC2_ALOGD_IF_INFO("w=%d h=%d s=%d f=%d m=0x%" PRIx64 " usage=0x%x ", metadata->width, metadata->height,
-                                   metadata->pixel_stride, metadata->format, metadata->modifier, metadata->usage);
-                HWC2_ALOGD_IF_INFO("crop=(%d,%d,%d,%d) ", metadata->srcLeft, metadata->srcTop, metadata->srcRight,
-                                   metadata->srcBottom);
-                HWC2_ALOGD_IF_INFO("layer_cnt=%d offset=%d,%d,%d,%d byteStride=%d,%d,%d,%d) ", metadata->layer_cnt,
-                                   metadata->offset[0], metadata->offset[1], metadata->offset[2], metadata->offset[3],
-                                   metadata->byteStride[0], metadata->byteStride[1], metadata->byteStride[2],
-                                   metadata->byteStride[3]);
+                HWC2_LOGI_IF("Name=%s metadata = %p", pBufferInfo_->sLayerName_.c_str(), metadata);
+                HWC2_LOGI_IF("version=0x%" PRIx64 " requestMask=0x%" PRIx64 " replyMask=0x%" PRIx64
+                             " BufferId=0x%" PRIx64,
+                             metadata->version, metadata->requestMask, metadata->replyMask, drmHwcLayer->uBufferId_);
+                HWC2_LOGI_IF("w=%d h=%d s=%d f=%d m=0x%" PRIx64 " usage=0x%x ", metadata->width, metadata->height,
+                             metadata->pixel_stride, metadata->format, metadata->modifier, metadata->usage);
+                HWC2_LOGI_IF("crop=(%d,%d,%d,%d) ", metadata->srcLeft, metadata->srcTop, metadata->srcRight,
+                             metadata->srcBottom);
+                HWC2_LOGI_IF("layer_cnt=%d offset=%d,%d,%d,%d byteStride=%d,%d,%d,%d) ", metadata->layer_cnt,
+                             metadata->offset[0], metadata->offset[1], metadata->offset[2], metadata->offset[3],
+                             metadata->byteStride[0], metadata->byteStride[1], metadata->byteStride[2],
+                             metadata->byteStride[3]);
 
                 drmGralloc_->unlock_rkvdec_scaling_metadata(buffer_);
             }
@@ -5317,17 +5308,17 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 swpq_ = Pq::Get();
                 if (swpq_ != NULL) {
                     bPqReady_ = true;
-                    HWC2_ALOGI("Pq module ready. to enable PqMode.");
+                    HWC2_LOGI("Pq module ready. to enable PqMode.");
                 }
             } else {
                 bPqReady_ = true;
-                HWC2_ALOGI("Pq module ready. to enable PqMode.");
+                HWC2_LOGI("Pq module ready. to enable PqMode.");
             }
             if (bPqReady_) {
                 // 1. Init Ctx
                 int ret = swpq_->InitCtx(pqCtx_);
                 if (ret) {
-                    HWC2_ALOGE("Pq ctx init fail");
+                    HWC2_LOGE("Pq ctx init fail");
                     return ret;
                 }
                 // 2. Set buffer Info
@@ -5361,14 +5352,14 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 swpq_ = Pq::Get();
                 if (swpq_ != NULL) {
                     bPqReady_ = true;
-                    HWC2_ALOGI("pq module ready. to enable pqMode.");
+                    HWC2_LOGI("pq module ready. to enable pqMode.");
                 }
             }
             if (bPqReady_) {
                 // 1. Init Ctx
                 int ret = swpq_->InitCtx(pqCtx_);
                 if (ret) {
-                    HWC2_ALOGE("Pq ctx init fail");
+                    HWC2_LOGE("Pq ctx init fail");
                     return ret;
                 }
                 // 2. Set buffer Info
@@ -5403,7 +5394,7 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                         RK_GRALLOC_USAGE_STRIDE_ALIGN_64 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-FB-target");
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     return -1;
                 }
 
@@ -5448,7 +5439,7 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 if (drmHwcLayer->acquire_fence->isValid()) {
                     ret = drmHwcLayer->acquire_fence->wait(1500);
                     if (ret) {
-                        HWC2_ALOGE("wait Fb-Target 1500ms timeout, ret=%d", ret);
+                        HWC2_LOGE("wait Fb-Target 1500ms timeout, ret=%d", ret);
                         drmHwcLayer->bUsePq_ = false;
                         bufferQueue_->QueueBuffer(dst_buffer);
                         return ret;
@@ -5457,7 +5448,7 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 int output_fence = 0;
                 ret = swpq_->RunAsync(pqCtx_, &output_fence);
                 if (ret) {
-                    HWC2_ALOGD_IF_DEBUG("RunAsync fail!");
+                    HWC2_LOGD_IF("RunAsync fail!");
                     drmHwcLayer->bUsePq_ = false;
                     bufferQueue_->QueueBuffer(dst_buffer);
                     return ret;
@@ -5510,15 +5501,15 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                     ret = hwpq_->Init(PQ_VERSION);
                     if (ret != 0) {
                         hwpq_ = NULL;
-                        HWC2_ALOGE("Pq Init Failed, ret = %d", ret);
+                        HWC2_LOGE("Pq Init Failed, ret = %d", ret);
                     } else {
                         bPqReady_ = true;
-                        HWC2_ALOGI("Pq Init Successfully.");
+                        HWC2_LOGI("Pq Init Successfully.");
                     }
                 }
             }
             if (hwpq_ == NULL) {
-                HWC2_ALOGE("Pq module not ready.");
+                HWC2_LOGE("Pq module not ready.");
             } else {
                 ctx->use_pq_fb = true;
             }
@@ -5554,13 +5545,13 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                     src.iMetaDataFd_ = ctx->hwpq_meta_fd;
                     src.iMetaDataSize_ = ctx->hwpq_meta_size;
                     src.iMetaDataOffset_ = ctx->hwpq_meta_offset;
-                    HWC2_ALOGD_IF_DEBUG("Pq metadata:fd=%d offset=%" PRIi64, src.iMetaDataFd_, src.iMetaDataOffset_);
+                    HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64, src.iMetaDataFd_, src.iMetaDataOffset_);
                 }
 
                 if (drmHwcLayer->hwPqDisplayStatus) {
                     src.mDisplayStatus_ = drmHwcLayer->hwPqDisplayStatus;
                 } else {
-                    HWC2_ALOGD_IF_VERBOSE("HWPQ: hwPqDisplayStatus is NULL, Please check TryHwcPolicy!");
+                    HWC2_LOGV_IF("HWPQ: hwPqDisplayStatus is NULL, Please check TryHwcPolicy!");
                 }
 
                 src.iRotation_ = drmHwcLayer->transform;
@@ -5572,7 +5563,7 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 if (drmHwcLayer->hwPqReg_ == NULL) {
                     drmHwcLayer->hwPqReg_ = std::shared_ptr<rk_hwpq_reg>(new rk_hwpq_reg);
                     if (drmHwcLayer->hwPqReg_ == NULL) {
-                        HWC2_ALOGE("rk_hwpq_reg alloc failed");
+                        HWC2_LOGE("rk_hwpq_reg alloc failed");
                         return -1;
                     }
                 }
@@ -5585,22 +5576,22 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 ret = hwpq_->SetHwPqSrcImage(src, dst, &needAllocNewBuffer);
                 if (ret) {
                     if (ret == PqUnInit)
-                        HWC2_ALOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
+                        HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
                     else
-                        HWC2_ALOGE("Pq SetHwPqSrcImage fail, ret = %d", ret);
+                        HWC2_LOGE("Pq SetHwPqSrcImage fail, ret = %d", ret);
                     return ret;
                 }
 
                 //如果需要新的buffer（宽高format变化）
                 if (needAllocNewBuffer) {
-                    HWC2_ALOGD_IF_DEBUG("hwpq use new buffer mode, alloc Buffer!");
+                    HWC2_LOGD_IF("hwpq use new buffer mode, alloc Buffer!");
                     dst_buffer = bufferQueue_->DequeueDrmBuffer(
                             dst.mBufferInfo_.iWidth_, dst.mBufferInfo_.iHeight_, dst.mBufferInfo_.iFormat_,
                             // PQ 算法要求 16 对齐
                             RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-FB-target");
 
                     if (dst_buffer == NULL) {
-                        HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                        HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                         return -1;
                     }
 
@@ -5618,7 +5609,7 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
 
                 ret = hwpq_->SetHwPqDstImage(dst);
                 if (ret) {
-                    HWC2_ALOGE("Pq SetHwPqDstImage fail ret = %d", ret);
+                    HWC2_LOGE("Pq SetHwPqDstImage fail ret = %d", ret);
                     if (dst_buffer != NULL) bufferQueue_->QueueBuffer(dst_buffer);
                     return ret;
                 }
@@ -5644,7 +5635,7 @@ int DrmHwcTwo::HwcLayer::DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 }
                 ret = hwpq_->RunHwPqAsync(&output_fence, acquire_fence);
                 if (ret) {
-                    HWC2_ALOGE("RunHwPqAsync fail! ret = %d", ret);
+                    HWC2_LOGE("RunHwPqAsync fail! ret = %d", ret);
                     drmHwcLayer->bUsePq_ = false;
                     if (dst_buffer != NULL) bufferQueue_->QueueBuffer(dst_buffer);
                     return ret;
@@ -5807,16 +5798,16 @@ void DrmHwcTwo::HandleInitialHotplugState(DrmDevice* drmDevice) {
                     continue;
                 } else {
                     // CropSplit
-                    HWC2_ALOGI("HWC2 Init: not to register connector %u type=%s, type_id=%d isCropSplit=%d\n",
-                               conn->id(), drmDevice->connector_type_str(conn->type()), conn->type_id(),
-                               conn->isCropSplit());
+                    HWC2_LOGI("HWC2 Init: not to register connector %u type=%s, type_id=%d isCropSplit=%d\n",
+                              conn->id(), drmDevice->connector_type_str(conn->type()), conn->type_id(),
+                              conn->isCropSplit());
                     continue;
                 }
             }
 
             if (ResourceManager::getInstance()->IsSingleDisplayMode() && conn->display() > 0) {
-                HWC2_ALOGI("HWC2 Init: SingleDisplayMode not to register connector %u type=%s, type_id=%d \n",
-                           conn->id(), drmDevice->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("HWC2 Init: SingleDisplayMode not to register connector %u type=%s, type_id=%d \n",
+                          conn->id(), drmDevice->connector_type_str(conn->type()), conn->type_id());
                 continue;
             }
 
@@ -5839,7 +5830,7 @@ void DrmHwcTwo::EventWorker::HdmiTvOnlyOne(PLUG_EVENT_TYPE hdmi_hotplug_state) {
     int primary_id = 0;
     DrmDevice* drm_ = rm->GetDrmDevice(primary_id);
     if (drm_ == NULL) {
-        HWC2_ALOGE("Failed to get DrmDevice for display 0");
+        HWC2_LOGE("Failed to get DrmDevice for display 0");
         return;
     }
 
@@ -5855,13 +5846,13 @@ void DrmHwcTwo::EventWorker::HdmiTvOnlyOne(PLUG_EVENT_TYPE hdmi_hotplug_state) {
                     ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
                     ret |= (int32_t)display.ChosePreferredConfig();
                     if (ret != 0) {
-                        HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                                   cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                                   drm_->connector_type_str(conn->type()), conn->type_id());
+                        HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                                  cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                                  drm_->connector_type_str(conn->type()), conn->type_id());
                     } else {
-                        HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
-                                   cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                                   drm_->connector_type_str(conn->type()), conn->type_id());
+                        HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
+                                  cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                                  drm_->connector_type_str(conn->type()), conn->type_id());
                         hwc2_->HandleDisplayHotplug(display_id, cur_state);
                         display.SyncPowerMode();
                     }
@@ -5884,8 +5875,8 @@ void DrmHwcTwo::EventWorker::HdmiTvOnlyOne(PLUG_EVENT_TYPE hdmi_hotplug_state) {
                     int display_id = conn->display();
                     auto& display = hwc2_->displays_.at(display_id);
                     display.SetPowerMode(HWC2_POWER_MODE_OFF);
-                    HWC2_ALOGI("hwc_hotplug: Unplug connector %u type=%s type_id=%d send unhotplug event to SF.",
-                               conn->id(), drm_->connector_type_str(conn->type()), conn->type_id());
+                    HWC2_LOGI("hwc_hotplug: Unplug connector %u type=%s type_id=%d send unhotplug event to SF.",
+                              conn->id(), drm_->connector_type_str(conn->type()), conn->type_id());
                     hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_DISCONNECTED);
                 }
             }
@@ -5910,19 +5901,19 @@ void DrmHwcTwo::DrmHotplugHandler::HandleEvent(uint64_t timestamp_us) {
             event.timestamp = timestamp_us;
             hwc2_->eventWorker_.SendDrmEvent(event);
             changed_conn_cnt++;
-            HWC2_ALOGI("hwc_hotplug : %s-%d state is changed! %s -> %s, timestamp_us=%" PRIu64,
-                       drm_->connector_type_str(conn->type()), conn->type_id(),
-                       old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
-                       cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
+            HWC2_LOGI("hwc_hotplug : %s-%d state is changed! %s -> %s, timestamp_us=%" PRIu64,
+                      drm_->connector_type_str(conn->type()), conn->type_id(),
+                      old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
+                      cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
         } else {
-            HWC2_ALOGD_IF_INFO("hwc_hotplug : %s-%d state is no changed! %s -> %s, timestamp_us=%" PRIu64,
-                               drm_->connector_type_str(conn->type()), conn->type_id(),
-                               old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
-                               cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
+            HWC2_LOGI_IF("hwc_hotplug : %s-%d state is no changed! %s -> %s, timestamp_us=%" PRIu64,
+                         drm_->connector_type_str(conn->type()), conn->type_id(),
+                         old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
+                         cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
         }
     }
     if (changed_conn_cnt == 0) {
-        HWC2_ALOGI("hwc_hotplug : receive drm hotplug event but no state change. check by slow mode.");
+        HWC2_LOGI("hwc_hotplug : receive drm hotplug event but no state change. check by slow mode.");
         for (auto& conn : drm_->connectors()) {
             drmModeConnection old_state = conn->hotplug_state();
             //update hotplug state by slow mode
@@ -5936,22 +5927,22 @@ void DrmHwcTwo::DrmHotplugHandler::HandleEvent(uint64_t timestamp_us) {
                 event.timestamp = timestamp_us;
                 hwc2_->eventWorker_.SendDrmEvent(event);
                 changed_conn_cnt++;
-                HWC2_ALOGI("hwc_hotplug : connector %s-%d state is changed! %s -> %s, timestamp_us=%" PRIu64,
-                           drm_->connector_type_str(conn->type()), conn->type_id(),
-                           old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
-                           cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
+                HWC2_LOGI("hwc_hotplug : connector %s-%d state is changed! %s -> %s, timestamp_us=%" PRIu64,
+                          drm_->connector_type_str(conn->type()), conn->type_id(),
+                          old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
+                          cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
             } else {
-                HWC2_ALOGD_IF_INFO("hwc_hotplug : connector %s-%d state is no changed! %s -> %s, timestamp_us=%" PRIu64,
-                                   drm_->connector_type_str(conn->type()), conn->type_id(),
-                                   old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
-                                   cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
+                HWC2_LOGI_IF("hwc_hotplug : connector %s-%d state is no changed! %s -> %s, timestamp_us=%" PRIu64,
+                             drm_->connector_type_str(conn->type()), conn->type_id(),
+                             old_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
+                             cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected", timestamp_us);
             }
         }
     }
 
     if (changed_conn_cnt == 0) {
         if (gIsRK3528() && timestamp_us == 0) {
-            HWC2_ALOGW("hwc_hotplug : RK3528 process first hotplug, timestamp_us=%" PRIu64, timestamp_us);
+            HWC2_LOGW("hwc_hotplug : RK3528 process first hotplug, timestamp_us=%" PRIu64, timestamp_us);
             for (auto& conn : drm_->connectors()) {
                 DrmEvent event;
                 event.display_id = conn->display();
@@ -5959,11 +5950,11 @@ void DrmHwcTwo::DrmHotplugHandler::HandleEvent(uint64_t timestamp_us) {
                 event.type = HOTPLUG_DRM_EVENT;
                 event.timestamp = timestamp_us;
                 hwc2_->eventWorker_.SendDrmEvent(event);
-                HWC2_ALOGI("hwc_hotplug : rk3528 send first hotplug, connector %s-%d , timestamp_us=%" PRIu64,
-                           drm_->connector_type_str(conn->type()), conn->type_id(), timestamp_us);
+                HWC2_LOGI("hwc_hotplug : rk3528 send first hotplug, connector %s-%d , timestamp_us=%" PRIu64,
+                          drm_->connector_type_str(conn->type()), conn->type_id(), timestamp_us);
             }
         } else {
-            HWC2_ALOGW(
+            HWC2_LOGW(
                     "hwc_hotplug : receive drm hotplug event but no state change. display's connection maybe have "
                     "error, timestamp_us=%" PRIu64,
                     timestamp_us);
@@ -5982,37 +5973,37 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
     ResourceManager* rm = ResourceManager::getInstance();
     DrmDevice* drm_ = rm->GetDrmDevice(event.display_id);
     if (drm_ == NULL) {
-        HWC2_ALOGE("Failed to get DrmDevice for display %d", event.display_id);
+        HWC2_LOGE("Failed to get DrmDevice for display %d", event.display_id);
         return -1;
     }
 
     int32_t ret = 0;
     DrmConnector* conn = drm_->GetConnectorForDisplay(event.display_id);
     if (!conn) {
-        HWC2_ALOGE("Failed to get DrmConnector for display %d", event.display_id);
+        HWC2_LOGE("Failed to get DrmConnector for display %d", event.display_id);
         return -1;
     }
     //更新设备的分辨率列表
     conn->ResetModesReady();
     conn->UpdateModes();
     if (!conn->ModesReady()) {
-        HWC2_ALOGE("hwc_hotplug : display-id=%d %s-%d DrmMode is not ready.", event.display_id,
-                   drm_->connector_type_str(conn->type()), conn->type_id());
+        HWC2_LOGE("hwc_hotplug : display-id=%d %s-%d DrmMode is not ready.", event.display_id,
+                  drm_->connector_type_str(conn->type()), conn->type_id());
         return -1;
     }
 
     drmModeConnection cur_state = conn->state();
     if (event.connection != cur_state) {
-        HWC2_ALOGE("hwc_hotplug : display-id=%d %s-%d cur_state=%s event.connection=%s skip hotplug.", event.display_id,
-                   drm_->connector_type_str(conn->type()), conn->type_id(),
-                   cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
-                   event.connection == DRM_MODE_CONNECTED ? "Connected" : "Disconnected");
+        HWC2_LOGE("hwc_hotplug : display-id=%d %s-%d cur_state=%s event.connection=%s skip hotplug.", event.display_id,
+                  drm_->connector_type_str(conn->type()), conn->type_id(),
+                  cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
+                  event.connection == DRM_MODE_CONNECTED ? "Connected" : "Disconnected");
         return -1;
     }
 
-    HWC2_ALOGI("hwc_hotplug: %s event %" PRIu64 " for connector %u type=%s, type_id=%d\n",
-               event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", event.timestamp, conn->id(),
-               drm_->connector_type_str(conn->type()), conn->type_id());
+    HWC2_LOGI("hwc_hotplug: %s event %" PRIu64 " for connector %u type=%s, type_id=%d\n",
+              event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", event.timestamp, conn->id(),
+              drm_->connector_type_str(conn->type()), conn->type_id());
 
     // 1. 更新主屏信息,可能存在主副屏幕切换行为
     bool primaryChange = false;
@@ -6036,9 +6027,9 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
     // 主屏发生变化，则需要更新主屏信息
     if (old_primary != NULL && new_primary != NULL) {
         primaryChange = true;
-        HWC2_ALOGI("hwc_hotplug: primaryChange, old_primary=%d %s-%d, new_primary=%d %s-%d", old_primary->display(),
-                   drm_->connector_type_str(old_primary->type()), old_primary->type_id(), new_primary->display(),
-                   drm_->connector_type_str(new_primary->type()), new_primary->type_id());
+        HWC2_LOGI("hwc_hotplug: primaryChange, old_primary=%d %s-%d, new_primary=%d %s-%d", old_primary->display(),
+                  drm_->connector_type_str(old_primary->type()), old_primary->type_id(), new_primary->display(),
+                  drm_->connector_type_str(new_primary->type()), new_primary->type_id());
 
         // 将所有屏幕设置为断开模式并清黑屏幕
         for (auto& map : hwc2_->displays_) {
@@ -6058,13 +6049,13 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
         ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(0));
         ret |= (int32_t)display.ChosePreferredConfig();
         if (ret != 0) {
-            HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                       cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                       drm_->connector_type_str(conn->type()), conn->type_id());
+            HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                      cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                      drm_->connector_type_str(conn->type()), conn->type_id());
         } else {
-            HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d to switch primary config.",
-                       cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                       drm_->connector_type_str(conn->type()), conn->type_id());
+            HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d to switch primary config.",
+                      cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                      drm_->connector_type_str(conn->type()), conn->type_id());
             if (event.state_change_panding) {
                 display.SetNeedPowerModeSync(event.state_change_panding);
             }
@@ -6077,7 +6068,7 @@ int DrmHwcTwo::EventWorker::HandleSingleDisplayEvent(DrmEvent event) {
         }
 
     } else {
-        HWC2_ALOGI(
+        HWC2_LOGI(
                 "hwc_hotplug : primaryChange is not change. display-id=%d %s-%d cur_state=%s event.connection=%s skip "
                 "hotplug.",
                 event.display_id, drm_->connector_type_str(conn->type()), conn->type_id(),
@@ -6096,7 +6087,7 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
     ResourceManager* rm = ResourceManager::getInstance();
     DrmDevice* drm_ = rm->GetDrmDevice(event.display_id);
     if (drm_ == NULL) {
-        HWC2_ALOGE("Failed to get DrmDevice for display %d", event.display_id);
+        HWC2_LOGE("Failed to get DrmDevice for display %d", event.display_id);
         return -1;
     }
 
@@ -6104,7 +6095,7 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
     PLUG_EVENT_TYPE event_type = DRM_HOTPLUG_NONE;
     DrmConnector* conn = drm_->GetConnectorForDisplay(event.display_id);
     if (!conn) {
-        HWC2_ALOGE("Failed to get DrmConnector for display %d", event.display_id);
+        HWC2_LOGE("Failed to get DrmConnector for display %d", event.display_id);
         return -1;
     }
 
@@ -6119,17 +6110,17 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
     conn->ResetModesReady();
     conn->UpdateModes();
     if (!conn->ModesReady()) {
-        HWC2_ALOGE("hwc_hotplug : display-id=%d %s-%d DrmMode is not ready.", event.display_id,
-                   drm_->connector_type_str(conn->type()), conn->type_id());
+        HWC2_LOGE("hwc_hotplug : display-id=%d %s-%d DrmMode is not ready.", event.display_id,
+                  drm_->connector_type_str(conn->type()), conn->type_id());
         return -1;
     }
 
     drmModeConnection cur_state = conn->state();
     if (event.connection != cur_state) {
-        HWC2_ALOGE("hwc_hotplug : display-id=%d %s-%d cur_state=%s event.connection=%s skip hotplug.", event.display_id,
-                   drm_->connector_type_str(conn->type()), conn->type_id(),
-                   cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
-                   event.connection == DRM_MODE_CONNECTED ? "Connected" : "Disconnected");
+        HWC2_LOGE("hwc_hotplug : display-id=%d %s-%d cur_state=%s event.connection=%s skip hotplug.", event.display_id,
+                  drm_->connector_type_str(conn->type()), conn->type_id(),
+                  cur_state == DRM_MODE_CONNECTED ? "Connected" : "Disconnected",
+                  event.connection == DRM_MODE_CONNECTED ? "Connected" : "Disconnected");
         return -1;
     }
 
@@ -6154,22 +6145,22 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
         ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
         ret |= (int32_t)display.ChosePreferredConfig();
         if (ret != 0) {
-            HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                       cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                       drm_->connector_type_str(conn->type()), conn->type_id());
+            HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                      cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                      drm_->connector_type_str(conn->type()), conn->type_id());
         } else if (conn->isCropSplit()) {
-            HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d isCropSplit skip hotplug.",
-                       cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                       drm_->connector_type_str(conn->type()), conn->type_id());
+            HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d isCropSplit skip hotplug.",
+                      cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                      drm_->connector_type_str(conn->type()), conn->type_id());
             display.SetPowerMode(HWC2_POWER_MODE_ON);
             // 非主屏的拼接屏幕需要创建 DummyLayer
             if (!conn->IsSplitPrimary()) {
                 display.GetOrCreateDummyLayer();
             }
         } else {
-            HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
-                       cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                       drm_->connector_type_str(conn->type()), conn->type_id());
+            HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
+                      cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                      drm_->connector_type_str(conn->type()), conn->type_id());
             if (event.state_change_panding) {
                 display.SetNeedPowerModeSync(event.state_change_panding);
             }
@@ -6184,28 +6175,28 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
             if (conn->is_connector_mirror_primary()) {
                 ret = (int32_t)drm_->ReleaseDpyRes(display_id);
                 if (ret) {
-                    HWC2_ALOGE("hwc_hotplug: MirrorDisplayPrimary %s connector %u type=%s type_id=%d state is error.",
-                               cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                               drm_->connector_type_str(conn->type()), conn->type_id());
+                    HWC2_LOGE("hwc_hotplug: MirrorDisplayPrimary %s connector %u type=%s type_id=%d state is error.",
+                              cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                              drm_->connector_type_str(conn->type()), conn->type_id());
                     return ret;
                 }
-                HWC2_ALOGI("hwc_hotplug: MirrorDisplayPrimary %s connector %u type=%s type_id=%d, skip hotplug.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("hwc_hotplug: MirrorDisplayPrimary %s connector %u type=%s type_id=%d, skip hotplug.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
                 return ret;
             } else {  // 非MirrorPrimary设备，故仅执行断开drm资源操作
                 int mirror_primary_id = conn->get_connector_mirror_primary_id();
                 ret = (int32_t)drm_->ReleaseDpyRes(display_id);
                 if (ret) {
-                    HWC2_ALOGE("hwc_hotplug: MirrorDisplayExternal %s connector %u type=%s type_id=%d state is error.",
-                               cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                               drm_->connector_type_str(conn->type()), conn->type_id());
+                    HWC2_LOGE("hwc_hotplug: MirrorDisplayExternal %s connector %u type=%s type_id=%d state is error.",
+                              cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                              drm_->connector_type_str(conn->type()), conn->type_id());
                     return ret;
                 }
 
-                HWC2_ALOGI("hwc_hotplug: MirrorDisplayExternal %s connector %u type=%s type_id=%d, skip hotplug.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("hwc_hotplug: MirrorDisplayExternal %s connector %u type=%s type_id=%d, skip hotplug.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
 
                 // 检查MirrorPrimary的连接状态，如果此MirrorPrimary设备已断开，且没有其他MirrorExternal，则需要上报拔出事件，销毁对应的SF Display
                 if (mirror_primary_id > 0) {
@@ -6218,20 +6209,20 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
                         ret |= (int32_t)mirror_primary_display.ClearDisplay();
                         ret |= (int32_t)drm_->ReleaseDpyRes(mirror_primary_id);
                         if (ret != 0) {
-                            HWC2_ALOGE(
+                            HWC2_LOGE(
                                     "hwc_hotplug: MirrorDisplay Unplug primary-display-id=%d connector %u type=%s "
                                     "type_id=%d state is error, skip hotplug.",
                                     mirror_primary_id, mirror_primary->id(),
                                     drm_->connector_type_str(mirror_primary->type()), mirror_primary->type_id());
                         } else if (conn->isCropSplit()) {
-                            HWC2_ALOGI(
+                            HWC2_LOGI(
                                     "hwc_hotplug: MirrorDisplay Unplug primary-display-id=%d connector %u type=%s "
                                     "type_id=%d isCropSplit skip hotplug.",
                                     mirror_primary_id, mirror_primary->id(),
                                     drm_->connector_type_str(mirror_primary->type()), mirror_primary->type_id());
                             // display.SetPowerMode(HWC2_POWER_MODE_OFF);
                         } else {
-                            HWC2_ALOGI(
+                            HWC2_LOGI(
                                     "hwc_hotplug: MirrorDisplay Unplug primary-display-id=%d connector %u type=%s "
                                     "type_id=%d send hotplug event to SF.",
                                     mirror_primary_id, mirror_primary->id(),
@@ -6247,22 +6238,22 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
             ret |= (int32_t)display.ClearDisplay();
             ret |= (int32_t)drm_->ReleaseDpyRes(display_id);
             if (ret != 0) {
-                HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
             } else if (conn->isCropSplit()) {
-                HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d isCropSplit skip hotplug.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d isCropSplit skip hotplug.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
                 // display.SetPowerMode(HWC2_POWER_MODE_OFF);
                 // 非主屏的拼接屏幕需销毁DummyLayer
                 if (!conn->IsSplitPrimary()) {
                     display.DestoryDummyLayer();
                 }
             } else {
-                HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
                 hwc2_->HandleDisplayHotplug(display_id, cur_state);
             }
         }
@@ -6278,13 +6269,13 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
             ret |= (int32_t)split_display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
             ret |= (int32_t)split_display.ChosePreferredConfig();
             if (ret != 0) {
-                HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
             } else {
-                HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
                 hwc2_->HandleDisplayHotplug(display_id, cur_state);
                 split_display.SyncPowerMode();
             }
@@ -6292,13 +6283,13 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
             ret |= (int32_t)split_display.ClearDisplay();
             ret |= (int32_t)drm_->ReleaseDpyRes(display_id);
             if (ret != 0) {
-                HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
             } else {
-                HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
-                           cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                           drm_->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
+                          cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                          drm_->connector_type_str(conn->type()), conn->type_id());
                 hwc2_->HandleDisplayHotplug(display_id, cur_state);
             }
         }
@@ -6321,13 +6312,13 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
                     ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
                     ret |= (int32_t)display.ChosePreferredConfig();
                     if (ret != 0) {
-                        HWC2_ALOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                                   cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                                   drm_->connector_type_str(conn->type()), conn->type_id());
+                        HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                                  cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                                  drm_->connector_type_str(conn->type()), conn->type_id());
                     } else {
-                        HWC2_ALOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
-                                   cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                                   drm_->connector_type_str(conn->type()), conn->type_id());
+                        HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
+                                  cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                                  drm_->connector_type_str(conn->type()), conn->type_id());
                         hwc2_->HandleDisplayHotplug(display_id, cur_state);
                         display.SyncPowerMode();
                     }
@@ -6357,14 +6348,14 @@ void DrmHwcTwo::DrmHotplugHandler::HandleResolutionSwitchEvent(int display_id) {
     auto& display = hwc2_->displays_.at(display_id);
     HWC2::Error error = display.ChosePreferredConfig();
     if (error != HWC2::Error::None) {
-        HWC2_ALOGE("hwc_resolution_switch: connector %u type=%s, type_id=%d ChosePreferredConfig fail.\n",
-                   connector->id(), drm_->connector_type_str(connector->type()), connector->type_id());
+        HWC2_LOGE("hwc_resolution_switch: connector %u type=%s, type_id=%d ChosePreferredConfig fail.\n",
+                  connector->id(), drm_->connector_type_str(connector->type()), connector->type_id());
         return;
     }
 
     if (display.IsActiveModeChange()) {
-        HWC2_ALOGI("hwc_resolution_switch: connector %u type=%s, type_id=%d\n", connector->id(),
-                   drm_->connector_type_str(connector->type()), connector->type_id());
+        HWC2_LOGI("hwc_resolution_switch: connector %u type=%s, type_id=%d\n", connector->id(),
+                  drm_->connector_type_str(connector->type()), connector->type_id());
         if (!connector->isCropSplit() || (connector->isCropSplit() && connector->IsSplitPrimary()))
             hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_CONNECTED);
         auto& primary = hwc2_->displays_.at(0);
@@ -6394,20 +6385,19 @@ void DrmHwcTwo::EventWorker::Start() {
 //this function cannot be locked or it may dead lock.
 void DrmHwcTwo::EventWorker::SetEventBlockState(bool isBlock, std::string reason) {
     bBlockHotplugCallBack_ = isBlock;
-    HWC2_ALOGD_IF_DEBUG("%s EventWorker for %s", isBlock ? "Block" : "Resume", reason.c_str());
+    HWC2_LOGD_IF("%s EventWorker for %s", isBlock ? "Block" : "Resume", reason.c_str());
 }
 
 int DrmHwcTwo::EventWorker::SendDrmEvent(DrmEvent event) {
     Lock();
-    HWC2_ALOGD_IF_INFO("hwc_hotplug : add event display-id=%d type=%d connection=%s timestamp=%" PRIu64,
-                       event.display_id, event.type,
-                       event.connection == DRM_MODE_CONNECTED ? "connected" : "disconnected", event.timestamp);
+    HWC2_LOGI_IF("hwc_hotplug : add event display-id=%d type=%d connection=%s timestamp=%" PRIu64, event.display_id,
+                 event.type, event.connection == DRM_MODE_CONNECTED ? "connected" : "disconnected", event.timestamp);
 
     if (mMapPendingEvent_.count(event.display_id) > 0) {
         // 外层 map 中存在 id
         if (mMapPendingEvent_[event.display_id].count(event.type) > 0) {
             if (mMapPendingEvent_[event.display_id][event.type].connection != event.connection) {
-                HWC2_ALOGI(
+                HWC2_LOGI(
                         "hwc_hotplug : Duplicate hotplug events display-id=%d type=%d connection %s -> %s, "
                         "pending_handle set true.",
                         event.display_id, event.type,
@@ -6417,7 +6407,7 @@ int DrmHwcTwo::EventWorker::SendDrmEvent(DrmEvent event) {
                         event.connection == DRM_MODE_CONNECTED ? "connected" : "disconnected");
                 event.state_change_panding = true;
             } else {
-                HWC2_ALOGI(
+                HWC2_LOGI(
                         "hwc_hotplug : Duplicate hotplug events display-id=%d type=%d %s event, use lastest event "
                         "%" PRIu64 " -> %" PRIu64 ".",
                         event.display_id, event.type,
@@ -6442,13 +6432,13 @@ int DrmHwcTwo::EventWorker::HandleDisplayModeUpdateEvent(DrmEvent event) {
     int primary_id = 0;
     DrmDevice* drm = rm->GetDrmDevice(primary_id);
     if (drm == NULL) {
-        HWC2_ALOGE("Failed to get DrmDevice for display %d", event.display_id);
+        HWC2_LOGE("Failed to get DrmDevice for display %d", event.display_id);
         return -1;
     }
 
     DrmConnector* connector = drm->GetConnectorForDisplay(event.display_id);
     if (!connector) {
-        HWC2_ALOGE("Failed to get connector for display %d", event.display_id);
+        HWC2_LOGE("Failed to get connector for display %d", event.display_id);
         return -1;
     }
 
@@ -6456,13 +6446,13 @@ int DrmHwcTwo::EventWorker::HandleDisplayModeUpdateEvent(DrmEvent event) {
         auto& display = hwc2_->displays_.at(event.display_id);
         HWC2::Error error = display.ChosePreferredConfig();
         if (error != HWC2::Error::None) {
-            HWC2_ALOGE("hwc_fb_switch: connector %u type=%s, type_id=%d ChosePreferredConfig fail.\n", connector->id(),
-                       drm->connector_type_str(connector->type()), connector->type_id());
+            HWC2_LOGE("hwc_fb_switch: connector %u type=%s, type_id=%d ChosePreferredConfig fail.\n", connector->id(),
+                      drm->connector_type_str(connector->type()), connector->type_id());
             return -1;
         }
 
-        HWC2_ALOGI("hwc_fb_switch: display_id=%d connector %u type=%s, type_id=%d\n", event.display_id, connector->id(),
-                   drm->connector_type_str(connector->type()), connector->type_id());
+        HWC2_LOGI("hwc_fb_switch: display_id=%d connector %u type=%s, type_id=%d\n", event.display_id, connector->id(),
+                  drm->connector_type_str(connector->type()), connector->type_id());
         if (!connector->isCropSplit() || (connector->isCropSplit() && connector->IsSplitPrimary()))
             hwc2_->HandleDisplayHotplug(event.display_id, DRM_MODE_CONNECTED);
     }
@@ -6482,13 +6472,13 @@ int DrmHwcTwo::EventWorker::HandleUserHotplugEvent(DrmEvent event) {
     int primary_id = 0;
     DrmDevice* drm = rm->GetDrmDevice(primary_id);
     if (drm == NULL) {
-        HWC2_ALOGE("Failed to get DrmDevice for display %d", event.display_id);
+        HWC2_LOGE("Failed to get DrmDevice for display %d", event.display_id);
         return -1;
     }
 
     DrmConnector* connector = drm->GetConnectorForDisplay(event.display_id);
     if (!connector) {
-        HWC2_ALOGE("Failed to get connector for display %d", event.display_id);
+        HWC2_LOGE("Failed to get connector for display %d", event.display_id);
         return -1;
     }
 
@@ -6500,16 +6490,16 @@ int DrmHwcTwo::EventWorker::HandleUserHotplugEvent(DrmEvent event) {
             ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(event.display_id));
             ret |= (int32_t)display.ChosePreferredConfig();
             if (ret != 0) {
-                HWC2_ALOGE("hwc_hotplug: %s for connector %u type=%s, type_id=%d CheckStateAndReinit fail.\n",
-                           event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", connector->id(),
-                           drm->connector_type_str(connector->type()), connector->type_id());
+                HWC2_LOGE("hwc_hotplug: %s for connector %u type=%s, type_id=%d CheckStateAndReinit fail.\n",
+                          event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", connector->id(),
+                          drm->connector_type_str(connector->type()), connector->type_id());
                 return -1;
             }
         }
 
-        HWC2_ALOGI("hwc_hotplug: %s for display_id=%d connector %u type=%s, type_id=%d \n",
-                   event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", event.display_id, connector->id(),
-                   drm->connector_type_str(connector->type()), connector->type_id());
+        HWC2_LOGI("hwc_hotplug: %s for display_id=%d connector %u type=%s, type_id=%d \n",
+                  event.connection == DRM_MODE_CONNECTED ? "Plug" : "Unplug", event.display_id, connector->id(),
+                  drm->connector_type_str(connector->type()), connector->type_id());
         hwc2_->HandleDisplayHotplug(event.display_id, event.connection);
     }
 
@@ -6527,7 +6517,7 @@ int DrmHwcTwo::EventWorker::HaneleDisplayPipelineUpdateEvent() {
     int primary_id = 0;
     DrmDevice* drm = rm->GetDrmDevice(primary_id);
     if (drm == NULL) {
-        HWC2_ALOGE("DisplayPipeChange : Failed to get DrmDevice");
+        HWC2_LOGE("DisplayPipeChange : Failed to get DrmDevice");
     }
 
     // 检查display pipeline更新情况
@@ -6541,14 +6531,14 @@ int DrmHwcTwo::EventWorker::HaneleDisplayPipelineUpdateEvent() {
 
             if ((change_mask & DRM_PIPELINE_PRIMARY_CHANGE) == DRM_PIPELINE_PRIMARY_CHANGE) {
                 if (HandlePrimaryChange()) {
-                    HWC2_ALOGE("DisplayPipeChange : HandlePrimaryChange fail.");
+                    HWC2_LOGE("DisplayPipeChange : HandlePrimaryChange fail.");
                     return -1;
                 }
             }
 
             if ((change_mask & DRM_PIPELINE_SPLIT_MODE_CHANGE) == DRM_PIPELINE_SPLIT_MODE_CHANGE) {
                 if (HandleSplitModeChange()) {
-                    HWC2_ALOGE("DisplayPipeChange : SplitMode : HandleSplitModeChange fail.");
+                    HWC2_LOGE("DisplayPipeChange : SplitMode : HandleSplitModeChange fail.");
                     return -1;
                 }
             }
@@ -6560,7 +6550,7 @@ int DrmHwcTwo::EventWorker::HaneleDisplayPipelineUpdateEvent() {
         }
     }
 
-    HWC2_ALOGI("DisplayPipeChange : handle Success!");
+    HWC2_LOGI("DisplayPipeChange : handle Success!");
     return 0;
 }
 
@@ -6570,7 +6560,7 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange() {
     int primary_id = 0;
     DrmDevice* drm = rm->GetDrmDevice(primary_id);
     if (drm == NULL) {
-        HWC2_ALOGE("DisplayPipeChange: Failed to get DrmDevice");
+        HWC2_LOGE("DisplayPipeChange: Failed to get DrmDevice");
     }
 
     // 将所有屏幕设置为断开模式并清黑屏幕
@@ -6587,12 +6577,12 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange() {
         // 释放当前display的 drm resource 资源
         int ret = drm->ReleaseDpyRes(display_id);
         if (ret) {
-            HWC2_ALOGE("DisplayPipeChange : Failed to ReleaseDpyRes for display=%d %d\n", display_id, ret);
+            HWC2_LOGE("DisplayPipeChange : Failed to ReleaseDpyRes for display=%d %d\n", display_id, ret);
             continue;
         }
 
-        HWC2_ALOGI("DisplayPipeChange : hwc_hotplug: Unplug for display_id=%d connector %u type=%s, type_id=%d \n",
-                   display_id, connector->id(), drm->connector_type_str(connector->type()), connector->type_id());
+        HWC2_LOGI("DisplayPipeChange : hwc_hotplug: Unplug for display_id=%d connector %u type=%s, type_id=%d \n",
+                  display_id, connector->id(), drm->connector_type_str(connector->type()), connector->type_id());
 
         // 上报拔出事件，通知SurfaceFlinger删除屏幕
         hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_DISCONNECTED);
@@ -6612,8 +6602,8 @@ int DrmHwcTwo::EventWorker::HandlePrimaryChange() {
     for (auto& connector : drm->connectors()) {
         if (connector->hotplug_state() == DRM_MODE_CONNECTED) {
             int display_id = connector->display();
-            HWC2_ALOGI("DisplayPipeChange : hwc_hotplug: Plug for display_id=%d connector %u type=%s, type_id=%d \n",
-                       display_id, connector->id(), drm->connector_type_str(connector->type()), connector->type_id());
+            HWC2_LOGI("DisplayPipeChange : hwc_hotplug: Plug for display_id=%d connector %u type=%s, type_id=%d \n",
+                      display_id, connector->id(), drm->connector_type_str(connector->type()), connector->type_id());
             hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_CONNECTED);
         }
     }
@@ -6631,13 +6621,13 @@ int DrmHwcTwo::EventWorker::HandleSplitModeChange() {
     int32_t ret = 0;
     ResourceManager* rm = ResourceManager::getInstance();
     if (!rm) {
-        HWC2_ALOGE("DisplayPipeChange : SplitMode: Can not get ResourceManager");
+        HWC2_LOGE("DisplayPipeChange : SplitMode: Can not get ResourceManager");
         return -1;
     }
 
     DrmDevice* drm = rm->GetDrmDevice(0);
     if (!drm) {
-        HWC2_ALOGE("DisplayPipeChange : SplitMode: can not get drm device");
+        HWC2_LOGE("DisplayPipeChange : SplitMode: can not get drm device");
         return -1;
     }
 
@@ -6663,19 +6653,19 @@ int DrmHwcTwo::EventWorker::HandleSplitModeChange() {
         if (conn->isCropSplit()) {
             if (conn->IsSplitPrimary()) {
                 if (display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id)) == HWC2::Error::None) {
-                    HWC2_ALOGI("DisplayPipeChange : SplitMode : %s-%d IsSplitPrimary, send hotplug to SF.",
-                               drm->connector_type_str(conn->type()), conn->type_id());
+                    HWC2_LOGI("DisplayPipeChange : SplitMode : %s-%d IsSplitPrimary, send hotplug to SF.",
+                              drm->connector_type_str(conn->type()), conn->type_id());
                     hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_CONNECTED);
                 } else {
-                    HWC2_ALOGE(
+                    HWC2_LOGE(
                             "DisplayPipeChange : SplitMode : %s-%d IsSplitPrimary CheckStateAndReinit fail, skip "
                             "hotplug.",
                             drm->connector_type_str(conn->type()), conn->type_id());
                 }
             } else {
                 if (hwc2_->IsHasRegisterDisplayId(display_id)) {
-                    HWC2_ALOGI("DisplayPipeChange : SplitMode: %s-%d isCropSplit, send unplug to SF.",
-                               drm->connector_type_str(conn->type()), conn->type_id());
+                    HWC2_LOGI("DisplayPipeChange : SplitMode: %s-%d isCropSplit, send unplug to SF.",
+                              drm->connector_type_str(conn->type()), conn->type_id());
                     hwc2_->HandleDisplayHotplug(display_id, DRM_MODE_DISCONNECTED);
                 }
                 // 更新拼接屏幕的屏幕信息
@@ -6684,16 +6674,16 @@ int DrmHwcTwo::EventWorker::HandleSplitModeChange() {
                 display.GetOrCreateDummyLayer();
             }
         } else {
-            HWC2_ALOGI("DisplayPipeChange : SplitMode: %s-%d Exit CropSplit, send plug event to SF.",
-                       drm->connector_type_str(conn->type()), conn->type_id());
+            HWC2_LOGI("DisplayPipeChange : SplitMode: %s-%d Exit CropSplit, send plug event to SF.",
+                      drm->connector_type_str(conn->type()), conn->type_id());
             // 更新拼接屏幕的屏幕信息
             display.ChosePreferredConfig();
             if (display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id)) == HWC2::Error::None) {
-                HWC2_ALOGI("DisplayPipeChange : SplitMode : %s-%d Exit CropSplit,, send hotplug to SF.",
-                           drm->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("DisplayPipeChange : SplitMode : %s-%d Exit CropSplit,, send hotplug to SF.",
+                          drm->connector_type_str(conn->type()), conn->type_id());
                 hwc2_->HandleDisplayHotplug(display_id, cur_state);
             } else {
-                HWC2_ALOGE(
+                HWC2_LOGE(
                         "DisplayPipeChange : SplitMode : %s-%d Exit CropSplit, CheckStateAndReinit fail, skip hotplug.",
                         drm->connector_type_str(conn->type()), conn->type_id());
             }
@@ -6701,19 +6691,19 @@ int DrmHwcTwo::EventWorker::HandleSplitModeChange() {
         }
 
         if (conn->isHorizontalSplit()) {
-            HWC2_ALOGI("DisplayPipeChange : SplitMode: %s-%d isHorizontalSplit, send unplug to SF.",
-                       drm->connector_type_str(conn->type()), conn->type_id());
+            HWC2_LOGI("DisplayPipeChange : SplitMode: %s-%d isHorizontalSplit, send unplug to SF.",
+                      drm->connector_type_str(conn->type()), conn->type_id());
             if (hwc2_->displays_.count(conn->GetSplitModeId()) == 0) {
                 hwc2_->CreateDisplay(conn->GetSplitModeId(), HWC2::DisplayType::Physical);
             }
             display.ChosePreferredConfig();
             if (display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(conn->GetSplitModeId())) ==
                 HWC2::Error::None) {
-                HWC2_ALOGI("DisplayPipeChange : SplitMode : %s-%d isHorizontalSplit,, send hotplug to SF.",
-                           drm->connector_type_str(conn->type()), conn->type_id());
+                HWC2_LOGI("DisplayPipeChange : SplitMode : %s-%d isHorizontalSplit,, send hotplug to SF.",
+                          drm->connector_type_str(conn->type()), conn->type_id());
                 hwc2_->HandleDisplayHotplug(conn->GetSplitModeId(), cur_state);
             } else {
-                HWC2_ALOGE(
+                HWC2_LOGE(
                         "DisplayPipeChange : SplitMode : %s-%d isHorizontalSplit, CheckStateAndReinit fail, skip "
                         "hotplug.",
                         drm->connector_type_str(conn->type()), conn->type_id());
@@ -6746,7 +6736,7 @@ void DrmHwcTwo::EventWorker::Routine() {
     if (mMapPendingEvent_.empty()) {
         ret = WaitForSignalOrExitLocked();
         if (ret == -EINTR) {
-            HWC2_ALOGI("EventWorker: WaitForSignalOrExitLocked fail! ret=%d", ret);
+            HWC2_LOGI("EventWorker: WaitForSignalOrExitLocked fail! ret=%d", ret);
             Unlock();
             return;
         }
@@ -6792,15 +6782,15 @@ void DrmHwcTwo::EventWorker::Routine() {
                     break;
                 default:
                     ret = -1;
-                    HWC2_ALOGE("unknow hotplug event, display-id=%d type=%d connection=%d", event.display_id,
-                               event.type, event.connection);
+                    HWC2_LOGE("unknow hotplug event, display-id=%d type=%d connection=%d", event.display_id, event.type,
+                              event.connection);
                     break;
             }
         }
 
         if (ret) {
-            HWC2_ALOGE("send hotplug event fail ret=%d , display-id=%d type=%d connection=%d", ret, event.display_id,
-                       event.type, event.connection);
+            HWC2_LOGE("send hotplug event fail ret=%d , display-id=%d type=%d connection=%d", ret, event.display_id,
+                      event.type, event.connection);
         }
     }
     return;

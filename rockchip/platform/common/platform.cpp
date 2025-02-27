@@ -68,7 +68,7 @@ std::unique_ptr<Planner> Planner::CreateInstance(DrmDevice* drm_device) {
             planner->AddStage<Vop3562>();
             break;
         default:
-            HWC2_ALOGE("Cann't fina a suitable Planner Stage, soc_id=%x", drm_device->getSocId());
+            HWC2_LOGE("Cann't fina a suitable Planner Stage, soc_id=%x", drm_device->getSocId());
             break;
     }
     return planner;
@@ -123,7 +123,7 @@ std::unique_ptr<HwcPlatform> HwcPlatform::CreateInstance(DrmDevice* drm_device) 
             hwcPlatform->AddStage<Hwc3562>();
             break;
         default:
-            HWC2_ALOGE("Cann't fina a suitable Planner Stage, soc_id=%x", drm_device->getSocId());
+            HWC2_LOGE("Cann't fina a suitable Planner Stage, soc_id=%x", drm_device->getSocId());
             break;
     }
     return hwcPlatform;
@@ -133,14 +133,14 @@ std::unique_ptr<HwcPlatform> HwcPlatform::CreateInstance(DrmDevice* drm_device) 
 int HwcPlatform::TryAssignPlane(DrmDevice* drm) {
     int ret = -1;
     if (stages_.size() == 0) {
-        HWC2_ALOGE("stages_ size=%zu TryAssignPlane fail!", stages_.size());
+        HWC2_LOGE("stages_ size=%zu TryAssignPlane fail!", stages_.size());
     }
     // Go through the provisioning stages and provision planes
     for (auto& i : stages_) {
         if (i->SupportPlatform(drm->getSocId())) {
             ret = i->TryAssignPlane(drm);
             if (ret) {
-                HWC2_ALOGE("Failed provision stage with ret %d", ret);
+                HWC2_LOGE("Failed provision stage with ret %d", ret);
                 return ret;
             }
         }

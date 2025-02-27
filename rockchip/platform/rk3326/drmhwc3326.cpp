@@ -59,8 +59,8 @@ int Hwc3326::assignPlaneByPossibleCrtcs(DrmDevice* drm) {
         }
     }
     for (auto& plane_group : all_plane_group) {
-        HWC2_ALOGI("name=%s cur_crtcs_mask=0x%x possible-display=%" PRIi64, plane_group->planes[0]->name(),
-                   plane_group->current_crtc_, plane_group->possible_display_);
+        HWC2_LOGI("name=%s cur_crtcs_mask=0x%x possible-display=%" PRIi64, plane_group->planes[0]->name(),
+                  plane_group->current_crtc_, plane_group->possible_display_);
     }
     return 0;
 }

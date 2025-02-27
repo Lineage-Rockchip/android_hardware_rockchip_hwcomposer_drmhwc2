@@ -53,10 +53,10 @@ void InitDebugModule() {
 }
 
 void InitHwcVersion() {
-    char acVersion[50] = {0};
-    sprintf(acVersion, "%s%s", GHWC_VERSION, GHWC_VERSION_NOTES);
+    char acVersion[100] = {0};
+    snprintf(acVersion, sizeof(acVersion), "%s%s", GHWC_VERSION, GHWC_VERSION_NOTES);
     property_set("vendor.ghwc.version", acVersion);
-    ALOGD("DrmHwcTwo version : %s", acVersion);
+    ALOGI("DrmHwcTwo version : %s", acVersion);
     return;
 }
 int UpdateLogLevel() {

@@ -321,8 +321,8 @@ int DrmConnector::UpdateModes() {
 
     bModeReady_ = true;
 
-    HWC2_ALOGD_IF_DEBUG("conn=%d state=%d count_modes.size=%d modes_.size=%zu new_raw_modes.size=%zu", id_, state_,
-                        c->count_modes, modes_.size(), raw_modes_.size());
+    HWC2_LOGD_IF("conn=%d state=%d count_modes.size=%d modes_.size=%zu new_raw_modes.size=%zu", id_, state_,
+                 c->count_modes, modes_.size(), raw_modes_.size());
 
     drmModeFreeConnector(c);
 
@@ -332,7 +332,7 @@ int DrmConnector::UpdateModes() {
     // 更新connector Property信息
     int ret = UpdatePropertys();
     if (ret) {
-        HWC2_ALOGW("conn=%d state=%d UpdateProperty fail.", id_, state_);
+        HWC2_LOGW("conn=%d state=%d UpdateProperty fail.", id_, state_);
     }
 
     return 0;
@@ -344,7 +344,7 @@ int DrmConnector::UpdateHotplugState(bool fast_mode) {
     if (fast_mode) {
         auto c = drmModeGetConnectorCurrent(drm_->fd(), id_);
         if (!c) {
-            HWC2_ALOGE("Get connector %" PRIu32 " failed!", id_);
+            HWC2_LOGE("Get connector %" PRIu32 " failed!", id_);
             return -1;
         }
         hotplug_state_ = c->connection;
@@ -353,7 +353,7 @@ int DrmConnector::UpdateHotplugState(bool fast_mode) {
     } else {
         auto c = drmModeGetConnector(drm_->fd(), id_);
         if (!c) {
-            HWC2_ALOGE("Get connector %" PRIu32 " failed!", id_);
+            HWC2_LOGE("Get connector %" PRIu32 " failed!", id_);
             return -1;
         }
         hotplug_state_ = c->connection;
@@ -1171,8 +1171,8 @@ bool DrmConnector::is_hdmi_support_hdr() const {
 
 int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspace_t input_colorspace, bool is_10bit) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-    HWC2_ALOGD_IF_DEBUG("conn-id=%d, isSupportSt2084 = %d, isSupportHLG = %d , colorspace = %x", id(),
-                        isSupportSt2084(), isSupportHLG(), input_colorspace);
+    HWC2_LOGD_IF("conn-id=%d, isSupportSt2084 = %d, isSupportHLG = %d , colorspace = %x", id(), isSupportSt2084(),
+                 isSupportHLG(), input_colorspace);
 
     if (!pset) {
         ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
@@ -1197,10 +1197,10 @@ int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspa
 #endif
 
     if ((input_colorspace & HAL_DATASPACE_TRANSFER_MASK) == HAL_DATASPACE_TRANSFER_ST2084 && isSupportSt2084()) {
-        HWC2_ALOGD_IF_DEBUG("has st2084");
+        HWC2_LOGD_IF("has st2084");
         hdmi_metadata_type.eotf = SMPTE_ST2084;
     } else if ((input_colorspace & HAL_DATASPACE_TRANSFER_MASK) == HAL_DATASPACE_TRANSFER_HLG && isSupportHLG()) {
-        HWC2_ALOGD_IF_DEBUG("has HLG");
+        HWC2_LOGD_IF("has HLG");
         hdmi_metadata_type.eotf = HLG;
     } else {
         hdmi_metadata_type.eotf = TRADITIONAL_GAMMA_SDR;
@@ -1210,11 +1210,11 @@ int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspa
     int ret = -1;
     bool hdr_state_update = false;
     if (hdr_metadata_property().id()) {
-        HWC2_ALOGD_IF_DEBUG("hdr_metadata eotf=0x%x", hdmi_metadata_type.eotf);
+        HWC2_LOGD_IF("hdr_metadata eotf=0x%x", hdmi_metadata_type.eotf);
         drm_->CreatePropertyBlob(&hdr_metadata, sizeof(struct hdr_output_metadata), &blob_id_);
         ret = drmModeAtomicAddProperty(pset, id(), hdr_metadata_property().id(), blob_id_);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", hdr_metadata_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", hdr_metadata_property().id(), id());
         }
     }
 
@@ -1232,10 +1232,10 @@ int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspa
             }
         }
 
-        HWC2_ALOGD_IF_DEBUG("change bt2020 colorspace=%d", colorspace);
+        HWC2_LOGD_IF("change bt2020 colorspace=%d", colorspace);
         ret = drmModeAtomicAddProperty(pset, id(), colorspace_property().id(), colorspace);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", colorspace_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", colorspace_property().id(), id());
         }
     }
 
@@ -1245,16 +1245,16 @@ int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspa
     } else {
         color_depth = is_10bit ? depth_30bit : depth_24bit;
         uColorFormat_ = FilterColorFormatWithCaps(uColorFormat_);
-        HWC2_ALOGD_IF_DEBUG("change hdmi output format: %d", uColorFormat_);
+        HWC2_LOGD_IF("change hdmi output format: %d", uColorFormat_);
         ret = drmModeAtomicAddProperty(pset, id(), color_format_property().id(), uColorFormat_);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", color_format_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_format_property().id(), id());
         }
 
-        HWC2_ALOGD_IF_DEBUG("change hdmi output depth: %d", color_depth);
+        HWC2_LOGD_IF("change hdmi output depth: %d", color_depth);
         ret = drmModeAtomicAddProperty(pset, id(), color_depth_property().id(), color_depth);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", color_depth_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_depth_property().id(), id());
         }
     }
 
@@ -1267,8 +1267,8 @@ int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspa
 int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uint32_t color_prim,
                                                    hdr_output_metadata* hdr_metadata, bool is_10bit) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-    HWC2_ALOGD_IF_DEBUG("conn-id=%d 10bit=%d, isSupportSt2084 = %d, isSupportHLG = %d", id(), is_10bit,
-                        isSupportSt2084(), isSupportHLG());
+    HWC2_LOGD_IF("conn-id=%d 10bit=%d, isSupportSt2084 = %d, isSupportHLG = %d", id(), is_10bit, isSupportSt2084(),
+                 isSupportHLG());
 
     if (!pset) {
         ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
@@ -1283,8 +1283,8 @@ int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uin
     hdr_metadata_infoframe& hdmi_metadata_type = hdr_metadata->hdmi_metadata_type;
 #endif
 
-    HWC2_ALOGD_IF_DEBUG("hdr_metadata: metadata_type=%d", hdr_metadata->metadata_type);
-    HWC2_ALOGD_IF_DEBUG(
+    HWC2_LOGD_IF("hdr_metadata: metadata_type=%d", hdr_metadata->metadata_type);
+    HWC2_LOGD_IF(
             "hdr_metadata: color_prim=%x eotf=%d metadata_type=%d \n"
             "display_primaries[0][x,y]=[%d,%d][%d,%d][%d,%d]\n"
             "white_point[x,y]=[%d,%d]\n"
@@ -1328,7 +1328,7 @@ int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uin
 
     if (last_hdmi_metadata_type.eotf == hdmi_metadata_type.eotf && colorspace_ == colorspace &&
         uColorDepth_ == color_depth && !memcmp(&last_hdr_metadata_, hdr_metadata, sizeof(struct hdr_output_metadata))) {
-        HWC2_ALOGD_IF_DEBUG("eotf / colorspace / color_depth / hdr_output_metadata is same, skip update.");
+        HWC2_LOGD_IF("eotf / colorspace / color_depth / hdr_output_metadata is same, skip update.");
         return 0;
     }
 
@@ -1340,20 +1340,20 @@ int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uin
 
     int ret = -1;
     if (hdr_metadata_property().id()) {
-        HWC2_ALOGD_IF_DEBUG("hdr_metadata eotf=0x%x", hdmi_metadata_type.eotf);
+        HWC2_LOGD_IF("hdr_metadata eotf=0x%x", hdmi_metadata_type.eotf);
         drm_->CreatePropertyBlob(hdr_metadata, sizeof(struct hdr_output_metadata), &blob_id_);
         ret = drmModeAtomicAddProperty(pset, id(), hdr_metadata_property().id(), blob_id_);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", hdr_metadata_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", hdr_metadata_property().id(), id());
         }
     }
 
     if (colorspace_property().id()) {
-        HWC2_ALOGD_IF_DEBUG("change %s colorspace=%d",
-                            ((colorspace == DrmColorspaceType::DEFAULT) ? "bt709" : "bt2020"), colorspace);
+        HWC2_LOGD_IF("change %s colorspace=%d", ((colorspace == DrmColorspaceType::DEFAULT) ? "bt709" : "bt2020"),
+                     colorspace);
         ret = drmModeAtomicAddProperty(pset, id(), colorspace_property().id(), colorspace);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", colorspace_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", colorspace_property().id(), id());
         }
     }
 
@@ -1366,16 +1366,16 @@ int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uin
         UpdateOutputFormat(pset);
     } else {
         uColorFormat_ = FilterColorFormatWithCaps(uColorFormat_);
-        HWC2_ALOGD_IF_DEBUG("change hdmi output format: %d", uColorFormat_);
+        HWC2_LOGD_IF("change hdmi output format: %d", uColorFormat_);
         ret = drmModeAtomicAddProperty(pset, id(), color_format_property().id(), uColorFormat_);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", color_format_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_format_property().id(), id());
         }
 
-        HWC2_ALOGD_IF_DEBUG("change hdmi output depth: %d", color_depth);
+        HWC2_LOGD_IF("change hdmi output depth: %d", color_depth);
         ret = drmModeAtomicAddProperty(pset, id(), color_depth_property().id(), color_depth);
         if (ret < 0) {
-            HWC2_ALOGE("Failed to add prop[%d] to [%d]", color_depth_property().id(), id());
+            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_depth_property().id(), id());
         }
     }
 
@@ -1500,15 +1500,15 @@ int DrmConnector::FilterColorFormatWithCaps(int inFormat) {
             if (IS_CF_SUPPORT(uColorFormatCapMask, inFormat)) {
                 return inFormat;
             } else {
-                HWC2_ALOGW("uColorFormatCapMask=0x%" PRIx64
-                           ", inFormat_mask=0x%x (inFormat=%d) is not supported, use RK_IF_FORMAT_YCBCR_HQ instead.",
-                           uColorFormatCapMask, 1 << inFormat, inFormat);
+                HWC2_LOGW("uColorFormatCapMask=0x%" PRIx64
+                          ", inFormat_mask=0x%x (inFormat=%d) is not supported, use RK_IF_FORMAT_YCBCR_HQ instead.",
+                          uColorFormatCapMask, 1 << inFormat, inFormat);
                 return RK_IF_FORMAT_YCBCR_HQ;
             }
         }
     }
 
-    HWC2_ALOGW("get color format caps failed! ret=%d, use inFormat=%d", ret, inFormat);
+    HWC2_LOGW("get color format caps failed! ret=%d, use inFormat=%d", ret, inFormat);
     return inFormat;
 }
 

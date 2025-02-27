@@ -72,8 +72,8 @@ class DrmDisplayCompositor {
     // 丢帧模式
     int CollectSFInfoByDrop();
 
-    int CollectVPInfo();
-    int CollectVPHdrInfo(DrmHwcLayer& layer);
+    int CollectSidebandInfo();
+    int CollectSidebandHdrInfo(DrmHwcLayer& layer);
 
 #ifdef USE_LIBSVEP_MEMC
     int CollectMEMCInfo();
@@ -81,7 +81,7 @@ class DrmDisplayCompositor {
 
     // HwVirtualDisplay功能
     int WriteBackByRGA();
-    void Dump(std::ostringstream* out) const;
+    void Dump(String8& output) const;
     void Vsync(int display, int64_t timestamp);
     void SingalCompsition(std::unique_ptr<DrmDisplayComposition> composition);
     void ClearDisplayHdrState();

@@ -158,8 +158,8 @@ int Vop3528::IsXIntersect(hwc_rect_t* rec, hwc_rect_t* rec2) {
 
 bool Vop3528::IsRec1IntersectRec2(hwc_rect_t* rec1, hwc_rect_t* rec2) {
     int iMaxLeft, iMaxTop, iMinRight, iMinBottom;
-    HWC2_ALOGD_IF_VERBOSE("is_not_intersect: rec1[%d,%d,%d,%d],rec2[%d,%d,%d,%d]", rec1->left, rec1->top, rec1->right,
-                          rec1->bottom, rec2->left, rec2->top, rec2->right, rec2->bottom);
+    HWC2_LOGV_IF("is_not_intersect: rec1[%d,%d,%d,%d],rec2[%d,%d,%d,%d]", rec1->left, rec1->top, rec1->right,
+                 rec1->bottom, rec2->left, rec2->top, rec2->right, rec2->bottom);
 
     iMaxLeft = rec1->left > rec2->left ? rec1->left : rec2->left;
     iMaxTop = rec1->top > rec2->top ? rec1->top : rec2->top;
@@ -189,8 +189,8 @@ bool Vop3528::IsLayerCombine(DrmHwcLayer* layer_one, DrmHwcLayer* layer_two) {
         ((layer_one->bBackgraoundLayer_ && layer_two->bBackgraoundLayer_)
                  ? false
                  : IsXIntersect(&layer_one->display_frame, &layer_two->display_frame))) {
-        HWC2_ALOGD_IF_VERBOSE("is_layer_combine layer one alpha=%d,is_scale=%d", layer_one->alpha, layer_one->bScale_);
-        HWC2_ALOGD_IF_VERBOSE("is_layer_combine layer two alpha=%d,is_scale=%d", layer_two->alpha, layer_two->bScale_);
+        HWC2_LOGV_IF("is_layer_combine layer one alpha=%d,is_scale=%d", layer_one->alpha, layer_one->bScale_);
+        HWC2_LOGV_IF("is_layer_combine layer two alpha=%d,is_scale=%d", layer_two->alpha, layer_two->bScale_);
         return false;
     }
 
@@ -294,7 +294,7 @@ int Vop3528::CombineLayer(LayerMap& layer_map, std::vector<DrmHwcLayer*>& layers
             for (i = 0; i < iter->second.size() - 1; i++) {
                 for (j = i + 1; j < iter->second.size(); j++) {
                     if (iter->second[i]->display_frame.top > iter->second[j]->display_frame.top) {
-                        HWC2_ALOGD_IF_VERBOSE("swap %d and %d", iter->second[i]->uId_, iter->second[j]->uId_);
+                        HWC2_LOGV_IF("swap %d and %d", iter->second[i]->uId_, iter->second[j]->uId_);
                         std::swap(iter->second[i], iter->second[j]);
                     }
                 }
@@ -422,15 +422,14 @@ int Vop3528::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
 
     //loop plane groups.
     for (iter = plane_groups.begin(); iter != plane_groups.end(); ++iter) {
-        HWC2_ALOGD_IF_VERBOSE("line=%d,last zpos=%d,group(%" PRIu64
-                              ") zpos=%d,group bUse=%d,crtc=0x%x,"
-                              "current_crtc=0x%x,possible_crtcs=0x%x",
-                              __LINE__, zpos, (*iter)->share_id, (*iter)->zpos, (*iter)->bUse, (1 << crtc->pipe()),
-                              (*iter)->current_crtc_, (*iter)->possible_crtcs);
+        HWC2_LOGV_IF("line=%d,last zpos=%d,group(%" PRIu64
+                     ") zpos=%d,group bUse=%d,crtc=0x%x,"
+                     "current_crtc=0x%x,possible_crtcs=0x%x",
+                     __LINE__, zpos, (*iter)->share_id, (*iter)->zpos, (*iter)->bUse, (1 << crtc->pipe()),
+                     (*iter)->current_crtc_, (*iter)->possible_crtcs);
         //find the match zpos plane group
         if (!(*iter)->bUse && !(*iter)->bReserved && (((1 << crtc->pipe()) & (*iter)->current_crtc_) > 0)) {
-            HWC2_ALOGD_IF_VERBOSE("line=%d,layer_size=%d,planes size=%zu", __LINE__, layer_size,
-                                  (*iter)->planes.size());
+            HWC2_LOGV_IF("line=%d,layer_size=%d,planes size=%zu", __LINE__, layer_size, (*iter)->planes.size());
 
             //find the match combine layer count with plane size.
             if (layer_size <= (*iter)->planes.size()) {
@@ -444,9 +443,9 @@ int Vop3528::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
 
                     if (match_best || (*iter_layer)->iBestPlaneType > 0) {
                         if (!((*iter)->win_type & (*iter_layer)->iBestPlaneType)) {
-                            HWC2_ALOGD_IF_VERBOSE("line=%d, plane_group win-type = 0x%" PRIx64
-                                                  " , layer best-type = %x, not match ",
-                                                  __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
+                            HWC2_LOGV_IF("line=%d, plane_group win-type = 0x%" PRIx64
+                                         " , layer best-type = %x, not match ",
+                                         __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
                             continue;
                         }
                     }
@@ -454,9 +453,9 @@ int Vop3528::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     //loop plane
                     for (std::vector<DrmPlane*>::const_iterator iter_plane = (*iter)->planes.begin();
                          !(*iter)->planes.empty() && iter_plane != (*iter)->planes.end(); ++iter_plane) {
-                        HWC2_ALOGD_IF_VERBOSE("line=%d,crtc=0x%x,%s is_use=%d,possible_crtc_mask=0x%x", __LINE__,
-                                              (1 << crtc->pipe()), (*iter_plane)->name(), (*iter_plane)->is_use(),
-                                              (*iter_plane)->get_possible_crtc_mask());
+                        HWC2_LOGV_IF("line=%d,crtc=0x%x,%s is_use=%d,possible_crtc_mask=0x%x", __LINE__,
+                                     (1 << crtc->pipe()), (*iter_plane)->name(), (*iter_plane)->is_use(),
+                                     (*iter_plane)->get_possible_crtc_mask());
 
                         if ((*iter)->delay_use_cnt > 0) {
                             ALOGD_IF(LogLevel(DBG_DEBUG), "%s must disable, delay_use_cnt=%d", (*iter_plane)->name(),
@@ -733,7 +732,7 @@ int Vop3528::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     }
                 }
                 if (combine_layer_count == layer_size) {
-                    HWC2_ALOGD_IF_VERBOSE("line=%d all match", __LINE__);
+                    HWC2_LOGV_IF("line=%d all match", __LINE__);
                     (*iter)->bUse = true;
                     return 0;
                 }
@@ -827,7 +826,7 @@ int Vop3528::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
             }
 
             if (use_prescale) {
-                HWC2_ALOGD_IF_DEBUG("PreScaleVideo: Try to use PreScale video mode, try MatchPlane again.");
+                HWC2_LOGD_IF("PreScaleVideo: Try to use PreScale video mode, try MatchPlane again.");
                 ret = MatchPlane(composition, plane_groups, DrmCompositionPlane::Type::kLayer, crtc,
                                  std::make_pair(i->first, i->second), zpos);
                 if (ret) {
@@ -863,11 +862,10 @@ int Vop3528::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
                 if (layer->iSize_ > 0) {
                     total_size += layer->iSize_;
                 }
-                HWC2_ALOGD_IF_DEBUG(" total_size =%d + %s size=%d", total_size, layer->sLayerName_.c_str(),
-                                    layer->iSize_);
+                HWC2_LOGD_IF(" total_size =%d + %s size=%d", total_size, layer->sLayerName_.c_str(), layer->iSize_);
             }
             if (total_size > 4096 * 2160 * 4 * ctx.state.iVopMaxOverlay4KPlane) {
-                HWC2_ALOGD_IF_DEBUG("total_size (%d) is too big to fail match policy.", total_size);
+                HWC2_LOGD_IF("total_size (%d) is too big to fail match policy.", total_size);
                 ResetLayer(layers);
                 ResetPlaneGroups(plane_groups);
                 composition->clear();
@@ -917,7 +915,7 @@ std::shared_ptr<DrmBuffer> Vop3528::DequeuePreScaleBlackBuffer(int width, int he
             preScaleBlackBufferQueue_->DequeueDrmBuffer(width, height, format, 0, "PreScaleBlack");
 
     if (dst_buffer == NULL) {
-        HWC2_ALOGE("PreScale: DequeuePreScaleBlackBuffer w=%d h=%d format=%d fail!", width, height, format);
+        HWC2_LOGE("PreScale: DequeuePreScaleBlackBuffer w=%d h=%d format=%d fail!", width, height, format);
         return NULL;
     }
     // 只有BufferId更新后才需要清黑，否则利用上一帧
@@ -941,7 +939,7 @@ std::shared_ptr<DrmBuffer> Vop3528::DequeuePreScaleBlackBuffer(int width, int he
          */
         dst_handle = importbuffer_fd(dst_buffer->GetFd(), dst_buf_size);
         if (dst_handle == 0) {
-            HWC2_ALOGE("PreScale: import dma_fd  w=%d h=%d format=%d fail!", width, height, format);
+            HWC2_LOGE("PreScale: import dma_fd  w=%d h=%d format=%d fail!", width, height, format);
             return NULL;
         }
 
@@ -964,26 +962,26 @@ std::shared_ptr<DrmBuffer> Vop3528::DequeuePreScaleBlackBuffer(int width, int he
 
         ret = imcheck({}, dst, {}, dst_rect, IM_COLOR_FILL);
         if (IM_STATUS_NOERROR != ret) {
-            HWC2_ALOGE("PreScale: check error! %s", imStrError((IM_STATUS)ret));
+            HWC2_LOGE("PreScale: check error! %s", imStrError((IM_STATUS)ret));
             if (dst_handle > 0) releasebuffer_handle(dst_handle);
             return NULL;
         }
 
         ret = imfill(dst, dst_rect, 0xff000000);
         if (ret != IM_STATUS_SUCCESS) {
-            HWC2_ALOGE("PreScale: RGA ColorFill running failed, %s\n", imStrError((IM_STATUS)ret));
+            HWC2_LOGE("PreScale: RGA ColorFill running failed, %s\n", imStrError((IM_STATUS)ret));
             if (dst_handle > 0) releasebuffer_handle(dst_handle);
             return NULL;
         }
 
         black_buffer_id = dst_buffer->GetBufferId();
-        HWC2_ALOGD_IF_DEBUG("PreScale: RGA ColorFill running success!\n");
+        HWC2_LOGD_IF("PreScale: RGA ColorFill running success!\n");
         if (dst_handle > 0) releasebuffer_handle(dst_handle);
     }
 
     int ret = preScaleBlackBufferQueue_->QueueBuffer(dst_buffer);
     if (ret) {
-        HWC2_ALOGE("QueueBuffer buffer failed, ret=%d", ret);
+        HWC2_LOGE("QueueBuffer buffer failed, ret=%d", ret);
     }
 
     return dst_buffer;
@@ -1073,7 +1071,7 @@ void Vop3528::OutputMatchLayer(int iFirst, int iLast, std::vector<DrmHwcLayer*>&
                                std::vector<DrmHwcLayer*>& tmp_layers) {
     int interval = layers.size() - 1 - iLast;
     if (iFirst < 0 || iLast < 0 || iFirst > iLast || interval < 0 || iLast > (layers.size() - 1)) {
-        HWC2_ALOGD_IF_DEBUG("invalid value iFirst=%d, iLast=%d layer.size=%zu ", iFirst, iLast, layers.size());
+        HWC2_LOGD_IF("invalid value iFirst=%d, iLast=%d layer.size=%zu ", iFirst, iLast, layers.size());
         return;
     }
 
@@ -1128,14 +1126,14 @@ bool Vop3528::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
 
     // RGA 最大宽度仅支持8176
     if (layer->iWidth_ > 8176) {
-        HWC2_ALOGD_IF_DEBUG("RGA can't handle iWidth_=%d yuv layer, rga max is 8176.", layer->iWidth_);
+        HWC2_LOGD_IF("RGA can't handle iWidth_=%d yuv layer, rga max is 8176.", layer->iWidth_);
         return false;
     }
     // TODO: afbc 暂时不支持 crop 裁剪，目前会出现RGA输出花屏问题
     if (layer->bAfbcd_) {
         int crop_w = (int)(layer->source_crop.right - layer->source_crop.left);
         if (crop_w != layer->iStride_) {
-            HWC2_ALOGD_IF_DEBUG("RGA can't handle crop_w=%d stride=%d afbc yuv layer.", crop_w, layer->iStride_);
+            HWC2_LOGD_IF("RGA can't handle crop_w=%d stride=%d afbc yuv layer.", crop_w, layer->iStride_);
             return false;
         }
     }
@@ -1151,9 +1149,8 @@ bool Vop3528::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
     // 2. 不存在几何变换，视频放大场景
     if (layer->transform == DRM_MODE_ROTATE_0) {
         if (layer->fHScaleMul_ <= 2.0 && layer->fVScaleMul_ <= 2.0) {
-            HWC2_ALOGD_IF_DEBUG(
-                    "disable-rga-policy: scale-rate is fHScaleMul_=%f fVScaleMul_=%f no need rga policy, name=%s",
-                    layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
+            HWC2_LOGD_IF("disable-rga-policy: scale-rate is fHScaleMul_=%f fVScaleMul_=%f no need rga policy, name=%s",
+                         layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
             return false;
         }
     }
@@ -1164,7 +1161,7 @@ bool Vop3528::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
 int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, std::vector<DrmHwcLayer*> layers,
                                  DrmCrtc* crtc, std::vector<PlaneGroup*>& plane_groups) {
     if (!ctx.state.bRgaPolicyEnable) {
-        HWC2_ALOGD_IF_DEBUG("bRgaPolicyEnable=%d skip TryRgaOverlayPolicy", ctx.state.bRgaPolicyEnable);
+        HWC2_LOGD_IF("bRgaPolicyEnable=%d skip TryRgaOverlayPolicy", ctx.state.bRgaPolicyEnable);
         return -1;
     }
     ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d", __FUNCTION__, __LINE__);
@@ -1223,7 +1220,7 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 }
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     continue;
                 }
 
@@ -1235,8 +1232,8 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 }
 
                 if (src_handle == 0) {
-                    HWC2_ALOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
-                               drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
+                    HWC2_LOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
+                              drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
                     continue;
                 }
 
@@ -1272,8 +1269,8 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 // 获取 rga dst hanlde
                 rga_buffer_handle_t dst_handle = dst_buffer->GetRgaHandle();
                 if (dst_handle == 0) {
-                    HWC2_ALOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
-                               dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
+                    HWC2_LOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
+                              dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
                     continue;
                 }
 
@@ -1372,7 +1369,7 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 // Call Im2d 格式转换
                 im_state = imcheck_composite(src, dst, pat, src_rect, dst_rect, pat_rect, usage | IM_ASYNC);
                 if (im_state != IM_STATUS_NOERROR) {
-                    HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                    HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                     break;
                 }
 
@@ -1397,7 +1394,7 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 dst_buffer = rgaBufferQueue_->BackDrmBuffer();
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     break;
                 }
 
@@ -1442,7 +1439,7 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                     IM_STATUS im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, 0, &releaseFence,
                                                    &imOpt, usage | IM_ASYNC);
                     if (im_state != IM_STATUS_SUCCESS) {
-                        HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                        HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                         rgaBufferQueue_->QueueBuffer(dst_buffer);
                         drmLayer->ResetInfoFromStore();
                         drmLayer->bUseRga_ = false;
@@ -1460,7 +1457,7 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
             ResetLayerFromTmp(layers, tmp_layers);
             return ret;
         } else {  // Match fail, skip rga policy
-            HWC2_ALOGD_IF_DEBUG(" MatchPlanes fail! reset DrmHwcLayer.");
+            HWC2_LOGD_IF(" MatchPlanes fail! reset DrmHwcLayer.");
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseRga_) {
                     rgaBufferQueue_->QueueBuffer(dst_buffer);
@@ -1483,11 +1480,11 @@ int Vop3528::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
             }
         }
         if (!ret) {  // Match sucess, to call im2d interface
-            HWC2_ALOGD_IF_DEBUG("Use last rga layer.");
+            HWC2_LOGD_IF("Use last rga layer.");
             return ret;
         }
     }
-    HWC2_ALOGD_IF_DEBUG("fail!, No layer use RGA policy.");
+    HWC2_LOGD_IF("fail!, No layer use RGA policy.");
     ResetLayerFromTmp(layers, tmp_layers);
     return -1;
 }
@@ -1655,7 +1652,7 @@ int Vop3528::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         return -1;
     }
 
-    HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
+    HWC2_LOGD_IF("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
     OutputMatchLayer(skip_layer_indices.first, skip_layer_indices.second, layers, tmp_layers);
     int ret = MatchPlanes(composition, layers, crtc, plane_groups);
     if (!ret) {
@@ -1666,7 +1663,7 @@ int Vop3528::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         int last = skip_layer_indices.second;
         // 建议zpos大的图层走GPU合成
         for (last++; last < layers.size(); last++) {
-            HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
+            HWC2_LOGD_IF("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
             OutputMatchLayer(first, last, layers, tmp_layers);
             ret = MatchPlanes(composition, layers, crtc, plane_groups);
             if (ret) {
@@ -1681,7 +1678,7 @@ int Vop3528::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         last = layers.size() - 1;
         // 逐步建议知道zpos=0走GPU合成，即全GPU合成
         for (first--; first >= 0; first--) {
-            HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
+            HWC2_LOGD_IF("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
             OutputMatchLayer(first, last, layers, tmp_layers);
             ret = MatchPlanes(composition, layers, crtc, plane_groups);
             if (ret) {
@@ -1976,8 +1973,8 @@ void Vop3528::UpdateResevedPlane(DrmCrtc* crtc) {
 
                             plane_group->bReserved = true;
                             reserved_plane_win_type = plane_group->win_type;
-                            HWC2_ALOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name,
-                                       reserved_plane_win_type);
+                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name,
+                                      reserved_plane_win_type);
                             break;
                         } else {
                             plane_group->bReserved = false;
@@ -2005,13 +2002,13 @@ bool Vop3528::CheckGLESLayer(DrmHwcLayer* layer) {
 
     // RK platform VOP can't display src/dst w/h < 4 layer.
     if (act_w < 4 || act_h < 4 || dst_w < 4 || dst_h < 4) {
-        HWC2_ALOGD_IF_DEBUG("[%s]：[%dx%d] => [%dx%d] too small to use GLES composer.", layer->sLayerName_.c_str(),
-                            act_w, act_h, dst_w, dst_h);
+        HWC2_LOGD_IF("[%s]：[%dx%d] => [%dx%d] too small to use GLES composer.", layer->sLayerName_.c_str(), act_w,
+                     act_h, dst_w, dst_h);
         return true;
     }
 
     if (layer->transform == -1) {
-        HWC2_ALOGD_IF_DEBUG("[%s]：layer->transform = %d is invalidate", layer->sLayerName_.c_str(), layer->transform);
+        HWC2_LOGD_IF("[%s]：layer->transform = %d is invalidate", layer->sLayerName_.c_str(), layer->transform);
         return true;
     }
 
@@ -2020,8 +2017,8 @@ bool Vop3528::CheckGLESLayer(DrmHwcLayer* layer) {
             if (layer->bYuv_ && layer->sf_handle != NULL) {
                 return false;
             } else {
-                HWC2_ALOGD_IF_DEBUG("[%s]：sf_composition =0x%x not support overlay.", layer->sLayerName_.c_str(),
-                                    layer->sf_composition);
+                HWC2_LOGD_IF("[%s]：sf_composition =0x%x not support overlay.", layer->sLayerName_.c_str(),
+                             layer->sf_composition);
                 return true;
             }
             break;
@@ -2192,10 +2189,10 @@ void Vop3528::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
     if (conn && conn->state() == DRM_MODE_CONNECTED) {
         DrmMode mode = conn->current_mode();
         if (ctx.state.b8kMode_ != mode.is_8k_mode()) {
-            HWC2_ALOGD_IF_DEBUG("%s 8K Mode.", mode.is_8k_mode() ? "Enter" : "Quit");
+            HWC2_LOGD_IF("%s 8K Mode.", mode.is_8k_mode() ? "Enter" : "Quit");
         }
         if (ctx.state.b4k120pMode_ != mode.is_4k120p_mode()) {
-            HWC2_ALOGD_IF_DEBUG("%s 4K 120 Mode.", mode.is_4k120p_mode() ? "Enter" : "Quit");
+            HWC2_LOGD_IF("%s 4K 120 Mode.", mode.is_4k120p_mode() ? "Enter" : "Quit");
         }
         // Story Display Mode
         ctx.state.iDisplayWidth_ = mode.h_display();

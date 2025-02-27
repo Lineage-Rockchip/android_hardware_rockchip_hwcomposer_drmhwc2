@@ -17,15 +17,15 @@
 #define LOG_TAG "hwc-drm-display-composition"
 
 #include "drmdisplaycomposition.h"
+#include <stdlib.h>
 #include "drmcrtc.h"
 #include "drmdevice.h"
 #include "drmdisplaycompositor.h"
 #include "drmplane.h"
 #include "platform.h"
+#include "rockchip/drmtype.h"
 #include "utils/autolock.h"
 #include "utils/drmfence.h"
-
-#include <stdlib.h>
 
 #include <algorithm>
 #include <unordered_set>
@@ -176,21 +176,30 @@ int DrmDisplayComposition::DisableUnusedPlanes() {
         // Reserved DrmPlane feature.
         if ((*iter)->bReserved) continue;
 
-        bool disable_plane = false;
+        bool can_disable_plane = false;
         //loop plane
         uint32_t crtc_mask = 1 << crtc()->pipe();
         if ((*iter)->acquire(crtc_mask, display_id_)) {
-            disable_plane = true;
+            can_disable_plane = true;
         }
 
-        if (isRK3566(soc_id)) disable_plane = true;
+        if (isRK3566(soc_id)) can_disable_plane = true;
 
-        if (disable_plane) {
+        if (can_disable_plane) {
+            bool win0_has_disable = false;
             for (std::vector<DrmPlane*>::const_iterator iter_plane = (*iter)->planes.begin();
                  !(*iter)->planes.empty() && iter_plane != (*iter)->planes.end(); ++iter_plane) {
                 if (!(*iter_plane)->is_use()) {
-                    HWC2_ALOGD_IF_DEBUG("DisableUnusedPlanes plane_groups plane id=%d (%s)", (*iter_plane)->id(),
-                                        (*iter_plane)->name());
+                    // 如果 win0 已经被disable,则不打印 win1/2/3 的disable日志
+                    if (strstr((*iter_plane)->name(), "win0") != NULL) {
+                        win0_has_disable = true;
+                        HWC2_LOGD_IF("DisableUnusedPlanes plane_groups plane id=%d (%s)(all)", (*iter_plane)->id(),
+                                     (*iter_plane)->name());
+                    } else if (win0_has_disable == false) {
+                        HWC2_LOGD_IF("DisableUnusedPlanes plane_groups plane id=%d (%s)", (*iter_plane)->id(),
+                                     (*iter_plane)->name());
+                    }
+
                     AddPlaneDisable(*iter_plane);
                     // break;
                     // 延迟使用
@@ -198,9 +207,10 @@ int DrmDisplayComposition::DisableUnusedPlanes() {
                         (*iter)->delay_use_cnt--;
                     }
                 }
+
                 if ((*iter)->is_will_disable()) {
-                    HWC2_ALOGD_IF_DEBUG("DisableUnusedPlanes will disable plane_groups plane id=%d (%s)",
-                                        (*iter_plane)->id(), (*iter_plane)->name());
+                    HWC2_LOGD_IF("DisableUnusedPlanes will disable plane_groups plane id=%d (%s)", (*iter_plane)->id(),
+                                 (*iter_plane)->name());
                     AddPlaneDisable(*iter_plane);
                     update_drmplane_assign_ = true;
                 }
@@ -234,8 +244,8 @@ int DrmDisplayComposition::CreateAndAssignReleaseFences(SyncTimeline& sync_timel
             continue;
         }
 
+        // bSideband2_ 不需要创建 ReleaseFence
         if (layer->bSideband2_) {
-            HWC2_ALOGD_IF_DEBUG("Sideband-2.0 no need to create ReleaseFence.");
             continue;
         }
 
@@ -243,30 +253,30 @@ int DrmDisplayComposition::CreateAndAssignReleaseFences(SyncTimeline& sync_timel
         sprintf(acBuf, "RFD%" PRIu64 "-FN%" PRIu64 "-TC%d", display_id_, frame_no_, sync_timeline_cnt);
         layer->release_fence = sp<ReleaseFence>(new ReleaseFence(sync_timeline, sync_timeline_cnt, acBuf));
         if (layer->release_fence->isValid()) {
-            HWC2_ALOGD_IF_DEBUG(" Create ReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
-                                layer->sLayerName_.c_str());
+            HWC2_LOGD_IF(" Create ReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                         layer->sLayerName_.c_str());
 #if (defined USE_LIBSR) || (defined USE_LIBSVEP_MEMC)
             if (layer->bUseSr_ && layer->pSrBuffer_ != NULL) {
                 layer->pSrBuffer_->SetReleaseFence(dup(layer->release_fence->getFd()));
-                HWC2_ALOGD_IF_DEBUG(" Create SrReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf,
-                                    frame_no_, layer->sLayerName_.c_str());
+                HWC2_LOGD_IF(" Create SrReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                             layer->sLayerName_.c_str());
             }
 #endif
             if (layer->bUseRga_ && layer->pRgaBuffer_ != NULL) {
                 layer->pRgaBuffer_->SetReleaseFence(dup(layer->release_fence->getFd()));
-                HWC2_ALOGD_IF_DEBUG(" Create RgaReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf,
-                                    frame_no_, layer->sLayerName_.c_str());
+                HWC2_LOGD_IF(" Create RgaReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                             layer->sLayerName_.c_str());
             }
 #ifdef USE_LIBPQ_HWPQ
             if (layer->bUseHwpqScale_ && layer->pPqBuffer_ != NULL) {
                 layer->pPqBuffer_->SetReleaseFence(dup(layer->release_fence->getFd()));
-                HWC2_ALOGD_IF_DEBUG(" Create HwPqReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf,
-                                    frame_no_, layer->sLayerName_.c_str());
+                HWC2_LOGD_IF(" Create HwPqReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                             layer->sLayerName_.c_str());
             }
 #endif
         } else {
-            HWC2_ALOGE(" Create ReleaseFence(%s) Fail!: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
-                       layer->sLayerName_.c_str());
+            HWC2_LOGE(" Create ReleaseFence(%s) Fail!: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                      layer->sLayerName_.c_str());
             return -1;
         }
     }
@@ -307,7 +317,7 @@ int DrmDisplayComposition::SignalCompositionDone() {
     if (lock.Lock()) return -1;
 
     if (signal_) {
-        HWC2_ALOGD_IF_DEBUG("Have been signal frame = %" PRIu64 ", not to signal.", frame_no_);
+        HWC2_LOGD_IF("Have been signal frame = %" PRIu64 ", not to signal.", frame_no_);
         return 0;
     }
 
@@ -326,12 +336,12 @@ int DrmDisplayComposition::SignalCompositionDone() {
     for (DrmHwcLayer* layer : comp_layers) {
         if (!layer || !layer->release_fence->isValid()) {
             if (layer)
-                HWC2_ALOGD_IF_DEBUG("Fd(%d)isValid %d frame = %" PRIu64
-                                    " %s Info: size=%d act=%d signal=%d err=%d LayerName=%s ",
-                                    layer->release_fence->getFd(), layer->release_fence->isValid(), frame_no_,
-                                    layer->release_fence->getName().c_str(), layer->release_fence->getSize(),
-                                    layer->release_fence->getActiveCount(), layer->release_fence->getSignaledCount(),
-                                    layer->release_fence->getErrorCount(), layer->sLayerName_.c_str());
+                HWC2_LOGD_IF("Fd(%d)isValid %d frame = %" PRIu64
+                             " %s Info: size=%d act=%d signal=%d err=%d LayerName=%s ",
+                             layer->release_fence->getFd(), layer->release_fence->isValid(), frame_no_,
+                             layer->release_fence->getName().c_str(), layer->release_fence->getSize(),
+                             layer->release_fence->getActiveCount(), layer->release_fence->getSignaledCount(),
+                             layer->release_fence->getErrorCount(), layer->sLayerName_.c_str());
             continue;
         }
         int act, sig;
@@ -342,17 +352,16 @@ int DrmDisplayComposition::SignalCompositionDone() {
 
         int ret = layer->release_fence->signal();
         if (LogLevel(DBG_DEBUG)) {
-            HWC2_ALOGD_IF_DEBUG("Signal %s frame = %" PRIu64
-                                " %s Info: size=%d act=%d signal=%d err=%d LayerName=%s BufferId=0x%" PRIx64
-                                " SignalTime=%s",
-                                act == 1 && sig == 0 && layer->release_fence->getActiveCount() == 0 &&
-                                                layer->release_fence->getSignaledCount() == 1
-                                        ? "Sucess"
-                                        : "Fail",
-                                frame_no_, layer->release_fence->getName().c_str(), layer->release_fence->getSize(),
-                                layer->release_fence->getActiveCount(), layer->release_fence->getSignaledCount(),
-                                layer->release_fence->getErrorCount(), layer->sLayerName_.c_str(), layer->uBufferId_,
-                                layer->release_fence->dump().c_str());
+            HWC2_LOGD_IF("Signal %s frame = %" PRIu64 " %s Info: size=%d act=%d signal=%d err=%d BufferId=0x%" PRIx64
+                         " SignalTime=%s LayerName=%s ",
+                         act == 1 && sig == 0 && layer->release_fence->getActiveCount() == 0 &&
+                                         layer->release_fence->getSignaledCount() == 1
+                                 ? "Sucess"
+                                 : "Fail",
+                         frame_no_, layer->release_fence->getName().c_str(), layer->release_fence->getSize(),
+                         layer->release_fence->getActiveCount(), layer->release_fence->getSignaledCount(),
+                         layer->release_fence->getErrorCount(), layer->uBufferId_, layer->release_fence->dump().c_str(),
+                         layer->sLayerName_.c_str());
         }
     }
     signal_ = true;
@@ -448,57 +457,115 @@ static const char* BlendingToString(DrmHwcBlending blending) {
     }
 }
 
-void DrmDisplayComposition::Dump(std::ostringstream* out) const {
-    *out << "----DrmDisplayComposition"
-         << " crtc=" << (crtc_ ? crtc_->id() : -1) << " type=" << DrmCompositionTypeToString(type_);
+void DrmDisplayComposition::Dump(String8& output) {
+    output.appendFormat("Composition Dump:\n");
+    output.appendFormat("FrameNo:%" PRIu64 ", ", frame_no_);
+    output.appendFormat("Type: %s, ", DrmCompositionTypeToString(type_));
+    output.appendFormat("Crtc=%d, ", crtc_ ? crtc_->id() : -1);
+    // output.appendFormat(" display_mode=%dx%d", display_mode_.h_display(), display_mode_.v_display());
+    // output.appendFormat(" dpms_mode=%s", DPMSModeToString(dpms_mode_));
+    output.appendFormat("HdrMode=%s, ", DrmHdrTypeToString(hdr_mode_));
+    output.appendFormat("LayerSize=%zu, ", layers_.size());
+    output.appendFormat("PlaneSize=%zu", composition_planes_.size());
+    output.append("\n");
 
-    switch (type_) {
-        case DRM_COMPOSITION_TYPE_DPMS:
-            *out << " dpms_mode=" << DPMSModeToString(dpms_mode_);
-            break;
-        case DRM_COMPOSITION_TYPE_MODESET:
-            *out << " display_mode=" << display_mode_.h_display() << "x" << display_mode_.v_display();
-            break;
-        default:
-            break;
-    }
+    output.appendFormat("DrmPlane Dump:\n");
+    // clang-format off
+    output.append(
+              "----+---+---------------+-----+------+--------+------------------------+------------------------+-----------------+---------+---------+----------+-----------+--------+--------+-------------\n"
+              " EN | z |   PlaneName   | id  | fcc  |   fbc  | source crop (l,t,r,b)  |         frame          | stride x height |  trans  |  blnd   | g_alpha  | encoding  | range  |   hdr  |   name      \n"
+              "----+---+---------------+-----+------+--------+------------------------+------------------------+-----------------+---------+---------+----------+-----------+--------+--------+-------------\n");
+    // clang-format on
 
-    *out << "    Layers: count=" << layers_.size() << "\n";
-    for (size_t i = 0; i < layers_.size(); i++) {
-        const DrmHwcLayer& layer = layers_[i];
-        *out << "      [" << i << "] ";
+    for (auto& comp_plane : composition_planes_) {
+        DrmPlane* plane = comp_plane.plane();
+        const std::vector<size_t>& source_layers = comp_plane.source_layers();
+        if (comp_plane.type() != DrmCompositionPlane::Type::kDisable) {
+            output.appendFormat("%3s |", "Y");
+            // z坐标
+            output.appendFormat("%2d |", comp_plane.get_zpos());
+            output.appendFormat("%14s |", plane->name());
+            if (source_layers.empty()) {
+                ALOGE("Can't handle empty source layer CompositionPlane.");
+                continue;
+            }
 
-        DumpBuffer(layer.buffer, out);
+            if (source_layers.size() > 1) {
+                ALOGE("Can't handle more than one source layer sz=%zu type=%d", source_layers.size(),
+                      comp_plane.type());
+                continue;
+            }
 
-        if (layer.protected_usage()) *out << " protected";
-
-        *out << " transform=";
-        DumpTransform(layer.transform, out);
-        *out << " blending[a=" << (int)layer.alpha << "]=" << BlendingToString(layer.blending) << "\n";
-    }
-
-    *out << "    Planes: count=" << composition_planes_.size() << "\n";
-    for (size_t i = 0; i < composition_planes_.size(); i++) {
-        const DrmCompositionPlane& comp_plane = composition_planes_[i];
-        *out << "      [" << i << "]"
-             << " plane=" << (comp_plane.plane() ? comp_plane.plane()->id() : -1) << " type=";
-        switch (comp_plane.type()) {
-            case DrmCompositionPlane::Type::kDisable:
-                *out << "DISABLE";
+            if (source_layers.front() >= layers_.size()) {
+                ALOGE("Source layer index %zu out of bounds %zu type=%d", source_layers.front(), layers_.size(),
+                      comp_plane.type());
                 break;
-            case DrmCompositionPlane::Type::kLayer:
-                *out << "LAYER";
-                break;
-            default:
-                *out << "<invalid>";
-                break;
+            }
+
+            DrmHwcLayer& layer = layers_[source_layers.front()];
+            output.appendFormat("%4d |", layer.uId_);
+            output.appendFormat(" %c%c%c%c |", layer.uFourccFormat_, layer.uFourccFormat_ >> 8,
+                                layer.uFourccFormat_ >> 16, layer.uFourccFormat_ >> 24);
+            if (layer.bAfbcd_) {
+                output.appendFormat("%7s |", "AFBC");
+            } else if (layer.bRfbcd_) {
+                output.appendFormat("%7s |", "RFBC");
+            } else {
+                output.appendFormat("%7s |", "Raster");
+            }
+
+            output.appendFormat("%5d,%5d,%5d,%5d |", (int)layer.source_crop.left, (int)layer.source_crop.top,
+                                (int)layer.source_crop.right, (int)layer.source_crop.bottom);
+            output.appendFormat("%5d,%5d,%5d,%5d |", (int)layer.display_frame.left, (int)layer.display_frame.top,
+                                (int)layer.display_frame.right, (int)layer.display_frame.bottom);
+            output.appendFormat(" %6d x%7d |", layer.iStride_, layer.iHeightStride_);
+            output.appendFormat("%8s |", layer.TransformToString(layer.transform).c_str());
+            output.appendFormat("%8s |", layer.BlendingToString(layer.blending).c_str());
+            output.appendFormat("%9d |", layer.alpha);
+
+            if (gIsDrmVerison6_1()) {
+                output.appendFormat("%10s |",
+                                    DrmColorEncodingToString(layer.uColorSpace.colorspace_kernel_6_1_.color_encoding_));
+                output.appendFormat("%7s |",
+                                    DrmColorRangeToString(layer.uColorSpace.colorspace_kernel_6_1_.color_range_));
+            } else {
+                output.appendFormat("%10s |", V4L2ColorspaceToString(layer.uColorSpace.colorspace_kernel_510_));
+                output.appendFormat("%7s |", V4L2ColorspaceToString(layer.uColorSpace.colorspace_kernel_510_));
+            }
+            if (layer.IsMetadataHdr_) {
+                output.appendFormat("%7s |", "MetaHdr");
+            } else if (layer.bHdr_) {
+                output.appendFormat("%7s |", "Hdr");
+            } else {
+                output.appendFormat("%7s |", "None");
+            }
+            output.appendFormat(" %s", layer.sLayerName_.c_str());
+            output.appendFormat("\n");
+        } else {
+            if (strstr(plane->name(), "win0") != NULL) {
+                output.appendFormat("%3s |", "N");             // EN
+                output.appendFormat("%2s |", "");              // z
+                output.appendFormat("%14s |", plane->name());  // PlaneName
+                output.appendFormat("%4s |", "");              // id
+                output.appendFormat("%5s |", "");              // fcc
+                output.appendFormat("%7s |", "");              // fbc
+                output.appendFormat("%23s |", "");             //   source crop (l,t,r,b)
+                output.appendFormat("%23s |", "");             // frame
+                output.appendFormat("%16s |", "");             // stride x height
+                output.appendFormat("%8s |", "");              // trans
+                output.appendFormat("%8s |", "");              // blnd
+                output.appendFormat("%9s |", "");              // g_alpha
+                output.appendFormat("%10s |", "");             // encoding
+                output.appendFormat("%7s |", "");              // range
+                output.appendFormat("%7s |", "");              // hdr
+                output.appendFormat("%s", "");                 // name
+                output.appendFormat("\n");
+            }
         }
-
-        *out << " source_layer=";
-        for (auto j : comp_plane.source_layers()) {
-            *out << j << " ";
-        }
-        *out << "\n";
     }
+    // clang-format off
+    output.append(
+            "----+---+---------------+-----+------+--------+------------------------+------------------------+-----------------+---------+---------+----------+-----------+--------+--------+-------------\n");
+    // clang-format on
 }
 }  // namespace android

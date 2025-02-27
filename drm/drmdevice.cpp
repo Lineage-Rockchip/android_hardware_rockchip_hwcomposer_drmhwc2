@@ -164,16 +164,16 @@ int DrmDevice::InitEnvFromXml() {
     tinyxml2::XMLDocument doc;
     int ret = doc.LoadFile(xml_path);
     if (ret) {
-        HWC2_ALOGW("Can't find %s file. ret=%d", xml_path, ret);
+        HWC2_LOGW("Can't find %s file. ret=%d", xml_path, ret);
         return -1;
     }
 
-    HWC2_ALOGI("Load %s success.", xml_path);
+    HWC2_LOGI("Load %s success.", xml_path);
 
     tinyxml2::XMLElement* HwComposerEnv = doc.RootElement();
     /* usr tingxml2 to parse resolution.xml */
     if (!HwComposerEnv) {
-        HWC2_ALOGW("Can't %s:RootElement fail.", xml_path);
+        HWC2_LOGW("Can't %s:RootElement fail.", xml_path);
         return -1;
     }
 
@@ -183,23 +183,23 @@ int DrmDevice::InitEnvFromXml() {
     const char* verison = "1.1.1";
     ret = HwComposerEnv->QueryStringAttribute("Version", &verison);
     if (ret) {
-        HWC2_ALOGW("Can't find %s verison info. ret=%d", xml_path, ret);
+        HWC2_LOGW("Can't find %s verison info. ret=%d", xml_path, ret);
         return -1;
     }
 
     bool enable = false;
     ret = HwComposerEnv->QueryBoolAttribute("Enable", &enable);
     if (ret) {
-        HWC2_ALOGW("Can't find %s Enable info. ret=%d", xml_path, ret);
+        HWC2_LOGW("Can't find %s Enable info. ret=%d", xml_path, ret);
         return -1;
     }
 
     if (enable) {
         DmXml_.Enable = enable;
-        HWC2_ALOGI("Load %s success. Version=%s Enable=%s", xml_path, verison, enable ? "true" : "false");
+        HWC2_LOGI("Load %s success. Version=%s Enable=%s", xml_path, verison, enable ? "true" : "false");
     } else {
         DmXml_.Enable = enable;
-        HWC2_ALOGI("Load %s success. Version=%s Enable=%s skip init.", xml_path, verison, enable ? "true" : "false");
+        HWC2_LOGI("Load %s success. Version=%s Enable=%s skip init.", xml_path, verison, enable ? "true" : "false");
         return 0;
     }
 
@@ -207,7 +207,7 @@ int DrmDevice::InitEnvFromXml() {
 
     tinyxml2::XMLElement* pDisplayMode = HwComposerEnv->FirstChildElement("DsiplayMode");
     if (!pDisplayMode) {
-        HWC2_ALOGE("Can't %s:DsiplayMode fail.", xml_path);
+        HWC2_LOGE("Can't %s:DsiplayMode fail.", xml_path);
         return -1;
     }
 
@@ -215,32 +215,32 @@ int DrmDevice::InitEnvFromXml() {
     pDisplayMode->QueryIntAttribute("FbWidth", &DmXml_.FbWidth);
     pDisplayMode->QueryIntAttribute("FbHeight", &DmXml_.FbHeight);
 
-    HWC2_ALOGI("Version=%d.%d.%d Mode=%d FbWidth=%d FbHeight=%d", DmXml_.Version.Major, DmXml_.Version.Minor,
-               DmXml_.Version.PatchLevel, DmXml_.Mode, DmXml_.FbWidth, DmXml_.FbHeight);
+    HWC2_LOGI("Version=%d.%d.%d Mode=%d FbWidth=%d FbHeight=%d", DmXml_.Version.Major, DmXml_.Version.Minor,
+              DmXml_.Version.PatchLevel, DmXml_.Mode, DmXml_.FbWidth, DmXml_.FbHeight);
 
     tinyxml2::XMLElement* pConnector = pDisplayMode->FirstChildElement("Connector");
     if (!pConnector) {
-        HWC2_ALOGE("Can't %s:Connector fail.", xml_path);
+        HWC2_LOGE("Can't %s:Connector fail.", xml_path);
         return -1;
     }
     int iConnectorCnt = 0;
     while (pConnector) {
-#define PARSE_INT(x)                                                    \
-    tinyxml2::XMLElement* _##x = pConnector->FirstChildElement(#x);     \
-    if (!_##x) {                                                        \
-        HWC2_ALOGE("index=%d failed to parse %s\n", iConnectorCnt, #x); \
-        pConnector = pConnector->NextSiblingElement();                  \
-        continue;                                                       \
-    }                                                                   \
+#define PARSE_INT(x)                                                   \
+    tinyxml2::XMLElement* _##x = pConnector->FirstChildElement(#x);    \
+    if (!_##x) {                                                       \
+        HWC2_LOGE("index=%d failed to parse %s\n", iConnectorCnt, #x); \
+        pConnector = pConnector->NextSiblingElement();                 \
+        continue;                                                      \
+    }                                                                  \
     DmXml_.ConnectorInfo[iConnectorCnt].x = atoi(_##x->GetText())
 
-#define PARSE_STR(x)                                                    \
-    tinyxml2::XMLElement* _##x = pConnector->FirstChildElement(#x);     \
-    if (!_##x) {                                                        \
-        HWC2_ALOGE("index=%d failed to parse %s\n", iConnectorCnt, #x); \
-        pConnector = pConnector->NextSiblingElement();                  \
-        continue;                                                       \
-    }                                                                   \
+#define PARSE_STR(x)                                                   \
+    tinyxml2::XMLElement* _##x = pConnector->FirstChildElement(#x);    \
+    if (!_##x) {                                                       \
+        HWC2_LOGE("index=%d failed to parse %s\n", iConnectorCnt, #x); \
+        pConnector = pConnector->NextSiblingElement();                 \
+        continue;                                                      \
+    }                                                                  \
     strncpy(DmXml_.ConnectorInfo[iConnectorCnt].x, _##x->GetText(), sizeof(DmXml_.ConnectorInfo[iConnectorCnt].x));
 
         PARSE_STR(Type);
@@ -257,14 +257,14 @@ int DrmDevice::InitEnvFromXml() {
         PARSE_INT(Primary);
         PARSE_INT(Extend);
 
-        HWC2_ALOGI("Connector[%d] type=%s-%d [%d,%d,%d,%d]=>[%d,%d,%d,%d] Transform =%d Primary=%d Extend=%d.",
-                   iConnectorCnt, DmXml_.ConnectorInfo[iConnectorCnt].Type, DmXml_.ConnectorInfo[iConnectorCnt].TypeId,
-                   DmXml_.ConnectorInfo[iConnectorCnt].SrcX, DmXml_.ConnectorInfo[iConnectorCnt].SrcY,
-                   DmXml_.ConnectorInfo[iConnectorCnt].SrcW, DmXml_.ConnectorInfo[iConnectorCnt].SrcH,
-                   DmXml_.ConnectorInfo[iConnectorCnt].DstX, DmXml_.ConnectorInfo[iConnectorCnt].DstY,
-                   DmXml_.ConnectorInfo[iConnectorCnt].DstW, DmXml_.ConnectorInfo[iConnectorCnt].DstH,
-                   DmXml_.ConnectorInfo[iConnectorCnt].Transform, DmXml_.ConnectorInfo[iConnectorCnt].Primary,
-                   DmXml_.ConnectorInfo[iConnectorCnt].Extend);
+        HWC2_LOGI("Connector[%d] type=%s-%d [%d,%d,%d,%d]=>[%d,%d,%d,%d] Transform =%d Primary=%d Extend=%d.",
+                  iConnectorCnt, DmXml_.ConnectorInfo[iConnectorCnt].Type, DmXml_.ConnectorInfo[iConnectorCnt].TypeId,
+                  DmXml_.ConnectorInfo[iConnectorCnt].SrcX, DmXml_.ConnectorInfo[iConnectorCnt].SrcY,
+                  DmXml_.ConnectorInfo[iConnectorCnt].SrcW, DmXml_.ConnectorInfo[iConnectorCnt].SrcH,
+                  DmXml_.ConnectorInfo[iConnectorCnt].DstX, DmXml_.ConnectorInfo[iConnectorCnt].DstY,
+                  DmXml_.ConnectorInfo[iConnectorCnt].DstW, DmXml_.ConnectorInfo[iConnectorCnt].DstH,
+                  DmXml_.ConnectorInfo[iConnectorCnt].Transform, DmXml_.ConnectorInfo[iConnectorCnt].Primary,
+                  DmXml_.ConnectorInfo[iConnectorCnt].Extend);
         iConnectorCnt++;
         pConnector = pConnector->NextSiblingElement();
     }
@@ -319,7 +319,7 @@ int DrmDevice::CheckEnvXmlChange(struct DisplayModeXml* last, struct DisplayMode
 
 int DrmDevice::UpdateSplitInfoFromXml() {
     if (!DmXml_.Enable) {
-        HWC2_ALOGI("DmXml_.Enable = %d, ", DmXml_.Enable);
+        HWC2_LOGI("DmXml_.Enable = %d, ", DmXml_.Enable);
         for (auto& conn : connectors_) {
             conn->ResetSplitMode();
         }
@@ -327,7 +327,7 @@ int DrmDevice::UpdateSplitInfoFromXml() {
     }
 
     if (!DmXml_.Valid) {
-        HWC2_ALOGW("DmXml_.Valid = %d, ", DmXml_.Valid);
+        HWC2_LOGW("DmXml_.Valid = %d, ", DmXml_.Valid);
         for (auto& conn : connectors_) {
             conn->ResetSplitMode();
         }
@@ -339,7 +339,7 @@ int DrmDevice::UpdateSplitInfoFromXml() {
         conn->ResetSplitMode();
     }
 
-    HWC2_ALOGI("DmXml_.Mode = %d ", DmXml_.Mode);
+    HWC2_LOGI("DmXml_.Mode = %d ", DmXml_.Mode);
     if (DmXml_.Mode != DRM_DISPLAY_MODE_NORMAL) {
         for (int i = 0; i < DmXml_.ConnectorCnt; i++) {
             for (auto& conn : connectors_) {
@@ -350,19 +350,19 @@ int DrmDevice::UpdateSplitInfoFromXml() {
                         if (conn->setCropSplit(DmXml_.FbWidth, DmXml_.FbHeight, DmXml_.ConnectorInfo[i].SrcX,
                                                DmXml_.ConnectorInfo[i].SrcY, DmXml_.ConnectorInfo[i].SrcW,
                                                DmXml_.ConnectorInfo[i].SrcH, DmXml_.ConnectorInfo[i].Transform)) {
-                            HWC2_ALOGW("SplitMode: %s-%d enter CropSplit Mode fail.", connector_type_str(conn->type()),
-                                       conn->type_id());
+                            HWC2_LOGW("SplitMode: %s-%d enter CropSplit Mode fail.", connector_type_str(conn->type()),
+                                      conn->type_id());
                         } else {
-                            HWC2_ALOGI("SplitMode: %s-%d enter %s CropSplit Mode.", connector_type_str(conn->type()),
-                                       conn->type_id(), conn->IsSplitPrimary() ? "Primary" : "External");
+                            HWC2_LOGI("SplitMode: %s-%d enter %s CropSplit Mode.", connector_type_str(conn->type()),
+                                      conn->type_id(), conn->IsSplitPrimary() ? "Primary" : "External");
                         }
                     } else if (DmXml_.Mode == DRM_DISPLAY_MODE_HORIZONTAL_SPLIT) {
                         if (conn->setHorizontalSplit()) {
-                            HWC2_ALOGW("SplitMode: %s-%d enter HorizontalSplit Mode fail.",
-                                       connector_type_str(conn->type()), conn->type_id());
+                            HWC2_LOGW("SplitMode: %s-%d enter HorizontalSplit Mode fail.",
+                                      connector_type_str(conn->type()), conn->type_id());
                         } else {
-                            HWC2_ALOGI("SplitMode: %s-%d enter HorizontalSplit Mode.", connector_type_str(conn->type()),
-                                       conn->type_id());
+                            HWC2_LOGI("SplitMode: %s-%d enter HorizontalSplit Mode.", connector_type_str(conn->type()),
+                                      conn->type_id());
                         }
                     }
                 }
@@ -374,8 +374,8 @@ int DrmDevice::UpdateSplitInfoFromXml() {
         if (conn->isCropSplit() && conn->display() == 0) {
             split_main_connector = true;
             conn->setCropSplitPrimary();
-            HWC2_ALOGI("SplitMode: Use %s-%d as CropSplit primary display.", connector_type_str(conn->type()),
-                       conn->type_id());
+            HWC2_LOGI("SplitMode: Use %s-%d as CropSplit primary display.", connector_type_str(conn->type()),
+                      conn->type_id());
             break;
         }
     }
@@ -385,8 +385,8 @@ int DrmDevice::UpdateSplitInfoFromXml() {
             if (conn->isCropSplit()) {
                 split_main_connector = true;
                 conn->setCropSplitPrimary();
-                HWC2_ALOGI("SplitMode: Use %s-%d as CropSplit primary display.", connector_type_str(conn->type()),
-                           conn->type_id());
+                HWC2_LOGI("SplitMode: Use %s-%d as CropSplit primary display.", connector_type_str(conn->type()),
+                          conn->type_id());
                 break;
             }
         }
@@ -410,8 +410,8 @@ void DrmDevice::InitResevedPlane() {
                     if (!strcmp(p->name(), reserved_name.c_str())) {
                         plane_group->bReserved = true;
                         reserved_plane_win_type = plane_group->win_type;
-                        HWC2_ALOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_planes_name,
-                                   reserved_plane_win_type);
+                        HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_planes_name,
+                                  reserved_plane_win_type);
                         break;
                     } else {
                         plane_group->bReserved = false;
@@ -464,7 +464,7 @@ std::tuple<int, int> DrmDevice::Init(int num_displays) {
     init_white_modes();
     int ret = InitEnvFromXml();
     if (ret) {
-        HWC2_ALOGW("InitEnvFromXml fail, non-fatal error, check for ok.");
+        HWC2_LOGW("InitEnvFromXml fail, non-fatal error, check for ok.");
     }
     // Baseparameter init.
     baseparameter_.Init();
@@ -711,13 +711,13 @@ std::tuple<int, int> DrmDevice::Init(int num_displays) {
 
     // SplitMode
     if (UpdateSplitInfoFromXml()) {
-        HWC2_ALOGW("UpdateSplitInfoFromXml fail, non-fatal error, check for ok.");
+        HWC2_LOGW("UpdateSplitInfoFromXml fail, non-fatal error, check for ok.");
     }
 
     for (auto& conn : connectors_) {
         if (conn->isHorizontalSplit()) {
-            HWC2_ALOGI("%s enable isHorizontalSplit, to create SplitModeDisplay id=0x%x", conn->unique_name(),
-                       conn->GetSplitModeId());
+            HWC2_LOGI("%s enable isHorizontalSplit, to create SplitModeDisplay id=0x%x", conn->unique_name(),
+                      conn->GetSplitModeId());
             int split_display_id = conn->GetSplitModeId();
             displays_[split_display_id] = split_display_id;
         }
@@ -875,8 +875,8 @@ int DrmDevice::GetDisplayPipelineChange(uint64_t* output_change_mask) {
         uint64_t xml_change_mask = DRM_PIPELINE_NO_CHANGE;
         ret = CheckEnvXmlChange(&last_dm_xml, &DmXml_, &xml_change_mask);
         if (ret) {
-            HWC2_ALOGW("DisplayPipeChange: CheckEnvXmlChange fail, change_mask=%" PRIx64 " ret=%d", xml_change_mask,
-                       ret);
+            HWC2_LOGW("DisplayPipeChange: CheckEnvXmlChange fail, change_mask=%" PRIx64 " ret=%d", xml_change_mask,
+                      ret);
             return -1;
         }
 
@@ -887,7 +887,7 @@ int DrmDevice::GetDisplayPipelineChange(uint64_t* output_change_mask) {
         }
         return 0;
     } else {
-        HWC2_ALOGW("DisplayPipeChange: InitEnvFromXml fail, please check xml file. try to use property.");
+        HWC2_LOGW("DisplayPipeChange: InitEnvFromXml fail, please check xml file. try to use property.");
         char primary_name_tmp[PROPERTY_VALUE_MAX];
         char extend_name_tmp[PROPERTY_VALUE_MAX];
         int primary_length = property_get("vendor.hwc.device.primary", primary_name_tmp, NULL);
@@ -908,15 +908,15 @@ int DrmDevice::UpdateSplitModeInfo() {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     // Spicling Mode
     if (UpdateSplitInfoFromXml()) {
-        HWC2_ALOGW("SplitMode: UpdateSplitInfoFromXml fail, CropSplit status will not change, please check xml file.");
+        HWC2_LOGW("SplitMode: UpdateSplitInfoFromXml fail, CropSplit status will not change, please check xml file.");
         return -1;
     }
 
     // SplitMode
     for (auto& conn : connectors_) {
         if (conn->isHorizontalSplit()) {
-            HWC2_ALOGI("%s enable isHorizontalSplit, to create SplitModeDisplay id=0x%x", conn->unique_name(),
-                       conn->GetSplitModeId());
+            HWC2_LOGI("%s enable isHorizontalSplit, to create SplitModeDisplay id=0x%x", conn->unique_name(),
+                      conn->GetSplitModeId());
             int split_display_id = conn->GetSplitModeId();
             displays_[split_display_id] = split_display_id;
         }
@@ -1199,12 +1199,12 @@ void DrmDevice::ConfigurePossibleDisplays() {
 // RK surport
 void DrmDevice::ConfigurePossibleDisplaysFromXml() {
     if (!DmXml_.Enable) {
-        HWC2_ALOGI("DmXml_.Enable = %d, ", DmXml_.Enable);
+        HWC2_LOGI("DmXml_.Enable = %d, ", DmXml_.Enable);
         return;
     }
 
     if (!DmXml_.Valid) {
-        HWC2_ALOGW("DmXml_.Valid = %d, ", DmXml_.Valid);
+        HWC2_LOGW("DmXml_.Valid = %d, ", DmXml_.Valid);
         return;
     }
 
@@ -1229,15 +1229,15 @@ void DrmDevice::ConfigurePossibleDisplaysFromXml() {
                     if (DmXml_.ConnectorInfo[i].Primary > 0) {
                         conn->set_priority(DmXml_.ConnectorInfo[i].Primary);
                         conn->set_possible_displays(HWC_DISPLAY_PRIMARY_BIT);
-                        HWC2_ALOGI("%s-%d is PrimaryType priority = %d", conn_name, conn->type_id(),
-                                   DmXml_.ConnectorInfo[i].Primary);
+                        HWC2_LOGI("%s-%d is PrimaryType priority = %d", conn_name, conn->type_id(),
+                                  DmXml_.ConnectorInfo[i].Primary);
                     } else if (DmXml_.ConnectorInfo[i].Extend > 0) {
                         conn->set_priority(DmXml_.ConnectorInfo[i].Extend);
                         conn->set_possible_displays(HWC_DISPLAY_EXTERNAL_BIT);
-                        HWC2_ALOGI("%s-%d is ExtendType priority = %d", conn_name, conn->type_id(),
-                                   DmXml_.ConnectorInfo[i].Extend);
+                        HWC2_LOGI("%s-%d is ExtendType priority = %d", conn_name, conn->type_id(),
+                                  DmXml_.ConnectorInfo[i].Extend);
                     } else {
-                        HWC2_ALOGW("%s-%d can't find Primary/Extend config, skip.", conn_name, conn->type_id());
+                        HWC2_LOGW("%s-%d can't find Primary/Extend config, skip.", conn_name, conn->type_id());
                     }
                 }
             }
@@ -1266,8 +1266,8 @@ void DrmDevice::UpdateDrmInfoFromKernel() {
                         crtc->set_display(conn->display());
                         enc->set_crtc(crtc);
                         conn->set_encoder(enc);
-                        HWC2_ALOGI("display-id=%d sync kernel info conn[%d] crtc=%d!\n", conn->display(), conn->id(),
-                                   crtc->id());
+                        HWC2_LOGI("display-id=%d sync kernel info conn[%d] crtc=%d!\n", conn->display(), conn->id(),
+                                  crtc->id());
                     }
                 }
             }
@@ -1291,10 +1291,10 @@ void DrmDevice::UpdateDrmInfoFromKernel() {
                 DrmConnector* mirror_external = GetConnectorForDisplay(mirror_external_id);
                 mirror_primary->enable_connector_mirror_mode(mirror_primary->display(), mirror_external_id);
                 mirror_external->enable_connector_mirror_mode(mirror_primary->display(), mirror_external_id);
-                HWC2_ALOGI("MirrorDisplay: EnableFromKernel: PrimaryId=%d conn=%s-%d ExternelId=%d conn=%s-%d",
-                           mirror_primary->display(), connector_type_str(mirror_primary->type()),
-                           mirror_primary->type_id(), mirror_external->display(),
-                           connector_type_str(mirror_external->type()), mirror_external->type_id());
+                HWC2_LOGI("MirrorDisplay: EnableFromKernel: PrimaryId=%d conn=%s-%d ExternelId=%d conn=%s-%d",
+                          mirror_primary->display(), connector_type_str(mirror_primary->type()),
+                          mirror_primary->type_id(), mirror_external->display(),
+                          connector_type_str(mirror_external->type()), mirror_external->type_id());
             }
         }
     }
@@ -1404,7 +1404,7 @@ int DrmDevice::UpdateDisplayMode(int display_id) {
     DrmConnector* conn = GetConnectorForDisplay(display_id);
     if (!conn || conn->state() != DRM_MODE_CONNECTED || !conn->current_mode().id() || !conn->encoder() ||
         !conn->encoder()->crtc() || conn->current_mode() == conn->active_mode()) {
-        // HWC2_ALOGI("rk-debug display_id=%d conn-id = %d cur_mode_id=%d active_mode_id=%d encoder=%p",display_id, conn->id(), conn->current_mode().id(), conn->active_mode().id(), conn->encoder());
+        // HWC2_LOGI("rk-debug display_id=%d conn-id = %d cur_mode_id=%d active_mode_id=%d encoder=%p",display_id, conn->id(), conn->current_mode().id(), conn->active_mode().id(), conn->encoder());
         return 0;
     }
 
@@ -1444,8 +1444,8 @@ int DrmDevice::UpdateDisplayModeNormal(int display_id) {
                     pset = NULL;
                     return ret;
                 }
-                HWC2_ALOGI("DisplayMode: display-id=%d crtc-id = %d disable plane-id = %d", display_id, crtc->id(),
-                           plane->id());
+                HWC2_LOGI("DisplayMode: display-id=%d crtc-id = %d disable plane-id = %d", display_id, crtc->id(),
+                          plane->id());
             }
         }
 
@@ -1469,22 +1469,22 @@ int DrmDevice::UpdateDisplayModeNormal(int display_id) {
             // 如果不支持，可以尝试使用Mirror方式支持当前请求的分辨率
             int ret = ReleaseDpyRes(display_id);
             if (ret) {
-                HWC2_ALOGE("display-id=%d ReleaseDpyRes ret=%d", display_id, ret);
+                HWC2_LOGE("display-id=%d ReleaseDpyRes ret=%d", display_id, ret);
                 return -1;
             }
 
             ret = BindDpyRes(display_id);
             if (ret) {
-                HWC2_ALOGE("display-id=%d BindDpyRes ret=%d", display_id, ret);
+                HWC2_LOGE("display-id=%d BindDpyRes ret=%d", display_id, ret);
                 return -1;
             } else {
                 conn->set_active_mode(conn->current_mode());
                 // 成功更新crtc状态，则需要重置Kernel配置的Crtc信息
                 conn->reset_kernel_crtc_id();
-                HWC2_ALOGI("DisplayMode: display-id=%d crtc-id = %d update mode-id=%d mode=%dx%d%s%f success.",
-                           display_id, crtc->id(), conn->current_mode().id(), conn->current_mode().h_display(),
-                           conn->current_mode().v_display(), conn->current_mode().interlaced() > 0 ? "i" : "p",
-                           conn->current_mode().v_refresh());
+                HWC2_LOGI("DisplayMode: display-id=%d crtc-id = %d update mode-id=%d mode=%dx%d%s%f success.",
+                          display_id, crtc->id(), conn->current_mode().id(), conn->current_mode().h_display(),
+                          conn->current_mode().v_display(), conn->current_mode().interlaced() > 0 ? "i" : "p",
+                          conn->current_mode().v_refresh());
                 return 0;
             }
 
@@ -1523,19 +1523,18 @@ int DrmDevice::UpdateDisplayModeNormal(int display_id) {
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE("DisplayMode: display-id=%d crtc-id=%d update mode-id=%d mode=%dx%d%s%f fail! ret=%d.", display_id,
-                   crtc->id(), conn->current_mode().id(), conn->current_mode().h_display(),
-                   conn->current_mode().v_display(), conn->current_mode().interlaced() > 0 ? "i" : "p",
-                   conn->current_mode().v_refresh(), ret);
+        HWC2_LOGE("DisplayMode: display-id=%d crtc-id=%d update mode-id=%d mode=%dx%d%s%f fail! ret=%d.", display_id,
+                  crtc->id(), conn->current_mode().id(), conn->current_mode().h_display(),
+                  conn->current_mode().v_display(), conn->current_mode().interlaced() > 0 ? "i" : "p",
+                  conn->current_mode().v_refresh(), ret);
         drmModeAtomicFree(pset);
         pset = NULL;
         return ret;
     }
 
-    HWC2_ALOGI("DisplayMode: display-id=%d crtc-id = %d update mode-id=%d mode=%dx%d%s%f success.", display_id,
-               crtc->id(), conn->current_mode().id(), conn->current_mode().h_display(),
-               conn->current_mode().v_display(), conn->current_mode().interlaced() > 0 ? "i" : "p",
-               conn->current_mode().v_refresh());
+    HWC2_LOGI("DisplayMode: display-id=%d crtc-id = %d update mode-id=%d mode=%dx%d%s%f success.", display_id,
+              crtc->id(), conn->current_mode().id(), conn->current_mode().h_display(), conn->current_mode().v_display(),
+              conn->current_mode().interlaced() > 0 ? "i" : "p", conn->current_mode().v_refresh());
 
     if (blob_id[0]) DestroyPropertyBlob(blob_id[0]);
 
@@ -1579,14 +1578,14 @@ int DrmDevice::UpdateDisplayModeMirror(int display_id) {
                 DrmCrtc* crtc = conn_mirror->encoder()->crtc();
                 int ret = ReleaseDpyResByMirror(mirror_display_id, conn_mirror, crtc);
                 if (ret) {
-                    HWC2_ALOGE(
+                    HWC2_LOGE(
                             "DisplayMode: display-id%d mirror-display-id=%d conn-id=%d ReleaseDpyResByMirror fail!.\n",
                             display_id, mirror_display_id, conn_mirror->id());
                     return -1;
                 }
                 change_mirror_display_id.push_back(mirror_display_id);
             } else {
-                HWC2_ALOGW(
+                HWC2_LOGW(
                         "DisplayMode: display-id=%d mirror-display-id=%d encoder or crtc is null. skip! update display "
                         "mode.\n",
                         display_id, mirror_display_id);
@@ -1595,7 +1594,7 @@ int DrmDevice::UpdateDisplayModeMirror(int display_id) {
         // 2. 当前屏幕退出MirrorPrimary模式后，更新本次请求的分辨率切换
         int ret = UpdateDisplayModeNormal(display_id);
         if (ret) {
-            HWC2_ALOGE("DisplayMode: display-id=%d UpdateDisplayModeNormal fail!.\n", display_id);
+            HWC2_LOGE("DisplayMode: display-id=%d UpdateDisplayModeNormal fail!.\n", display_id);
             return -1;
         }
 
@@ -1604,13 +1603,13 @@ int DrmDevice::UpdateDisplayModeMirror(int display_id) {
             for (int mirror_display_id : change_mirror_display_id) {
                 DrmConnector* conn_mirror = GetConnectorForDisplay(mirror_display_id);
                 if (conn_mirror != NULL) {
-                    HWC2_ALOGI("DisplayMode: MirrorDisplay display-id=%d conn-id=%d want to bind new crtc resource.",
-                               mirror_display_id, conn_mirror->id());
+                    HWC2_LOGI("DisplayMode: MirrorDisplay display-id=%d conn-id=%d want to bind new crtc resource.",
+                              mirror_display_id, conn_mirror->id());
                     // 尝试重新绑定退出Mirror模式的Connector的CRTC资源
                     ret = BindDpyRes(mirror_display_id);
                     if (ret) {
-                        HWC2_ALOGE("DisplayMode: display-id=%d conn-id=%d BindDpyRes fail!.\n", mirror_display_id,
-                                   conn_mirror->id());
+                        HWC2_LOGE("DisplayMode: display-id=%d conn-id=%d BindDpyRes fail!.\n", mirror_display_id,
+                                  conn_mirror->id());
                         return -1;
                     }
                 }
@@ -1621,19 +1620,19 @@ int DrmDevice::UpdateDisplayModeMirror(int display_id) {
             DrmCrtc* crtc = conn->encoder()->crtc();
             int ret = ReleaseDpyResByMirror(display_id, conn, crtc);
             if (ret) {
-                HWC2_ALOGE("DisplayMode: display-id=%d conn-id=%d ReleaseDpyResByMirror fail!.\n", display_id,
-                           conn->id());
+                HWC2_LOGE("DisplayMode: display-id=%d conn-id=%d ReleaseDpyResByMirror fail!.\n", display_id,
+                          conn->id());
                 return -1;
             }
             // 尝试重新绑定退出Mirror模式的Connector的CRTC资源
             ret = BindDpyRes(display_id);
             if (ret) {
-                HWC2_ALOGE("DisplayMode: display-id=%d conn-id=%d BindDpyRes fail!.\n", display_id, conn->id());
+                HWC2_LOGE("DisplayMode: display-id=%d conn-id=%d BindDpyRes fail!.\n", display_id, conn->id());
                 return -1;
             }
         } else {
-            HWC2_ALOGE("DisplayMode: display-id=%d conn-id=%d encoder or crtc is null. skip! update display mode.\n",
-                       display_id, conn->id());
+            HWC2_LOGE("DisplayMode: display-id=%d conn-id=%d encoder or crtc is null. skip! update display mode.\n",
+                      display_id, conn->id());
             return -1;
         }
     }
@@ -1656,7 +1655,7 @@ int DrmDevice::UpdateVrrRefreshRate(int display_id, int refresh_rate) {
         if (crtc != NULL && crtc->variable_refresh_rate().id() > 0) {
             drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
             if (!pset) {
-                HWC2_ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
+                HWC2_LOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
                 return -ENOMEM;
             }
 
@@ -1685,10 +1684,10 @@ int DrmDevice::UpdateVrrRefreshRate(int display_id, int refresh_rate) {
             }
             drmModeAtomicFree(pset);
             pset = NULL;
-            HWC2_ALOGI("display-id=%d Update Refresh Rate = %d success!.", display_id, refresh_rate);
+            HWC2_LOGI("display-id=%d Update Refresh Rate = %d success!.", display_id, refresh_rate);
         }
     } else {
-        HWC2_ALOGW("display-id=%d crtc is null. request fps = %d", display_id, refresh_rate);
+        HWC2_LOGW("display-id=%d crtc is null. request fps = %d", display_id, refresh_rate);
     }
 
     return 0;
@@ -1698,12 +1697,12 @@ int DrmDevice::UpdateVrrRefreshRate(int display_id, int refresh_rate) {
 int DrmDevice::CheckConnectorState(int display_id, DrmConnector* conn, bool all) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (!conn) {
-        HWC2_ALOGE("Failed to find display-id=%d connector\n", display_id);
+        HWC2_LOGE("Failed to find display-id=%d connector\n", display_id);
         return -EINVAL;
     }
 
     if (conn->state() != DRM_MODE_CONNECTED) {
-        HWC2_ALOGE("display-id=%d connector state is disconnected\n", display_id);
+        HWC2_LOGE("display-id=%d connector state is disconnected\n", display_id);
         return -EINVAL;
     }
 
@@ -1713,20 +1712,20 @@ int DrmDevice::CheckConnectorState(int display_id, DrmConnector* conn, bool all)
     }
 
     if (conn->encoder() == NULL) {
-        HWC2_ALOGE("display-id=%d connector encorder is null \n", display_id);
+        HWC2_LOGE("display-id=%d connector encorder is null \n", display_id);
         return -EINVAL;
     }
 
     if (conn->encoder()->crtc() == NULL) {
-        HWC2_ALOGE("display-id=%d connector crtc is null \n", display_id);
+        HWC2_LOGE("display-id=%d connector crtc is null \n", display_id);
         return -EINVAL;
     }
 
     // Check display mode.
     DrmMode current_mode = conn->current_mode();
     if (!current_mode.id()) {
-        HWC2_ALOGE("display-id=%d conn-id=%d current-id=%d is invalid.", display_id, conn->id(),
-                   conn->current_mode().id());
+        HWC2_LOGE("display-id=%d conn-id=%d current-id=%d is invalid.", display_id, conn->id(),
+                  conn->current_mode().id());
         return -EINVAL;
     }
 
@@ -1756,7 +1755,7 @@ int DrmDevice::FindAvailableCrtc(int display_id, DrmConnector* conn, DrmCrtc** o
     //    -> 若不存在，则直接抢占
     ret = FindAvailableCrtcByCompete(display_id, conn, out_crtc);
     if (!ret) return ret;
-    HWC2_ALOGI("Can't find available crtc for display-id=%d with conn[%d] by compete.", display_id, conn->id());
+    HWC2_LOGI("Can't find available crtc for display-id=%d with conn[%d] by compete.", display_id, conn->id());
 
     // 4. 没有找到可用的Crtc资源
     //    更新状态查询接口信息
@@ -1765,7 +1764,7 @@ int DrmDevice::FindAvailableCrtc(int display_id, DrmConnector* conn, DrmCrtc** o
     snprintf(conn_name, 50, "%s-%d:connected-no-crtc", connector_type_str(conn->type()), conn->type_id());
     snprintf(property_conn_name, 50, "vendor.hwc.device.display-%d", display_id);
     property_set(property_conn_name, conn_name);
-    HWC2_ALOGW("Can't find available crtc for display-id=%d with conn[%d].", display_id, conn->id());
+    HWC2_LOGW("Can't find available crtc for display-id=%d with conn[%d].", display_id, conn->id());
     return ret;
 }
 
@@ -1779,21 +1778,21 @@ int DrmDevice::FindAvailableCrtcByFirst(int display_id, DrmConnector* conn, DrmC
         for (DrmCrtc* crtc : enc->possible_crtcs()) {
             if (crtc->can_bind(conn->display())) {
                 if (check_crtc_cap && CheckCrtcOutputCapability(display_id, crtc, current_mode)) {
-                    HWC2_ALOGI("check_crtc_cap : display-id=%d conn[%d] Skip crtc=%d to try more.\n", display_id,
-                               conn->id(), crtc->id());
+                    HWC2_LOGI("check_crtc_cap : display-id=%d conn[%d] Skip crtc=%d to try more.\n", display_id,
+                              conn->id(), crtc->id());
                     continue;
                 }
                 // 如果驱动有配置CRTC，并且与当前HWC内部请求的不一致，则需要先释放驱动的配置
                 if (CheckKernelCrtcNeedRelease(display_id, conn, crtc)) {
-                    HWC2_ALOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
-                               conn->id(), crtc->id());
+                    HWC2_LOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
+                              conn->id(), crtc->id());
                     continue;
                 }
                 crtc->set_display(conn->display());
                 enc->set_crtc(crtc);
                 conn->set_encoder(enc);
                 *out_crtc = crtc;
-                HWC2_ALOGI("Find display-id=%d with conn[%d] crtc=%d success!\n", display_id, conn->id(), crtc->id());
+                HWC2_LOGI("Find display-id=%d with conn[%d] crtc=%d success!\n", display_id, conn->id(), crtc->id());
                 return 0;
             }
         }
@@ -1814,14 +1813,14 @@ int DrmDevice::FindAvailableCrtcByFirst(int display_id, DrmConnector* conn, DrmC
             if (ret) {  // 状态不正常
                 // 检查是否满足
                 if (check_crtc_cap && CheckCrtcOutputCapability(display_id, crtc, current_mode)) {
-                    HWC2_ALOGI("check_crtc_cap : display-id=%d conn[%d] Skip crtc=%d to try more.\n", display_id,
-                               conn->id(), crtc->id());
+                    HWC2_LOGI("check_crtc_cap : display-id=%d conn[%d] Skip crtc=%d to try more.\n", display_id,
+                              conn->id(), crtc->id());
                     continue;
                 }
                 // 如果驱动有配置CRTC，并且与当前HWC内部请求的不一致，则需要先释放驱动的配置
                 if (CheckKernelCrtcNeedRelease(display_id, conn, crtc)) {
-                    HWC2_ALOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
-                               conn->id(), crtc->id());
+                    HWC2_LOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
+                              conn->id(), crtc->id());
                     continue;
                 }
 
@@ -1834,7 +1833,7 @@ int DrmDevice::FindAvailableCrtcByFirst(int display_id, DrmConnector* conn, DrmC
                 enc->set_crtc(crtc);
                 conn->set_encoder(enc);
                 *out_crtc = crtc;
-                HWC2_ALOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(), crtc->id());
+                HWC2_LOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(), crtc->id());
                 return 0;
             }
         }
@@ -1846,8 +1845,8 @@ int DrmDevice::FindAvailableCrtcByFirst(int display_id, DrmConnector* conn, DrmC
 int DrmDevice::FindAvailableCrtcByMirror(int display_id, DrmConnector* conn, DrmCrtc** out_crtc) {
     // TMP：由于RK3576会议大屏 output-format 通常为 RGB,故先限制此格式才使能Mirror
     if (conn->FilterColorFormatWithCaps(output_rgb) != output_rgb) {
-        HWC2_ALOGW("display-id=%d conn-id =%d %s-%d not support RGB-8bit ,must disable 4k mirror mode.", display_id,
-                   conn->id(), connector_type_str(conn->type()), conn->type_id());
+        HWC2_LOGW("display-id=%d conn-id =%d %s-%d not support RGB-8bit ,must disable 4k mirror mode.", display_id,
+                  conn->id(), connector_type_str(conn->type()), conn->type_id());
         return -1;
     }
 
@@ -1862,8 +1861,8 @@ int DrmDevice::FindAvailableCrtcByMirror(int display_id, DrmConnector* conn, Drm
             }
             // 检查硬件的输出能力
             if (CheckCrtcOutputCapability(display_id, crtc, current_mode)) {
-                HWC2_ALOGI("check_crtc_cap : display-id=%d conn[%d] Skip crtc=%d to try more.\n", display_id,
-                           conn->id(), crtc->id());
+                HWC2_LOGI("check_crtc_cap : display-id=%d conn[%d] Skip crtc=%d to try more.\n", display_id, conn->id(),
+                          crtc->id());
                 continue;
             }
             DrmConnector* mirror_primary_conn = GetConnectorForDisplay(mirror_primary_display_id);
@@ -1879,8 +1878,8 @@ int DrmDevice::FindAvailableCrtcByMirror(int display_id, DrmConnector* conn, Drm
                 if (mirror_mode.id() > 0 && current_mode.id() > 0 && current_mode.equal_no_flag_and_type(mirror_mode)) {
                     // 如果驱动有配置CRTC，并且与当前HWC内部请求的不一致，则需要先释放驱动的配置
                     if (CheckKernelCrtcNeedRelease(display_id, conn, crtc)) {
-                        HWC2_ALOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
-                                   conn->id(), crtc->id());
+                        HWC2_LOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
+                                  conn->id(), crtc->id());
                         continue;
                     }
                     // mirror 不会修改crtc diplsy id
@@ -1891,16 +1890,15 @@ int DrmDevice::FindAvailableCrtcByMirror(int display_id, DrmConnector* conn, Drm
                     enc->set_crtc(crtc);
                     conn->set_encoder(enc);
                     *out_crtc = crtc;
-                    HWC2_ALOGI("Find display-id=%d with conn[%d] crtc=%d mirror success! mirror_primary = %d conn=%d",
-                               display_id, conn->id(), crtc->id(), mirror_primary_display_id,
-                               mirror_primary_conn->id());
+                    HWC2_LOGI("Find display-id=%d with conn[%d] crtc=%d mirror success! mirror_primary = %d conn=%d",
+                              display_id, conn->id(), crtc->id(), mirror_primary_display_id, mirror_primary_conn->id());
                     return 0;
                 }
             }
         }
     }
 
-    HWC2_ALOGW("Can't find available crtc for display-id=%d with conn[%d] by mirror.", display_id, conn->id());
+    HWC2_LOGW("Can't find available crtc for display-id=%d with conn[%d] by mirror.", display_id, conn->id());
     return -1;
 }
 
@@ -1921,8 +1919,8 @@ int DrmDevice::FindAvailableCrtcByCompete(int display_id, DrmConnector* conn, Dr
                 if (ret) {  // 状态不正常
                     // 如果驱动有配置CRTC，并且与当前HWC内部请求的不一致，则需要先释放驱动的配置
                     if (CheckKernelCrtcNeedRelease(display_id, conn, crtc)) {
-                        HWC2_ALOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
-                                   conn->id(), crtc->id());
+                        HWC2_LOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
+                                  conn->id(), crtc->id());
                         continue;
                     }
                     // 解绑 temp_conn 与 crtc.
@@ -1931,14 +1929,14 @@ int DrmDevice::FindAvailableCrtcByCompete(int display_id, DrmConnector* conn, Dr
                     enc->set_crtc(crtc);
                     conn->set_encoder(enc);
                     *out_crtc = crtc;
-                    HWC2_ALOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(), crtc->id());
+                    HWC2_LOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(), crtc->id());
                     return 0;
                 } else {  // 若状态正常，则进行优先级抢占
                     if (conn->priority() < temp_conn->priority()) {
                         // 检查当前请求的crtc是否与驱动一致，若不一致则需要先释放驱动的crtc资源
                         if (CheckKernelCrtcNeedRelease(display_id, conn, crtc)) {
-                            HWC2_ALOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.",
-                                       display_id, conn->id(), crtc->id());
+                            HWC2_LOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.",
+                                      display_id, conn->id(), crtc->id());
                             continue;
                         }
                         // 解绑 temp_conn 与 crtc.
@@ -1947,8 +1945,8 @@ int DrmDevice::FindAvailableCrtcByCompete(int display_id, DrmConnector* conn, Dr
                         enc->set_crtc(crtc);
                         conn->set_encoder(enc);
                         *out_crtc = crtc;
-                        HWC2_ALOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(),
-                                   crtc->id());
+                        HWC2_LOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(),
+                                  crtc->id());
                         return 0;
                     }
                 }
@@ -1961,8 +1959,8 @@ int DrmDevice::FindAvailableCrtcByCompete(int display_id, DrmConnector* conn, Dr
                 DrmConnector* temp_conn = GetConnectorForDisplay(temp_display_id);
                 // 检查当前请求的crtc是否与驱动一致，若不一致则需要先释放驱动的crtc资源
                 if (CheckKernelCrtcNeedRelease(display_id, conn, crtc)) {
-                    HWC2_ALOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
-                               conn->id(), crtc->id());
+                    HWC2_LOGE("display-id=%d with conn[%d] crtc=%d CheckKernelCrtcNeedRelease fail.", display_id,
+                              conn->id(), crtc->id());
                     continue;
                 }
                 // 解绑 temp_conn 与 crtc.
@@ -1971,7 +1969,7 @@ int DrmDevice::FindAvailableCrtcByCompete(int display_id, DrmConnector* conn, Dr
                 enc->set_crtc(crtc);
                 conn->set_encoder(enc);
                 *out_crtc = crtc;
-                HWC2_ALOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(), crtc->id());
+                HWC2_LOGI("Find display-id=%d with conn[%d] crtc=%d success!", display_id, conn->id(), crtc->id());
                 return 0;
             }
         }
@@ -1987,20 +1985,20 @@ int DrmDevice::CheckKernelCrtcNeedRelease(int display_id, DrmConnector* conn, Dr
     if (conn->get_kernel_crtc_id() != crtc->id()) {
         for (auto& c : crtcs_) {
             if (c->id() == conn->get_kernel_crtc_id()) {
-                HWC2_ALOGI("display-id=%d kernel-crtc id=%d into new crtc-id=%d mirror_mode=%d to disable kernel-crtc.",
-                           display_id, conn->get_kernel_crtc_id(), crtc->id(), conn->is_connector_mirror_mode());
+                HWC2_LOGI("display-id=%d kernel-crtc id=%d into new crtc-id=%d mirror_mode=%d to disable kernel-crtc.",
+                          display_id, conn->get_kernel_crtc_id(), crtc->id(), conn->is_connector_mirror_mode());
                 if (conn->is_connector_mirror_mode()) {
                     ret = ReleaseDpyResByMirror(display_id, conn, c.get());
                     if (ret) {
-                        HWC2_ALOGE("display-id=%d conn-id=%d disable kernel-mirror-crtc id=%d fail", display_id,
-                                   conn->id(), conn->get_kernel_crtc_id());
+                        HWC2_LOGE("display-id=%d conn-id=%d disable kernel-mirror-crtc id=%d fail", display_id,
+                                  conn->id(), conn->get_kernel_crtc_id());
                         return -1;
                     }
                 } else {
                     ret = ReleaseDpyResByNormal(display_id, conn, c.get());
                     if (ret) {
-                        HWC2_ALOGE("display-id=%d conn-id=%d disable kernel-crtc id=%d fail", display_id, conn->id(),
-                                   conn->get_kernel_crtc_id());
+                        HWC2_LOGE("display-id=%d conn-id=%d disable kernel-crtc id=%d fail", display_id, conn->id(),
+                                  conn->get_kernel_crtc_id());
                         return -1;
                     }
                 }
@@ -2016,21 +2014,21 @@ int DrmDevice::BindConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCrtc*
     // Check display mode.
     DrmMode current_mode = conn->current_mode();
     if (!current_mode.id()) {
-        HWC2_ALOGI("display-id=%d conn-id=%d current-id=%d is invalid.", display_id, conn->id(),
-                   conn->current_mode().id());
+        HWC2_LOGI("display-id=%d conn-id=%d current-id=%d is invalid.", display_id, conn->id(),
+                  conn->current_mode().id());
         return -EINVAL;
     }
 
     // 如果开机阶段当前设置的分辨率与 kernel uboot 初始化不一致，则需要关闭所有图层
     if (crtc->need_sync_kernel_mode() && !current_mode.equal_no_flag_and_type(crtc->kernel_mode())) {
-        HWC2_ALOGI(
+        HWC2_LOGI(
                 "Display-id=%d kernel-mode not equal to current-mode,"
                 "must to disable all plane.",
                 display_id);
         current_mode.dump();
         crtc->kernel_mode().dump();
         if (DisableAllPlaneForCrtc(display_id, crtc, true, NULL)) {
-            HWC2_ALOGW("display-id=%d crtc-id=%d display all plane fail!.", display_id, crtc->id());
+            HWC2_LOGW("display-id=%d crtc-id=%d display all plane fail!.", display_id, crtc->id());
         } else {
             crtc->has_sync_kernel_mode();
         }
@@ -2074,11 +2072,11 @@ int DrmDevice::BindConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCrtc*
         if (conn->is_connector_mirror_primary() == false) {
             ret = drmModeAtomicAddProperty(pset, conn->id(), conn->color_format_property().id(), output_rgb);
             if (ret < 0) {
-                HWC2_ALOGE("Failed to add prop[%d] to [%d]", conn->color_format_property().id(), conn->id());
+                HWC2_LOGE("Failed to add prop[%d] to [%d]", conn->color_format_property().id(), conn->id());
             }
             ret = drmModeAtomicAddProperty(pset, conn->id(), conn->color_depth_property().id(), depth_24bit);
             if (ret < 0) {
-                HWC2_ALOGE("Failed to add prop[%d] to [%d]", conn->color_depth_property().id(), conn->id());
+                HWC2_LOGE("Failed to add prop[%d] to [%d]", conn->color_depth_property().id(), conn->id());
             }
 
             // MirrorPrimary 也需要设置为 RGB-8bit
@@ -2089,29 +2087,29 @@ int DrmDevice::BindConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCrtc*
                     ret = drmModeAtomicAddProperty(pset, mirror_primary->id(),
                                                    mirror_primary->color_format_property().id(), output_rgb);
                     if (ret < 0) {
-                        HWC2_ALOGE("Failed to add prop[%d] to [%d]", mirror_primary->color_format_property().id(),
-                                   mirror_primary->id());
+                        HWC2_LOGE("Failed to add prop[%d] to [%d]", mirror_primary->color_format_property().id(),
+                                  mirror_primary->id());
                     }
                     ret = drmModeAtomicAddProperty(pset, mirror_primary->id(),
                                                    mirror_primary->color_depth_property().id(), depth_24bit);
                     if (ret < 0) {
-                        HWC2_ALOGE("Failed to add prop[%d] to [%d]", mirror_primary->color_depth_property().id(),
-                                   mirror_primary->id());
+                        HWC2_LOGE("Failed to add prop[%d] to [%d]", mirror_primary->color_depth_property().id(),
+                                  mirror_primary->id());
                     }
                 }
             }
         }
 
-        HWC2_ALOGI("MirrorDisplay: mirror mode force request output format RGB-8bit!");
+        HWC2_LOGI("MirrorDisplay: mirror mode force request output format RGB-8bit!");
     }
 
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE("DrmModeSet: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f fail. ret=%d",
-                   display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
-                   conn->current_mode().id(), conn->current_mode().h_display(), conn->current_mode().v_display(),
-                   conn->current_mode().interlaced() > 0 ? "i" : "p", conn->current_mode().v_refresh(), ret);
+        HWC2_LOGE("DrmModeSet: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f fail. ret=%d",
+                  display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
+                  conn->current_mode().id(), conn->current_mode().h_display(), conn->current_mode().v_display(),
+                  conn->current_mode().interlaced() > 0 ? "i" : "p", conn->current_mode().v_refresh(), ret);
         drmModeAtomicFree(pset);
         pset = NULL;
         return ret;
@@ -2119,10 +2117,10 @@ int DrmDevice::BindConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCrtc*
     drmModeAtomicFree(pset);
     pset = NULL;
 
-    HWC2_ALOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f success.",
-               display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
-               conn->current_mode().id(), conn->current_mode().h_display(), conn->current_mode().v_display(),
-               conn->current_mode().interlaced() > 0 ? "i" : "p", conn->current_mode().v_refresh());
+    HWC2_LOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f success.",
+              display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
+              conn->current_mode().id(), conn->current_mode().h_display(), conn->current_mode().v_display(),
+              conn->current_mode().interlaced() > 0 ? "i" : "p", conn->current_mode().v_refresh());
 
     DestroyPropertyBlob(blob_id[0]);
 
@@ -2159,18 +2157,18 @@ int DrmDevice::ReleaseConnectorAndCrtcNoCommit(int display_id, DrmConnector* con
                                                drmModeAtomicReqPtr pset) {
     int ret = 0;
     if (!conn) {
-        HWC2_ALOGE("Failed to find display-id=%d connector", display_id);
+        HWC2_LOGE("Failed to find display-id=%d connector", display_id);
         return -EINVAL;
     }
 
     if (!pset) {
-        HWC2_ALOGE("pset is null, display-id=%d", display_id);
+        HWC2_LOGE("pset is null, display-id=%d", display_id);
         return -EINVAL;
     }
 
     // 解绑需要关闭所有图层
     if (DisableAllPlaneForCrtc(display_id, crtc, false, pset)) {
-        HWC2_ALOGE("Failed to disable all plane for display %d", display_id);
+        HWC2_LOGE("Failed to disable all plane for display %d", display_id);
     }
 
     // Disable DrmConnector resource.
@@ -2183,8 +2181,8 @@ int DrmDevice::ReleaseConnectorAndCrtcNoCommit(int display_id, DrmConnector* con
     DRM_ATOMIC_ADD_PROP(crtc->id(), crtc->mode_property().id(), 0);
     DRM_ATOMIC_ADD_PROP(crtc->id(), crtc->active_property().id(), 0);
 
-    HWC2_ALOGI("Add display-id=%d %s-%d crtc-id=%d Release req success!.", display_id, connector_type_str(conn->type()),
-               conn->type_id(), crtc->id());
+    HWC2_LOGI("Add display-id=%d %s-%d crtc-id=%d Release req success!.", display_id, connector_type_str(conn->type()),
+              conn->type_id(), crtc->id());
     crtc->set_display(-1);
     conn->set_encoder(NULL);
 
@@ -2201,7 +2199,7 @@ int DrmDevice::ReleaseConnectorAndCrtcNoCommit(int display_id, DrmConnector* con
 int DrmDevice::ReleaseConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCrtc* crtc) {
     int ret;
     if (!conn) {
-        HWC2_ALOGE("Failed to find display-id=%d connector", display_id);
+        HWC2_LOGE("Failed to find display-id=%d connector", display_id);
         return -EINVAL;
     }
 
@@ -2213,7 +2211,7 @@ int DrmDevice::ReleaseConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCr
 
     // 解绑需要关闭所有图层
     if (DisableAllPlaneForCrtc(display_id, crtc, false, pset)) {
-        HWC2_ALOGE("Failed to disable all plane for display %d", display_id);
+        HWC2_LOGE("Failed to disable all plane for display %d", display_id);
     }
 
     // Disable DrmConnector resource.
@@ -2230,15 +2228,15 @@ int DrmDevice::ReleaseConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCr
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGW("display-id=%d %s-%d crtc-id=%d Release fail! ret=%d", display_id, connector_type_str(conn->type()),
-                   conn->type_id(), crtc->id(), ret);
+        HWC2_LOGW("display-id=%d %s-%d crtc-id=%d Release fail! ret=%d", display_id, connector_type_str(conn->type()),
+                  conn->type_id(), crtc->id(), ret);
         drmModeAtomicFree(pset);
         pset = NULL;
         return ret;
     }
 
-    HWC2_ALOGI("display-id=%d %s-%d crtc-id=%d Release success!.", display_id, connector_type_str(conn->type()),
-               conn->type_id(), crtc->id());
+    HWC2_LOGI("display-id=%d %s-%d crtc-id=%d Release success!.", display_id, connector_type_str(conn->type()),
+              conn->type_id(), crtc->id());
     drmModeAtomicFree(pset);
     pset = NULL;
 
@@ -2282,10 +2280,10 @@ int DrmDevice::DisableAllPlaneForCrtc(int display_id, DrmCrtc* crtc, bool commit
             if (ret) {
                 drmModeAtomicFree(pset);
                 pset = NULL;
-                HWC2_ALOGE("Failed to add plane %d disable to pset", plane->id());
+                HWC2_LOGE("Failed to add plane %d disable to pset", plane->id());
                 return ret;
             }
-            HWC2_ALOGD_IF_DEBUG("disable CRTC(%d), disable plane-id = %d", crtc->id(), plane->id());
+            HWC2_LOGD_IF("disable CRTC(%d), disable plane-id = %d", crtc->id(), plane->id());
         }
     }
 
@@ -2310,19 +2308,19 @@ int DrmDevice::DisableAllPlaneForCrtc(int display_id, DrmCrtc* crtc, bool commit
 int DrmDevice::CheckCrtcOutputCapability(int display_id, DrmCrtc* crtc, DrmMode& mode) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (crtc == NULL) {
-        HWC2_ALOGW("display-id=%d crtc is null", display_id);
+        HWC2_LOGW("display-id=%d crtc is null", display_id);
         return -1;
     }
 
     if (mode.id() <= 0) {
-        HWC2_ALOGW("display-id=%d invalid mode id = %d", display_id, mode.id());
+        HWC2_LOGW("display-id=%d invalid mode id = %d", display_id, mode.id());
         return -1;
     }
 
     // 不存在 output_width_property 属性，则说明底层未上报限制信息
     if (crtc->output_width_property().id() <= 0) {
-        HWC2_ALOGW("display-id=%d invalid output_width_property mode id =%d, skip check crtc cap.", display_id,
-                   crtc->output_width_property().id());
+        HWC2_LOGW("display-id=%d invalid output_width_property mode id =%d, skip check crtc cap.", display_id,
+                  crtc->output_width_property().id());
         return 0;
     }
 
@@ -2332,8 +2330,8 @@ int DrmDevice::CheckCrtcOutputCapability(int display_id, DrmCrtc* crtc, DrmMode&
     // OUTPUT_WIDTH / OUTPUT_DCLK 用来计算VP的输出能力，计算公式为：下面1/2判断
     // 1. 输出分辨率宽度限制： drmModeModeInfo.htotal <= OUTPUT_WIDTH
     if (static_cast<uint64_t>(mode.h_display()) > crtc_output_width_max) {
-        HWC2_ALOGI("display-id=%d crtc-id=%d port-id=%d sup_max_width=%" PRIu64 " < req_mode_w=%d", display_id,
-                   crtc->id(), crtc->get_port_id(), crtc_output_width_max, mode.h_display());
+        HWC2_LOGI("display-id=%d crtc-id=%d port-id=%d sup_max_width=%" PRIu64 " < req_mode_w=%d", display_id,
+                  crtc->id(), crtc->get_port_id(), crtc_output_width_max, mode.h_display());
         return -1;
     }
 
@@ -2341,10 +2339,10 @@ int DrmDevice::CheckCrtcOutputCapability(int display_id, DrmCrtc* crtc, DrmMode&
     //   drmModeModeInfo.htotal * drmModeModeInfo.vtotal * drmModeModeInfo.vrefresh <= OUTPUT_DCLK
     uint64_t req_dclk = mode.h_display() * mode.v_display() * (uint64_t)mode.v_refresh();
     if (req_dclk > crtc_output_dclk) {
-        HWC2_ALOGI("display-id=%d crtc-id=%d port-id=%d sup_dclk=%" PRIu64 " < req_clk=%" PRIu64
-                   " = %d(w) * %d(h) * %f(fps)",
-                   display_id, crtc->id(), crtc->get_port_id(), crtc_output_dclk, req_dclk, mode.h_display(),
-                   mode.v_display(), mode.v_refresh());
+        HWC2_LOGI("display-id=%d crtc-id=%d port-id=%d sup_dclk=%" PRIu64 " < req_clk=%" PRIu64
+                  " = %d(w) * %d(h) * %f(fps)",
+                  display_id, crtc->id(), crtc->get_port_id(), crtc_output_dclk, req_dclk, mode.h_display(),
+                  mode.v_display(), mode.v_refresh());
         return -1;
     }
 
@@ -2359,7 +2357,7 @@ int DrmDevice::SetPowerMode(int display_id, int power_mode) {
         case DRM_MODE_DPMS_OFF:
             return DoPowerOff(display_id);
         default:
-            HWC2_ALOGE("unknow power mode = %d", power_mode);
+            HWC2_LOGE("unknow power mode = %d", power_mode);
             return -1;
     }
     return -1;
@@ -2393,7 +2391,7 @@ int DrmDevice::DoPowerOnNormal(int display_id) {
     if (conn->encoder() != NULL && conn->encoder()->crtc() != NULL) {
         crtc = conn->encoder()->crtc();
     } else {
-        HWC2_ALOGE("display_id=%d encoder or crtc is null", display_id);
+        HWC2_LOGE("display_id=%d encoder or crtc is null", display_id);
         return -1;
     }
 
@@ -2433,7 +2431,7 @@ int DrmDevice::DoPowerOnNormal(int display_id) {
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE(
+        HWC2_LOGE(
                 "DrmModeSet: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f PowerOn fail! "
                 "ret=%d",
                 display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
@@ -2446,10 +2444,10 @@ int DrmDevice::DoPowerOnNormal(int display_id) {
     drmModeAtomicFree(pset);
     pset = NULL;
 
-    HWC2_ALOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f PowerOn success!",
-               display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(), request_mode.id(),
-               request_mode.h_display(), request_mode.v_display(), request_mode.interlaced() > 0 ? "i" : "p",
-               request_mode.v_refresh());
+    HWC2_LOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f PowerOn success!",
+              display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(), request_mode.id(),
+              request_mode.h_display(), request_mode.v_display(), request_mode.interlaced() > 0 ? "i" : "p",
+              request_mode.v_refresh());
 
     DestroyPropertyBlob(blob_id[0]);
 
@@ -2471,13 +2469,13 @@ int DrmDevice::DoPowerOnMirror(int display_id) {
     if (conn->encoder() != NULL && conn->encoder()->crtc() != NULL) {
         crtc = conn->encoder()->crtc();
     } else {
-        HWC2_ALOGE("display_id=%d encoder or crtc is null", display_id);
+        HWC2_LOGE("display_id=%d encoder or crtc is null", display_id);
         return -1;
     }
 
     // 非 MirrorPrimary 不进行PowerOn操作
     if (conn->is_connector_mirror_primary() == false) {
-        HWC2_ALOGE("display_id=%d is not MirrorPrimary, skip PowerOn.", display_id);
+        HWC2_LOGE("display_id=%d is not MirrorPrimary, skip PowerOn.", display_id);
         return -1;
     }
 
@@ -2512,15 +2510,15 @@ int DrmDevice::DoPowerOnMirror(int display_id) {
         if (mirror_conn->encoder() != NULL && mirror_conn->encoder()->crtc() != NULL &&
             mirror_conn->encoder()->crtc() == crtc) {
             DRM_ATOMIC_ADD_PROP(mirror_conn->id(), mirror_conn->crtc_id_property().id(), crtc->id());
-            HWC2_ALOGI("DrmModeSet:MirrorDisplay: display-id=%d Connector-id=%d crtc-id=%d request PowerOn!.",
-                       mirror_conn->id(), mirror_conn->id(), crtc->id());
+            HWC2_LOGI("DrmModeSet:MirrorDisplay: display-id=%d Connector-id=%d crtc-id=%d request PowerOn!.",
+                      mirror_conn->id(), mirror_conn->id(), crtc->id());
         }
     }
 
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE(
+        HWC2_LOGE(
                 "DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f "
                 "PowerOn fail! ret=%d",
                 display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
@@ -2533,7 +2531,7 @@ int DrmDevice::DoPowerOnMirror(int display_id) {
     drmModeAtomicFree(pset);
     pset = NULL;
 
-    HWC2_ALOGI(
+    HWC2_LOGI(
             "DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d bind crtc-id=%d mode-id=%d mode=%dx%d%s%f "
             "PowerOn success!",
             display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
@@ -2591,14 +2589,14 @@ int DrmDevice::DoPowerOffNormal(int display_id) {
     if (conn->encoder() != NULL && conn->encoder()->crtc() != NULL) {
         crtc = conn->encoder()->crtc();
     } else {
-        HWC2_ALOGE("display_id=%d encoder or crtc is null", display_id);
+        HWC2_LOGE("display_id=%d encoder or crtc is null", display_id);
         return -1;
     }
 
     int ret;
     drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
     if (!pset) {
-        HWC2_ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
+        HWC2_LOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
         return -ENOMEM;
     }
 
@@ -2620,7 +2618,7 @@ int DrmDevice::DoPowerOffNormal(int display_id) {
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE(
+        HWC2_LOGE(
                 "DrmModeSet: display-id=%d conn-id=%d %s-%d crtc-id=%d mode-id=%d mode=%dx%d%s%f PowerOff fail! ret=%d",
                 display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
                 conn->active_mode().id(), conn->active_mode().h_display(), conn->active_mode().v_display(),
@@ -2633,10 +2631,10 @@ int DrmDevice::DoPowerOffNormal(int display_id) {
     drmModeAtomicFree(pset);
     pset = NULL;
 
-    HWC2_ALOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d crtc-id=%d mode-id=%d mode=%dx%d%s%f PowerOff success!",
-               display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
-               conn->active_mode().id(), conn->active_mode().h_display(), conn->active_mode().v_display(),
-               conn->active_mode().interlaced() > 0 ? "i" : "p", conn->active_mode().v_refresh());
+    HWC2_LOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d crtc-id=%d mode-id=%d mode=%dx%d%s%f PowerOff success!",
+              display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
+              conn->active_mode().id(), conn->active_mode().h_display(), conn->active_mode().v_display(),
+              conn->active_mode().interlaced() > 0 ? "i" : "p", conn->active_mode().v_refresh());
 
     char conn_name[50];
     char property_conn_name[50];
@@ -2652,7 +2650,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
 
     // 非 MirrorPrimary 不进行PowerOn操作
     if (conn->is_connector_mirror_primary() == false) {
-        HWC2_ALOGE("display_id=%d is not MirrorPrimary, skip PowerOn.", display_id);
+        HWC2_LOGE("display_id=%d is not MirrorPrimary, skip PowerOn.", display_id);
         return -1;
     }
 
@@ -2660,7 +2658,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
     if (conn->encoder() != NULL && conn->encoder()->crtc() != NULL) {
         crtc = conn->encoder()->crtc();
     } else {
-        HWC2_ALOGE("display_id=%d encoder or crtc is null", display_id);
+        HWC2_LOGE("display_id=%d encoder or crtc is null", display_id);
         return -1;
     }
 
@@ -2672,7 +2670,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
             int ret;
             drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
             if (!pset) {
-                HWC2_ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
+                HWC2_LOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
                 return -ENOMEM;
             }
             DRM_ATOMIC_ADD_PROP(mirror_conn->id(), mirror_conn->crtc_id_property().id(), 0);
@@ -2680,7 +2678,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
             uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
             ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
             if (ret < 0) {
-                HWC2_ALOGE(
+                HWC2_LOGE(
                         "DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d crtc-id=%d mode-id=%d mode=%dx%d%s%f "
                         "PowerOff Fail! ret=%d",
                         display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
@@ -2693,7 +2691,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
             drmModeAtomicFree(pset);
             pset = NULL;
 
-            HWC2_ALOGI(
+            HWC2_LOGI(
                     "DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d crtc-id=%d mode-id=%d mode=%dx%d%s%f "
                     "PowerOff success!",
                     display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
@@ -2712,7 +2710,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
     int ret;
     drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
     if (!pset) {
-        HWC2_ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
+        HWC2_LOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
         return -ENOMEM;
     }
 
@@ -2734,7 +2732,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE("display-id=%d PowerOff fail! ret=%d", display_id, ret);
+        HWC2_LOGE("display-id=%d PowerOff fail! ret=%d", display_id, ret);
         drmModeAtomicFree(pset);
         pset = NULL;
         return ret;
@@ -2742,7 +2740,7 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
 
     drmModeAtomicFree(pset);
     pset = NULL;
-    HWC2_ALOGI(
+    HWC2_LOGI(
             "DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d crtc-id=%d mode-id=%d mode=%dx%d%s%f PowerOff "
             "success!",
             display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
@@ -2783,7 +2781,7 @@ int DrmDevice::BindDpyRes(int display_id) {
     // 4. 绑定 DrmPlane 资源
     ret = hwcPlatform_->TryAssignPlane(this);
     if (ret) {
-        HWC2_ALOGW("TryAssignPlane fail, ret = %d", ret);
+        HWC2_LOGW("TryAssignPlane fail, ret = %d", ret);
         return ret;
     }
 
@@ -2796,7 +2794,7 @@ int DrmDevice::ReleaseDpyRes(int display_id) {
     int ret = 0;
     DrmConnector* conn = GetConnectorForDisplay(display_id);
     if (!conn) {
-        HWC2_ALOGE("Failed to find display-id=%d connector\n", display_id);
+        HWC2_LOGE("Failed to find display-id=%d connector\n", display_id);
         return -EINVAL;
     }
 
@@ -2807,13 +2805,13 @@ int DrmDevice::ReleaseDpyRes(int display_id) {
         if (conn->is_connector_mirror_mode()) {  // 若存在Mirror模式
             ret = ReleaseDpyResByMirror(display_id, conn, crtc);
             if (ret) {
-                HWC2_ALOGE("display-id=%d ReleaseDpyResByMirror fail!.\n", display_id);
+                HWC2_LOGE("display-id=%d ReleaseDpyResByMirror fail!.\n", display_id);
                 return ret;
             }
         } else {
             ret = ReleaseDpyResByNormal(display_id, conn, crtc);
             if (ret) {
-                HWC2_ALOGE("display-id=%d ReleaseDpyResByNormal fail!.\n", display_id);
+                HWC2_LOGE("display-id=%d ReleaseDpyResByNormal fail!.\n", display_id);
                 return ret;
             }
         }
@@ -2822,7 +2820,7 @@ int DrmDevice::ReleaseDpyRes(int display_id) {
     // 4. 绑定 DrmPlane 资源
     ret = hwcPlatform_->TryAssignPlane(this);
     if (ret) {
-        HWC2_ALOGW("TryAssignPlane fail, ret = %d", ret);
+        HWC2_LOGW("TryAssignPlane fail, ret = %d", ret);
         return ret;
     }
 
@@ -2834,7 +2832,7 @@ int DrmDevice::ReleaseDpyResByMirror(int display_id, DrmConnector* conn, DrmCrtc
     int ret;
     drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
     if (!pset) {
-        HWC2_ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
+        HWC2_LOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
         return -ENOMEM;
     }
 
@@ -2865,7 +2863,7 @@ int DrmDevice::ReleaseDpyResByMirror(int display_id, DrmConnector* conn, DrmCrtc
                     DRM_ATOMIC_ADD_PROP(crtc->id(), crtc->mode_property().id(), 0);
                     DRM_ATOMIC_ADD_PROP(crtc->id(), crtc->active_property().id(), 0);
                     release_crtc = true;
-                    HWC2_ALOGI(
+                    HWC2_LOGI(
                             "DrmModeSet:MirrorDisplay: display-id=%d %s-%d crtc-id=%d, MirrorPrimary display-id=%d "
                             "%s-%d need to release crtc.",
                             display_id, connector_type_str(conn->type()), conn->type_id(), crtc->id(),
@@ -2880,7 +2878,7 @@ int DrmDevice::ReleaseDpyResByMirror(int display_id, DrmConnector* conn, DrmCrtc
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE(
+        HWC2_LOGE(
                 "DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d crtc-id=%d Release Mirror Mode fail! ret=%d",
                 display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(), ret);
         drmModeAtomicFree(pset);
@@ -2891,8 +2889,8 @@ int DrmDevice::ReleaseDpyResByMirror(int display_id, DrmConnector* conn, DrmCrtc
     drmModeAtomicFree(pset);
     pset = NULL;
 
-    HWC2_ALOGI("DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d crtc-id=%d Release Mirror Mode Success! .",
-               display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id());
+    HWC2_LOGI("DrmModeSet:MirrorDisplay: display-id=%d conn-id=%d %s-%d crtc-id=%d Release Mirror Mode Success! .",
+              display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id());
 
     // 成功更新crtc状态，则需要重置Kernel配置的Crtc信息
     conn->reset_kernel_crtc_id();
@@ -2920,7 +2918,7 @@ int DrmDevice::ReleaseDpyResByNormal(int display_id, DrmConnector* conn, DrmCrtc
     int ret;
     drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
     if (!pset) {
-        HWC2_ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
+        HWC2_LOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
         return -ENOMEM;
     }
 
@@ -2942,8 +2940,8 @@ int DrmDevice::ReleaseDpyResByNormal(int display_id, DrmConnector* conn, DrmCrtc
     uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
     ret = drmModeAtomicCommit(fd_.get(), pset, flags, this);
     if (ret < 0) {
-        HWC2_ALOGE("DrmModeSet: display-id=%d conn-id=%d %s-%d unbind crtc-id=%d fail! ret=%d", display_id, conn->id(),
-                   connector_type_str(conn->type()), conn->type_id(), crtc->id(), ret);
+        HWC2_LOGE("DrmModeSet: display-id=%d conn-id=%d %s-%d unbind crtc-id=%d fail! ret=%d", display_id, conn->id(),
+                  connector_type_str(conn->type()), conn->type_id(), crtc->id(), ret);
         drmModeAtomicFree(pset);
         pset = NULL;
         return ret;
@@ -2952,8 +2950,8 @@ int DrmDevice::ReleaseDpyResByNormal(int display_id, DrmConnector* conn, DrmCrtc
     drmModeAtomicFree(pset);
     pset = NULL;
 
-    HWC2_ALOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d unbind crtc-id=%d Success! .", display_id, conn->id(),
-               connector_type_str(conn->type()), conn->type_id(), crtc->id());
+    HWC2_LOGI("DrmModeSet: display-id=%d conn-id=%d %s-%d unbind crtc-id=%d Success! .", display_id, conn->id(),
+              connector_type_str(conn->type()), conn->type_id(), crtc->id());
 
     crtc->set_display(-1);
     conn->set_encoder(NULL);
@@ -2981,7 +2979,7 @@ int DrmDevice::timeline(void) {
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 static inline int64_t U642I64(uint64_t val) {
-    return (int64_t) * ((int64_t*)&val);
+    return (int64_t)*((int64_t*)&val);
 }
 
 struct type_name {

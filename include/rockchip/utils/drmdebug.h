@@ -56,23 +56,21 @@ namespace android {
 
 #define UN_USED(arg) (arg = arg)
 
-#define HWC2_ALOGD_IF_VERBOSE(x, ...) \
-    ALOGD_IF(LogLevel(DBG_VERBOSE), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGV_IF(x, ...) ALOGD_IF(LogLevel(DBG_VERBOSE), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_DEBUG(x, ...) \
-    ALOGD_IF(LogLevel(DBG_DEBUG), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGD_IF(x, ...) ALOGD_IF(LogLevel(DBG_DEBUG), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_INFO(x, ...) ALOGI_IF(LogLevel(DBG_INFO), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGI_IF(x, ...) ALOGI_IF(LogLevel(DBG_INFO), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_ERR(x, ...) ALOGE_IF(LogLevel(DBG_ERROR), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGE_IF(x, ...) ALOGE_IF(LogLevel(DBG_ERROR), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGD_IF_WARN(x, ...) ALOGW_IF(LogLevel(DBG_WARN), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGW_IF(x, ...) ALOGW_IF(LogLevel(DBG_WARN), "%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGE(x, ...) ALOGE("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGE(x, ...) ALOGE("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGI(x, ...) ALOGI("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGI(x, ...) ALOGI("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
-#define HWC2_ALOGW(x, ...) ALOGW("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define HWC2_LOGW(x, ...) ALOGW("%s,line=%d " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 enum LOG_LEVEL {
     //Log level flag

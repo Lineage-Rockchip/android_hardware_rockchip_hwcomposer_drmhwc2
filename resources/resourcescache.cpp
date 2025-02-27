@@ -29,7 +29,7 @@ GemHandle::~GemHandle() {
 
     int ret = drmGralloc_->hwc_free_gemhandle(uBufferId_);
     if (ret) {
-        HWC2_ALOGE("%s hwc_free_gemhandle fail, buffer_id =%" PRIx64, name_, uBufferId_);
+        HWC2_LOGE("%s hwc_free_gemhandle fail, buffer_id =%" PRIx64, name_, uBufferId_);
     }
 }
 
@@ -38,7 +38,7 @@ int GemHandle::InitGemHandle(const char* name, uint64_t buffer_fd, uint64_t buff
     uBufferId_ = buffer_id;
     int ret = drmGralloc_->hwc_get_gemhandle_from_fd(buffer_fd, uBufferId_, &uGemHandle_);
     if (ret) {
-        HWC2_ALOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, name_, uBufferId_);
+        HWC2_LOGE("%s hwc_get_gemhandle_from_fd fail, buffer_id =%" PRIx64, name_, uBufferId_);
     }
     return ret;
 }
@@ -56,7 +56,7 @@ RgaHandle::~RgaHandle() {
     if (uRgaHandle_ > 0) {
         int ret = releasebuffer_handle(uRgaHandle_);
         if (ret < 0) {
-            HWC2_ALOGE("RgaHandle %s releasebuffer fail, buffer_id=0x%" PRIx64, name_, uBufferId_);
+            HWC2_LOGE("RgaHandle %s releasebuffer fail, buffer_id=0x%" PRIx64, name_, uBufferId_);
         }
         uRgaHandle_ = 0;
     }
@@ -68,12 +68,12 @@ uint32_t RgaHandle::GetRgaHandle(const char* name, int fd, int size, uint64_t bu
         if (buffer_id == uBufferId_ && size == iSize_) {
             return uRgaHandle_;
         } else {
-            HWC2_ALOGW("%s fd=%d buffer-id=0x%" PRIx64 " size=%d is change, old %s fd=%d buffer-id=0x%" PRIx64
-                       " size=%d",
-                       name, fd, buffer_id, size, name_, iFd_, uBufferId_, iSize_);
+            HWC2_LOGW("%s fd=%d buffer-id=0x%" PRIx64 " size=%d is change, old %s fd=%d buffer-id=0x%" PRIx64
+                      " size=%d",
+                      name, fd, buffer_id, size, name_, iFd_, uBufferId_, iSize_);
             int ret = releasebuffer_handle(uRgaHandle_);
             if (ret < 0) {
-                HWC2_ALOGE("RgaHandle %s releasebuffer fail, buffer_id=0x%" PRIx64, name_, uBufferId_);
+                HWC2_LOGE("RgaHandle %s releasebuffer fail, buffer_id=0x%" PRIx64, name_, uBufferId_);
             }
             uRgaHandle_ = 0;
         }
@@ -85,7 +85,7 @@ uint32_t RgaHandle::GetRgaHandle(const char* name, int fd, int size, uint64_t bu
     iFd_ = fd;
     uRgaHandle_ = importbuffer_fd(fd, size);
     if (uRgaHandle_ == 0) {
-        HWC2_ALOGE("RgaHandle %s import fail, fd=%d, size=%d buffer_id=0x%" PRIx64, name, fd, size, buffer_id);
+        HWC2_LOGE("RgaHandle %s import fail, fd=%d, size=%d buffer_id=0x%" PRIx64, name, fd, size, buffer_id);
         return 0;
     }
     return uRgaHandle_;
@@ -142,7 +142,7 @@ int LayerInfoCache::CacheBufferHandle(buffer_handle_t handle) {
 
     int ret = DrmGralloc::getInstance()->importBuffer(handle, &buffer_);
     if (ret != android::OK) {
-        HWC2_ALOGE("import buffer failed! ret = %d", ret);
+        HWC2_LOGE("import buffer failed! ret = %d", ret);
         buffer_ = NULL;
         return -1;
     }

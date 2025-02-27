@@ -146,7 +146,7 @@ class DrmGralloc {
             gem_close.handle = uGemHandle_;
             int ret = drmIoctl(iDrmFd_, DRM_IOCTL_GEM_CLOSE, &gem_close);
             if (ret) {
-                HWC2_ALOGE("Failed to close gem handle %d %d", uGemHandle_, ret);
+                HWC2_LOGE("Failed to close gem handle %d %d", uGemHandle_, ret);
                 return ret;
             }
             return 0;
@@ -208,6 +208,7 @@ class DrmGralloc {
     int hwc_fbid_dec_layer_ref_count(uint64_t buffer_id);
     static void* hwc_buf_mmap_flushcache_readonly(int fd, int size, int offset);
     static int hwc_buf_unmap_flushcache_readonly(int fd, void* vaddr, int size);
+
   private:
     DrmGralloc();
     ~DrmGralloc();

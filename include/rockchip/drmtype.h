@@ -39,7 +39,7 @@
 #include "rockchip/drmbaseparameter.h"
 
 #include <libsystem/include/system/graphics-base-v1.0.h>
-
+#include <string>
 #ifdef ANDROID_S
 #include <hardware/gralloc_rockchip.h>
 #include <hardware/hardware_rockchip.h>
@@ -66,6 +66,9 @@
 #define GRALLOC_ARM_INTFMT_AFBC (1ULL << (GRALLOC_ARM_INTFMT_EXTENSION_BIT_START + 0))
 #define MAGIC_USAGE_FOR_AFBC_LAYER (0x88)
 
+#include <string>
+
+// 原始枚举定义
 typedef enum DrmHdrType {
     DRM_HWC_SDR = 0,
     DRM_HWC_DOLBY_VISION = 1,
@@ -74,6 +77,26 @@ typedef enum DrmHdrType {
     DRM_HWC_HDR10_PLUS = 4,
     DRM_HWC_METADATA_HDR = 5,
 } DrmHdrType_t;
+
+// 将枚举值转换为字符串的函数
+static const char* DrmHdrTypeToString(DrmHdrType_t type) {
+    switch (type) {
+        case DRM_HWC_SDR:
+            return "SDR";
+        case DRM_HWC_DOLBY_VISION:
+            return "DOLBY_VISION";
+        case DRM_HWC_HDR10:
+            return "HDR10";
+        case DRM_HWC_HLG:
+            return "HLG";
+        case DRM_HWC_HDR10_PLUS:
+            return "HDR10_PLUS";
+        case DRM_HWC_METADATA_HDR:
+            return "METADATA_HDR";
+        default:
+            return "UNKNOWN_HDR_TYPE";
+    }
+}
 
 class DrmHdr {
   public:
@@ -245,6 +268,66 @@ union drm_colorspace {
         drm_color_range color_range_;
     } colorspace_kernel_6_1_;
 };
+
+// 将 v4l2_colorspace 转换为字符串的函数
+static const char* V4L2ColorspaceToString(v4l2_colorspace colorspace) {
+    switch (colorspace) {
+        case V4L2_COLORSPACE_DEFAULT:
+            return "DEFAULT";
+        case V4L2_COLORSPACE_SMPTE170M:
+            return "SMPTE170M";
+        case V4L2_COLORSPACE_SMPTE240M:
+            return "SMPTE240M";
+        case V4L2_COLORSPACE_REC709:
+            return "REC709";
+        case V4L2_COLORSPACE_BT878:
+            return "BT878";
+        case V4L2_COLORSPACE_470_SYSTEM_M:
+            return "470_SYSTEM_M";
+        case V4L2_COLORSPACE_470_SYSTEM_BG:
+            return "470_SYSTEM_BG";
+        case V4L2_COLORSPACE_JPEG:
+            return "JPEG";
+        case V4L2_COLORSPACE_SRGB:
+            return "SRGB";
+        case V4L2_COLORSPACE_ADOBERGB:
+            return "ADOBERGB";
+        case V4L2_COLORSPACE_BT2020:
+            return "BT2020";
+        case V4L2_COLORSPACE_RAW:
+            return "RAW";
+        case V4L2_COLORSPACE_DCI_P3:
+            return "DCI_P3";
+        default:
+            return "Unknown";
+    }
+}
+
+// 将 drm_color_encoding 转换为字符串的函数
+static const char* DrmColorEncodingToString(drm_color_encoding encoding) {
+    switch (encoding) {
+        case DRM_COLOR_YCBCR_BT601:
+            return "BT601";
+        case DRM_COLOR_YCBCR_BT709:
+            return "BT709";
+        case DRM_COLOR_YCBCR_BT2020:
+            return "BT2020";
+        default:
+            return "Unknown";
+    }
+}
+
+// 将 drm_color_range 转换为字符串的函数
+static const char* DrmColorRangeToString(drm_color_range range) {
+    switch (range) {
+        case DRM_COLOR_YCBCR_LIMITED_RANGE:
+            return "Limit";
+        case DRM_COLOR_YCBCR_FULL_RANGE:
+            return "Full";
+        default:
+            return "Unknown";
+    }
+}
 
 typedef enum attribute_flag {
     ATT_WIDTH = 0,

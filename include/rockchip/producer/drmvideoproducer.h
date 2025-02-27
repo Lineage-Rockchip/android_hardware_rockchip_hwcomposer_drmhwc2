@@ -68,6 +68,7 @@ class DrmVideoProducer : public Worker {
   private:
     DrmVideoProducer(const DrmVideoProducer&) = delete;
     DrmVideoProducer& operator=(const DrmVideoProducer&) = delete;
+    std::string TransformToString(uint32_t transform) const;
     int InitLibHandle();
     bool bInit_;
     int iTunnelFd_;

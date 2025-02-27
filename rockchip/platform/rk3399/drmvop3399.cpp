@@ -412,7 +412,7 @@ int Vop3399::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                             b_hdr2sdr = crtc->get_hdr();
                             if (hdr_layer) {
                                 if (ctx.state.bHDRVideoForceOverlay) {
-                                    HWC2_ALOGD_IF_DEBUG("vendor.hwc.hdr_video_force_overlay > 0, force overlay.");
+                                    HWC2_LOGD_IF("vendor.hwc.hdr_video_force_overlay > 0, force overlay.");
                                 } else if (!b_hdr2sdr) {
                                     ALOGV("layer id=%d, %s", (*iter_layer)->uId_, (*iter_plane)->name());
                                     ALOGD_IF(LogLevel(DBG_DEBUG),
@@ -440,11 +440,10 @@ int Vop3399::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                             if ((*iter)->afbc_layer_used == -1) {
                                 (*iter)->afbc_layer_used = (*iter_layer)->bAfbcd_ ? 1 : 0;
                                 if ((*iter)->afbc_layer_used == 1) ctx.state.bAfbcLayerUsed = true;
-                                HWC2_ALOGD_IF_DEBUG(
-                                        "layer %s use %s mode, plane group %s use %s mode, afbc used=%d",
-                                        (*iter_layer)->sLayerName_.c_str(),
-                                        (*iter_layer)->bAfbcd_ ? "afbc" : "non-afbc", (*iter)->planes[0]->name(),
-                                        (*iter)->afbc_layer_used ? "afbc" : "non-afbc", ctx.state.bAfbcLayerUsed);
+                                HWC2_LOGD_IF("layer %s use %s mode, plane group %s use %s mode, afbc used=%d",
+                                             (*iter_layer)->sLayerName_.c_str(),
+                                             (*iter_layer)->bAfbcd_ ? "afbc" : "non-afbc", (*iter)->planes[0]->name(),
+                                             (*iter)->afbc_layer_used ? "afbc" : "non-afbc", ctx.state.bAfbcLayerUsed);
                             } else if ((*iter)->afbc_layer_used == 0 && (*iter_layer)->bAfbcd_) {
                                 continue;
                             } else if ((*iter)->afbc_layer_used == 1 && !(*iter_layer)->bAfbcd_) {
@@ -464,7 +463,7 @@ int Vop3399::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     }
                 }
                 if (combine_layer_count == layer_size) {
-                    ALOGD_IF(LogLevel(DBG_DEBUG), "line=%d all match", __LINE__);
+                    HWC2_LOGV_IF("line=%d all match", __LINE__);
                     (*iter)->bUse = true;
                     return 0;
                 }
@@ -501,7 +500,7 @@ int Vop3399::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
     composition->clear();
     LayerMap layer_map;
     if (CombineLayer(layer_map, layers, plane_groups.size())) {
-        HWC2_ALOGD_IF_DEBUG("Combine layer Failed!");
+        HWC2_LOGD_IF("Combine layer Failed!");
         return -1;
     }
     ctx.state.bAfbcLayerUsed = false;
@@ -607,7 +606,7 @@ void Vop3399::MoveFbToTmp(std::vector<DrmHwcLayer*>& layers, std::vector<DrmHwcL
 void Vop3399::OutputMatchLayer(int iFirst, int iLast, std::vector<DrmHwcLayer*>& layers,
                                std::vector<DrmHwcLayer*>& tmp_layers) {
     if (iFirst < 0 || iLast < 0 || iFirst > iLast || (layers.size() - 1 - iLast) < 0) {
-        HWC2_ALOGD_IF_DEBUG("invalid value iFirst=%d, iLast=%d layer.size=%zu ", iFirst, iLast, layers.size());
+        HWC2_LOGD_IF("invalid value iFirst=%d, iLast=%d layer.size=%zu ", iFirst, iLast, layers.size());
         return;
     }
 
@@ -693,7 +692,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                             drmLayer->SetTransform(HWC2::Transform::FlipVRotate90);
                             break;
                         default:
-                            HWC2_ALOGW("SplitMode: invalid transform=%d", transform);
+                            HWC2_LOGW("SplitMode: invalid transform=%d", transform);
                             drmLayer->SetTransform(HWC2::Transform::None);
                             break;
                     }
@@ -755,7 +754,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             // if(drmLayer->bAfbcd_){
             //   int crop_w =  (int)(drmLayer->source_crop.right - drmLayer->source_crop.left);
             //   if(crop_w != drmLayer->iStride_){
-            //     HWC2_ALOGD_IF_DEBUG("RGA can't handle crop_w=%d stride=%d afbc yuv layer.",
+            //     HWC2_LOGD_IF("RGA can't handle crop_w=%d stride=%d afbc yuv layer.",
             //                crop_w, drmLayer->iStride_);
             //     continue;
             //   }
@@ -774,7 +773,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                     MALI_GRALLOC_USAGE_NO_AFBC | RK_GRALLOC_USAGE_WITHIN_4G, "SplitModeView");
 
             if (dst_buffer == NULL) {
-                HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                 continue;
             }
 
@@ -786,8 +785,8 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             }
 
             if (src_handle == 0) {
-                HWC2_ALOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
-                           drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
+                HWC2_LOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
+                          drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
                 continue;
             }
 
@@ -798,7 +797,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
 
             // AFBC format
             if (drmLayer->bAfbcd_) {
-                HWC2_ALOGE("RK3399 RGA do not support AFBC, please disable fb afbc!");
+                HWC2_LOGE("RK3399 RGA do not support AFBC, please disable fb afbc!");
                 rgaBufferQueue_->QueueBuffer(dst_buffer);
                 continue;
             }
@@ -812,8 +811,8 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             // 获取 rga dst hanlde
             rga_buffer_handle_t dst_handle = dst_buffer->GetRgaHandle();
             if (dst_handle == 0) {
-                HWC2_ALOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
-                           dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
+                HWC2_LOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
+                          dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
                 continue;
             }
 
@@ -894,7 +893,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             // Call Im2d 格式转换
             im_state = imcheck_composite(src, dst, pat, src_rect, dst_rect, pat_rect, usage);
             if (im_state != IM_STATUS_NOERROR) {
-                HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                 break;
             }
 
@@ -918,7 +917,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             dst_buffer = rgaBufferQueue_->BackDrmBuffer();
 
             if (dst_buffer == NULL) {
-                HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                 break;
             }
 
@@ -960,7 +959,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                             acquire_fence = dup(drmLayer->acquire_fence->getFd());
                         } else {
                             if (drmLayer->acquire_fence->wait(500)) {
-                                HWC2_ALOGE(
+                                HWC2_LOGE(
                                         "Wait AcquireFence 500ms failed! Info: size=%d act=%d signal=%d err=%d "
                                         ",LayerName=%s ",
                                         drmLayer->acquire_fence->getSize(), drmLayer->acquire_fence->getActiveCount(),
@@ -972,7 +971,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
                     IM_STATUS im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, acquire_fence,
                                                    &releaseFence, &imOpt, usage);
                     if (im_state != IM_STATUS_SUCCESS) {
-                        HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                        HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                         rgaBufferQueue_->QueueBuffer(dst_buffer);
                         drmLayer->ResetInfoFromStore();
                         drmLayer->bUseRga_ = false;
@@ -990,7 +989,7 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             ResetLayerFromTmp(layers, tmp_layers);
             return ret;
         } else {  // Match fail, skip rga policy
-            HWC2_ALOGD_IF_DEBUG(" MatchPlanes fail! reset DrmHwcLayer.");
+            HWC2_LOGD_IF(" MatchPlanes fail! reset DrmHwcLayer.");
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseRga_) {
                     rgaBufferQueue_->QueueBuffer(dst_buffer);
@@ -1010,11 +1009,11 @@ int Vop3399::TrySplitPolicy(std::vector<DrmCompositionPlane>* composition, std::
             ret = TryOverlayPolicy(composition, layers, crtc, plane_groups);
         }
         if (!ret) {  // Match sucess, to call im2d interface
-            HWC2_ALOGD_IF_DEBUG("Use last rga layer.");
+            HWC2_LOGD_IF("Use last rga layer.");
             return ret;
         }
     }
-    HWC2_ALOGD_IF_DEBUG("fail!, No layer use RGA policy.");
+    HWC2_LOGD_IF("fail!, No layer use RGA policy.");
     ResetLayerFromTmp(layers, tmp_layers);
     return -1;
 }
@@ -1029,7 +1028,7 @@ bool Vop3399::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
 
     // TODO: RGA too slow for high resolution 60 fps()
     if ((ctx.state.iDisplayWidth_ * ctx.state.iDisplayHeight_) > (1536 * 2048)) {
-        HWC2_ALOGD_IF_DEBUG("RGA too slow for iWidth_=%d iHeight_=%d yuv layer", layer->iWidth_, layer->iHeight_);
+        HWC2_LOGD_IF("RGA too slow for iWidth_=%d iHeight_=%d yuv layer", layer->iWidth_, layer->iHeight_);
         return false;
     }
 
@@ -1044,20 +1043,19 @@ bool Vop3399::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
     // 2. 不存在几何变换，视频放大场景
     if (layer->transform == DRM_MODE_ROTATE_0) {
         if (layer->fHScaleMul_ <= 2.0 && layer->fVScaleMul_ <= 2.0) {
-            HWC2_ALOGD_IF_DEBUG(
-                    "disable-rga-policy: scale-rate is fHScaleMul_=%f fVScaleMul_=%f no need rga policy, name=%s",
-                    layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
+            HWC2_LOGD_IF("disable-rga-policy: scale-rate is fHScaleMul_=%f fVScaleMul_=%f no need rga policy, name=%s",
+                         layer->fHScaleMul_, layer->fVScaleMul_, layer->sLayerName_.c_str());
             return false;
         }
     }
 
     if (ctx.state.bHDRVideoForceOverlay) {
-        HWC2_ALOGD_IF_DEBUG("vendor.hwc.hdr_video_force_overlay > 0, force overlay.");
+        HWC2_LOGD_IF("vendor.hwc.hdr_video_force_overlay > 0, force overlay.");
     } else {
         //NV15支持CPU 10转16+GPU合成，使用GPU合成色彩更准确
         if (layer->uFourccFormat_ == DRM_FORMAT_NV15 || layer->bHdr_) {
-            HWC2_ALOGD_IF_DEBUG("iFormat_=0x%x,NV15 or HDR fallback to GPU for better color accuracy. layerName:%s",
-                                layer->iFormat_, layer->sLayerName_.c_str());
+            HWC2_LOGD_IF("iFormat_=0x%x,NV15 or HDR fallback to GPU for better color accuracy. layerName:%s",
+                         layer->iFormat_, layer->sLayerName_.c_str());
             return false;
         }
     }
@@ -1071,7 +1069,7 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
 //Android 11 当前 RGA 策略编译无法通过，暂时跳过
 #if PLATFORM_SDK_VERSION > 30
     if (!ctx.state.bRgaPolicyEnable) {
-        HWC2_ALOGD_IF_DEBUG("bRgaPolicyEnable=%d skip TryRgaOverlayPolicy", ctx.state.bRgaPolicyEnable);
+        HWC2_LOGD_IF("bRgaPolicyEnable=%d skip TryRgaOverlayPolicy", ctx.state.bRgaPolicyEnable);
         return -1;
     }
     ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d", __FUNCTION__, __LINE__);
@@ -1124,7 +1122,7 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                         "RGA-SurfaceView");
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     continue;
                 }
 
@@ -1136,8 +1134,8 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 }
 
                 if (src_handle == 0) {
-                    HWC2_ALOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
-                               drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
+                    HWC2_LOGE("%s import src fail, w=%d, h=%d format=0x%x", drmLayer->sLayerName_.c_str(),
+                              drmLayer->iWidth_, drmLayer->iHeight_, drmLayer->iFormat_);
                     continue;
                 }
 
@@ -1195,8 +1193,8 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 // 获取 rga dst hanlde
                 rga_buffer_handle_t dst_handle = dst_buffer->GetRgaHandle();
                 if (dst_handle == 0) {
-                    HWC2_ALOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
-                               dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
+                    HWC2_LOGE("%s import dst fail, w=%d, h=%d format=0x%x", dst_buffer->GetName().c_str(),
+                              dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetFormat());
                     continue;
                 }
 
@@ -1279,7 +1277,7 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 // Call Im2d 格式转换
                 im_state = imcheck_composite(src, dst, pat, src_rect, dst_rect, pat_rect, usage | IM_ASYNC);
                 if (im_state != IM_STATUS_NOERROR) {
-                    HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                    HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                     break;
                 }
 
@@ -1305,7 +1303,7 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 dst_buffer = rgaBufferQueue_->BackDrmBuffer();
 
                 if (dst_buffer == NULL) {
-                    HWC2_ALOGD_IF_DEBUG("DequeueDrmBuffer fail!, skip this policy.");
+                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
                     break;
                 }
 
@@ -1351,7 +1349,7 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                     IM_STATUS im_state = improcess(src, dst, pat, src_rect, dst_rect, pat_rect, 0, &releaseFence,
                                                    &imOpt, usage | IM_ASYNC);
                     if (im_state != IM_STATUS_SUCCESS) {
-                        HWC2_ALOGE("call im2d scale fail, %s", imStrError(im_state));
+                        HWC2_LOGE("call im2d scale fail, %s", imStrError(im_state));
                         rgaBufferQueue_->QueueBuffer(dst_buffer);
                         drmLayer->ResetInfoFromStore();
                         drmLayer->bUseRga_ = false;
@@ -1369,7 +1367,7 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
             ResetLayerFromTmp(layers, tmp_layers);
             return ret;
         } else {  // Match fail, skip rga policy
-            HWC2_ALOGD_IF_DEBUG(" MatchPlanes fail! reset DrmHwcLayer.");
+            HWC2_LOGD_IF(" MatchPlanes fail! reset DrmHwcLayer.");
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseRga_) {
                     rgaBufferQueue_->QueueBuffer(dst_buffer);
@@ -1392,11 +1390,11 @@ int Vop3399::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
             }
         }
         if (!ret) {  // Match sucess, to call im2d interface
-            HWC2_ALOGD_IF_DEBUG("Use last rga layer.");
+            HWC2_LOGD_IF("Use last rga layer.");
             return ret;
         }
     }
-    HWC2_ALOGD_IF_DEBUG("fail!, No layer use RGA policy.");
+    HWC2_LOGD_IF("fail!, No layer use RGA policy.");
     ResetLayerFromTmp(layers, tmp_layers);
 #endif
     return -1;
@@ -1447,7 +1445,7 @@ int Vop3399::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         return -1;
     }
 
-    HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
+    HWC2_LOGD_IF("mix skip (%d,%d)", skip_layer_indices.first, skip_layer_indices.second);
     OutputMatchLayer(skip_layer_indices.first, skip_layer_indices.second, layers, tmp_layers);
     int ret = MatchPlanes(composition, layers, crtc, plane_groups);
     if (!ret) {
@@ -1460,7 +1458,7 @@ int Vop3399::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         int last = skip_layer_indices.second;
         // 建议zpos大的图层走GPU合成
         for (last++; last < layers.size() - 1; last++) {
-            HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", first, last);
+            HWC2_LOGD_IF("mix skip (%d,%d)", first, last);
             OutputMatchLayer(first, last, layers, tmp_layers);
             ret = MatchPlanes(composition, layers, crtc, plane_groups);
             if (ret) {
@@ -1474,7 +1472,7 @@ int Vop3399::TryMixSkipPolicy(std::vector<DrmCompositionPlane>* composition, std
         last = layers.size() - 1;
         // 逐步建议知道zpos=0走GPU合成，即全GPU合成
         for (; first >= 0; first--) {
-            HWC2_ALOGD_IF_DEBUG("mix skip (%d,%d)", first, last);
+            HWC2_LOGD_IF("mix skip (%d,%d)", first, last);
             OutputMatchLayer(first, last, layers, tmp_layers);
             ret = MatchPlanes(composition, layers, crtc, plane_groups);
             if (ret) {
@@ -1696,7 +1694,7 @@ int Vop3399::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             if (!(fb_layer->source_crop.left == 0 && fb_layer->source_crop.top == 0 &&
                   ((int)fb_layer->source_crop.right % 16 == 0) && ((int)fb_layer->source_crop.bottom % 16 == 0))) {
                 ctx.state.bDisableFBAfbcd = true;
-                HWC2_ALOGD_IF_DEBUG("Afbc must 16x16 align and no offset");
+                HWC2_LOGD_IF("Afbc must 16x16 align and no offset");
             }
             // If FB-target unable to meet the scaling requirements, AFBC must be disable.
             if ((fb_layer->fHScaleMul_ > 8.0 || fb_layer->fHScaleMul_ < 0.125) ||
@@ -1799,7 +1797,7 @@ void Vop3399::UpdateResevedPlane(DrmCrtc* crtc) {
 bool Vop3399::CheckGLESLayer(DrmHwcLayer* layer) {
     // RK356x can't overlay RGBA1010102
     if (layer->iFormat_ == HAL_PIXEL_FORMAT_RGBA_1010102) {
-        HWC2_ALOGD_IF_DEBUG("[%s]：RGBA1010102 format, not support overlay.", layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("[%s]：RGBA1010102 format, not support overlay.", layer->sLayerName_.c_str());
         return true;
     }
 
@@ -1810,8 +1808,8 @@ bool Vop3399::CheckGLESLayer(DrmHwcLayer* layer) {
 
     // RK platform VOP can't display src/dst w/h < 4 layer.
     if (act_w < 4 || act_h < 4 || dst_w < 4 || dst_h < 4) {
-        HWC2_ALOGD_IF_DEBUG("[%s]：[%dx%d] => [%dx%d] too small, use GLES composer.", layer->sLayerName_.c_str(), act_w,
-                            act_h, dst_w, dst_h);
+        HWC2_LOGD_IF("[%s]：[%dx%d] => [%dx%d] too small, use GLES composer.", layer->sLayerName_.c_str(), act_w, act_h,
+                     dst_w, dst_h);
         return true;
     }
 
@@ -1820,25 +1818,25 @@ bool Vop3399::CheckGLESLayer(DrmHwcLayer* layer) {
     if (layer->bAfbcd_) {
         bool disable_afbc = false;
         if (layer->source_crop.left != 0 || layer->source_crop.top != 0) {
-            HWC2_ALOGD_IF_DEBUG("[%s]source_crop =[%d,%d,%d,%d] not support offset.", layer->sLayerName_.c_str(),
-                                (int)layer->source_crop.left, (int)layer->source_crop.top,
-                                (int)layer->source_crop.right, (int)layer->source_crop.bottom);
+            HWC2_LOGD_IF("[%s]source_crop =[%d,%d,%d,%d] not support offset.", layer->sLayerName_.c_str(),
+                         (int)layer->source_crop.left, (int)layer->source_crop.top, (int)layer->source_crop.right,
+                         (int)layer->source_crop.bottom);
             disable_afbc = true;
         }
         if (act_w > 2560) {
-            HWC2_ALOGD_IF_DEBUG("[%s]act_w =%d too big, maximum 2560", layer->sLayerName_.c_str(), act_w);
+            HWC2_LOGD_IF("[%s]act_w =%d too big, maximum 2560", layer->sLayerName_.c_str(), act_w);
             disable_afbc = true;
         }
         if (!layer->bFbTarget_) {
             if ((layer->iStride_ & (16 - 1)) || (layer->iHeightStride_ & (8 - 1))) {
-                HWC2_ALOGD_IF_DEBUG("[%s]stride =[%d,%d] not aligned to [16x8].", layer->sLayerName_.c_str(),
-                                    layer->iStride_, layer->iHeightStride_);
+                HWC2_LOGD_IF("[%s]stride =[%d,%d] not aligned to [16x8].", layer->sLayerName_.c_str(), layer->iStride_,
+                             layer->iHeightStride_);
                 disable_afbc = true;
             }
         }
         if (disable_afbc) {
             if (layer->bFbTarget_) {
-                HWC2_ALOGD_IF_DEBUG("[%s] FB target do not meet AFBC limit, disable AFBC.", layer->sLayerName_.c_str());
+                HWC2_LOGD_IF("[%s] FB target do not meet AFBC limit, disable AFBC.", layer->sLayerName_.c_str());
                 layer->bAfbcd_ = false;
             }
             return true;
@@ -1846,7 +1844,7 @@ bool Vop3399::CheckGLESLayer(DrmHwcLayer* layer) {
     }
 
     if (layer->transform == -1) {
-        HWC2_ALOGD_IF_DEBUG("[%s]：transform unknow, use GLES", layer->sLayerName_.c_str());
+        HWC2_LOGD_IF("[%s]：transform unknow, use GLES", layer->sLayerName_.c_str());
         return true;
     }
 
@@ -1855,8 +1853,8 @@ bool Vop3399::CheckGLESLayer(DrmHwcLayer* layer) {
             if (layer->bYuv_ && layer->sf_handle != NULL) {
                 return false;
             } else {
-                HWC2_ALOGD_IF_DEBUG("[%s]：sf_composition =0x%x not support overlay.", layer->sLayerName_.c_str(),
-                                    layer->sf_composition);
+                HWC2_LOGD_IF("[%s]：sf_composition =0x%x not support overlay.", layer->sLayerName_.c_str(),
+                             layer->sf_composition);
                 return true;
             }
             break;
@@ -2023,7 +2021,7 @@ void Vop3399::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
             if (!(layer->source_crop.left == 0 && layer->source_crop.top == 0 &&
                   ((int)layer->source_crop.right % 16 == 0) && ((int)layer->source_crop.bottom % 16 == 0))) {
                 ctx.state.bDisableFBAfbcd = true;
-                HWC2_ALOGD_IF_DEBUG("Afbc must 16x16 align and no offset");
+                HWC2_LOGD_IF("Afbc must 16x16 align and no offset");
             }
 
             if (ctx.state.bDisableFBAfbcd) {

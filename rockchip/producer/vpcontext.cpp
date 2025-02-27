@@ -15,7 +15,7 @@
  */
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-#define LOG_TAG "VpContext"
+#define LOG_TAG "hwc-sideband-ctx"
 
 #include "rockchip/producer/vpcontext.h"
 #include "rockchip/utils/drmdebug.h"
@@ -59,7 +59,7 @@ int VpContext::ReleaseConnRef(int display_id) {
 }
 
 // Get Buffer cache
-std::shared_ptr<DrmBuffer> VpContext::GetBufferCache(vt_buffer_t* vp_buffer) {
+std::shared_ptr<DrmBuffer> VpContext::GetBufferCache(vt_buffer_t* vp_buffer, bool* use_cache) {
     std::lock_guard<std::mutex> lock(mtx_);
     std::shared_ptr<DrmBuffer> out_buffer = NULL;
 
@@ -71,12 +71,13 @@ std::shared_ptr<DrmBuffer> VpContext::GetBufferCache(vt_buffer_t* vp_buffer) {
         mMapBuffer_[buffer_id]->SetVpBuffer(vp_buffer);
         out_buffer = mMapBuffer_[buffer_id]->GetDrmBuffer();
         out_buffer->SetCrop(vp_buffer->crop.left, vp_buffer->crop.top, vp_buffer->crop.right, vp_buffer->crop.bottom);
-        HWC2_ALOGD_IF_DEBUG("Get cache buffer-id=0x%" PRIx64 " crop=[%d,%d,%d,%d]", out_buffer->GetBufferId(),
-                            vp_buffer->crop.left, vp_buffer->crop.top, vp_buffer->crop.right, vp_buffer->crop.bottom);
+        *use_cache = true;
+        // HWC2_LOGD_IF("Get cache buffer-id=0x%" PRIx64 " crop=[%d,%d,%d,%d]", out_buffer->GetBufferId(),
+        //                     vp_buffer->crop.left, vp_buffer->crop.top, vp_buffer->crop.right, vp_buffer->crop.bottom);
     } else {  // Cache 未命中，则说明是新Buffer,需要执行Import操作
         std::shared_ptr<DrmBuffer> drm_buffer = std::make_shared<DrmBuffer>(handle);
         if (!drm_buffer->initCheck()) {
-            HWC2_ALOGI("DrmBuffer import fail, handle=%p", handle);
+            HWC2_LOGI("DrmBuffer import fail, handle=%p", handle);
             return NULL;
         }
         drm_buffer->SetCrop(vp_buffer->crop.left, vp_buffer->crop.top, vp_buffer->crop.right, vp_buffer->crop.bottom);
@@ -85,8 +86,9 @@ std::shared_ptr<DrmBuffer> VpContext::GetBufferCache(vt_buffer_t* vp_buffer) {
         auto vp_buffer_info = std::make_shared<VpBufferInfo>(vp_buffer, drm_buffer);
         mMapBuffer_[buffer_id] = vp_buffer_info;
         out_buffer = vp_buffer_info->GetDrmBuffer();
-        HWC2_ALOGD_IF_DEBUG("Get new cache buffer-id=0x%" PRIx64 " vp_buffer->buffer_id=0x%" PRIx64,
-                            out_buffer->GetBufferId(), vp_buffer->buffer_id);
+        *use_cache = false;
+        // HWC2_LOGD_IF("Get new cache buffer-id=0x%" PRIx64 " vp_buffer->buffer_id=0x%" PRIx64,
+        //                     out_buffer->GetBufferId(), vp_buffer->buffer_id);
     }
     mLastHandleBufferId_ = buffer_id;
     return out_buffer;
@@ -132,7 +134,7 @@ int VpContext::AddReleaseFence(uint64_t buffer_id) {
     std::lock_guard<std::mutex> lock(mtx_);
 
     if (!mTimeLine_.isValid()) {
-        HWC2_ALOGE("mTimeLine_ is invalid, buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
+        HWC2_LOGE("mTimeLine_ is invalid, buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
         return -1;
     }
 
@@ -140,16 +142,15 @@ int VpContext::AddReleaseFence(uint64_t buffer_id) {
     if (mMapBuffer_.count(buffer_id)) {
         char acBuf[32];
         uFrameNo_ = mTimeLine_.IncTimeline();
-        sprintf(acBuf, "RFVP-ID%d-B%" PRIu64 "-FN%" PRIu64, iTunnelId_, buffer_id, uFrameNo_);
+        sprintf(acBuf, "RFVP-T%d-0x%" PRIu64 "-FN%" PRIu64, iTunnelId_, buffer_id, uFrameNo_);
         sp<ReleaseFence> release_fence = sp<ReleaseFence>(new ReleaseFence(mTimeLine_, uFrameNo_, acBuf));
         auto& buffer_info = mMapBuffer_[buffer_id];
         buffer_info->SetReleaseFence(release_fence);
-        HWC2_ALOGD_IF_INFO("Create ReleaseFence Name=%s uFrameNo_=%" PRIu64, release_fence->getName().c_str(),
-                           uFrameNo_);
+        HWC2_LOGV_IF("Create ReleaseFence Name=%s uFrameNo_=%" PRIu64, release_fence->getName().c_str(), uFrameNo_);
         return 0;
     }
 
-    HWC2_ALOGE("add buffer-id=%" PRIu64 " releaseFence fail, TunnelId=%d", buffer_id, iTunnelId_);
+    HWC2_LOGE("add buffer-id=%" PRIu64 " releaseFence fail, TunnelId=%d", buffer_id, iTunnelId_);
     return -1;
 }
 
@@ -167,7 +168,7 @@ sp<ReleaseFence> VpContext::GetReleaseFence(uint64_t buffer_id) {
     std::lock_guard<std::mutex> lock(mtx_);
 
     if (!mTimeLine_.isValid()) {
-        HWC2_ALOGE("mTimeLine_ is invalid, buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
+        HWC2_LOGE("mTimeLine_ is invalid, buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
         return NULL;
     }
 
@@ -186,7 +187,7 @@ int VpContext::SignalReleaseFence(int display_id, uint64_t buffer_id) {
     std::lock_guard<std::mutex> lock(mtx_);
 
     if (!mTimeLine_.isValid()) {
-        HWC2_ALOGE("mTimeLine_ is invalid, buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
+        HWC2_LOGE("mTimeLine_ is invalid, buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
         return -1;
     }
 
@@ -197,7 +198,7 @@ int VpContext::SignalReleaseFence(int display_id, uint64_t buffer_id) {
         return 0;
     }
 
-    HWC2_ALOGE("can't find buffer-id=%" PRIu64 " releaseFence, TunnelId=%d", buffer_id, iTunnelId_);
+    HWC2_LOGE("can't find buffer-id=%" PRIu64 " releaseFence, TunnelId=%d", buffer_id, iTunnelId_);
     return -1;
 }
 
@@ -213,7 +214,7 @@ int VpContext::SetTimeStamp(uint64_t buffer_id, int64_t queue_time) {
         mMapBuffer_[buffer_id]->iQueuedTimestamp_ = mQueueFrameTimestamp_;
         mMapBuffer_[buffer_id]->iAcquireTimestamp_ = mAcquireFrameTimestamp_;
     } else {
-        HWC2_ALOGD_IF_ERR("can't find buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
+        HWC2_LOGE_IF("can't find buffer-id=%" PRIu64 " TunnelId=%d", buffer_id, iTunnelId_);
         return -1;
     }
     return 0;
@@ -312,7 +313,7 @@ void VpContext::PrintReleaseFailedBuffer() {
     int printCount = mReleaseFailedBuffer_.size();
     if (printCount > 5) printCount = 5;
     for (int i = 0; i < printCount; i++) sprintf(buf, "%s,%" PRIx64, buf, mReleaseFailedBuffer_[i]);
-    HWC2_ALOGW("Tunnel_id=%d buffer:%s...(total %zu buffer(s)) pervious release failed!", iTunnelId_, buf,
-               mReleaseFailedBuffer_.size());
+    HWC2_LOGW("Tunnel_id=%d buffer:%s...(total %zu buffer(s)) pervious release failed!", iTunnelId_, buf,
+              mReleaseFailedBuffer_.size());
 }
 };  // namespace android

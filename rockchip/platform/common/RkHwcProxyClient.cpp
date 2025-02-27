@@ -33,7 +33,7 @@ int RkHwcProxyClientWorker::Init(int fd) {
     // Initial and set callback
     mRkHwcProxyClient_ = RkHwcProxyClient();
     int ret = mRkHwcProxyClient_.Setup(fd);
-    if (ret < 0) HWC2_ALOGE("RkHwcProxyClient Setup failed");
+    if (ret < 0) HWC2_LOGE("RkHwcProxyClient Setup failed");
 
     return InitWorker();
 }
