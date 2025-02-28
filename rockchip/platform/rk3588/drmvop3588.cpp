@@ -3031,7 +3031,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                 if (drmLayer->bUseSr_) {
                     if (drmLayer->acquire_fence->isValid()) {
                         if (drmLayer->acquire_fence->wait(500)) {
-                            HWC2_ALOGE(
+                            HWC2_LOGE(
                                     "Wait AcquireFence 500ms failed! Info: size=%d act=%d signal=%d err=%d "
                                     ",LayerName=%s ",
                                     drmLayer->acquire_fence->getSize(), drmLayer->acquire_fence->getActiveCount(),
