@@ -1148,7 +1148,7 @@ std::string DrmHwcLayer::BlendingToString(DrmHwcBlending blending) const {
 int DrmHwcLayer::DumpInfo(String8& out) {
     if (bFbTarget_)
         out.appendFormat(
-                "DrmHwcFBtar[%4u] Buffer[w/h/s/bs/hs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
+                "DrmHwcFBtar[%4u] Buffer[w/h/s/hs/bs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
                 "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
                 "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],afbcd=%d "
                 "hdr=%d fps=%f \n",
@@ -1159,7 +1159,7 @@ int DrmHwcLayer::DumpInfo(String8& out) {
                 display_frame.bottom, bAfbcd_, bHdr_, fFps_);
     else
         out.appendFormat(
-                "DrmHwcLayer[%4u] Buffer[w/h/s/bs/hs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
+                "DrmHwcLayer[%4u] Buffer[w/h/s/hs/bs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
                 "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
                 "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] "
                 "display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],skip=%d,afbcd=%d,rfbcd=%d hdr=%d fps=%f \n",
