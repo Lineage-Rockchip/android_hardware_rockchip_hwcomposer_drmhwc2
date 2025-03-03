@@ -670,6 +670,20 @@ int DrmGralloc::hwc_get_handle_plane_bytes_stride(buffer_handle_t hnd, std::vect
 #endif
 }
 
+float DrmGralloc::hwc_get_handle_fps(buffer_handle_t hnd) {
+#if USE_GRALLOC_4
+    float fps = 0;
+    int ret = gralloc4::get_fps(hnd, &fps);
+    if (ret) {
+        HWC2_LOGE_IF("%s: fail to get get_fps( buffer, ret : %d", __FUNCTION__, ret);
+        return 0;
+    }
+    return fps;
+#else  // #if USE_GRALLOC_4
+    return 0;
+#endif
+}
+
 void* DrmGralloc::hwc_get_handle_lock(buffer_handle_t hnd, int width, int height) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     void* cpu_addr = NULL;

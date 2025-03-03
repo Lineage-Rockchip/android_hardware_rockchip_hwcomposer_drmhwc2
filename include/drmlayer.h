@@ -316,7 +316,9 @@ struct DrmHwcLayer {
     bool bUpdate_;
 
     // fps
-    float fFps_;
+    float fFps_ = 0;
+    // 来自Gralloc::Metadata 内部存储，通常为解码设置的解码片源FPS信息
+    float fVideoFps_ = 0;
 
 #ifdef RK3528
     // RK3528 vpu prescale info.

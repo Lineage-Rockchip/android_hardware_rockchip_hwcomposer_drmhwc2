@@ -248,17 +248,18 @@ class DrmHwcTwo : public hwc2_device_t {
                 pBufferInfo_->iUsage_ = drmGralloc_->hwc_get_handle_usage(buffer_);
                 pBufferInfo_->uFourccFormat_ = drmGralloc_->hwc_get_handle_fourcc_format(buffer_);
                 pBufferInfo_->uModifier_ = drmGralloc_->hwc_get_handle_format_modifier(buffer_);
+                pBufferInfo_->fVideoFps_ = drmGralloc_->hwc_get_handle_fps(buffer_);
                 drmGralloc_->hwc_get_handle_plane_bytes_stride(buffer_, pBufferInfo_->uByteStridePlanes_);
                 drmGralloc_->hwc_get_handle_name(buffer_, pBufferInfo_->sLayerName_);
                 layer_name_ = pBufferInfo_->sLayerName_;
                 pBufferInfo_->bFbIdCached_ = true;
                 drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
                 HWC2_LOGD_IF("bufferInfoMap_ size = %zu insert success! slot=%" PRIu64
-                             " w=%d h=%d format=%d fourcc=%c%c%c%c Name=%s",
+                             " w=%d h=%d format=%d fourcc=%c%c%c%c fVideoFps=%f Name=%s",
                              bufferInfoMap_.size(), local_cache_slot, pBufferInfo_->iWidth_, pBufferInfo_->iHeight_,
                              pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_, pBufferInfo_->uFourccFormat_ >> 8,
                              pBufferInfo_->uFourccFormat_ >> 16, pBufferInfo_->uFourccFormat_ >> 24,
-                             pBufferInfo_->sLayerName_.c_str());
+                             pBufferInfo_->fVideoFps_, pBufferInfo_->sLayerName_.c_str());
                 success = true;
             }
 
@@ -320,17 +321,19 @@ class DrmHwcTwo : public hwc2_device_t {
                     pBufferInfo_->iUsage_ = drmGralloc_->hwc_get_handle_usage(buffer_);
                     pBufferInfo_->uFourccFormat_ = drmGralloc_->hwc_get_handle_fourcc_format(buffer_);
                     pBufferInfo_->uModifier_ = drmGralloc_->hwc_get_handle_format_modifier(buffer_);
+                    pBufferInfo_->fVideoFps_ = drmGralloc_->hwc_get_handle_fps(buffer_);
                     drmGralloc_->hwc_get_handle_plane_bytes_stride(buffer_, pBufferInfo_->uByteStridePlanes_);
                     drmGralloc_->hwc_get_handle_name(buffer_, pBufferInfo_->sLayerName_);
                     layer_name_ = pBufferInfo_->sLayerName_;
                     pBufferInfo_->bFbIdCached_ = true;
                     drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
                     HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
-                                 " w=%d h=%d format=%d fourcc=%c%c%c%c Name=%s",
+                                 " w=%d h=%d format=%d fourcc=%c%c%c%c fVideoFps=%f Name=%s",
                                  bufferInfoMap_.size(), buffer_id, pBufferInfo_->iWidth_, pBufferInfo_->iHeight_,
                                  pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
                                  pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
-                                 pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->sLayerName_.c_str());
+                                 pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->fVideoFps_,
+                                 pBufferInfo_->sLayerName_.c_str());
                 }
             } else {
                 bHasCache_ = true;
@@ -377,17 +380,19 @@ class DrmHwcTwo : public hwc2_device_t {
             pBufferInfo_->iUsage_ = drmGralloc_->hwc_get_handle_usage(buffer_);
             pBufferInfo_->uFourccFormat_ = drmGralloc_->hwc_get_handle_fourcc_format(buffer_);
             pBufferInfo_->uModifier_ = drmGralloc_->hwc_get_handle_format_modifier(buffer_);
+            pBufferInfo_->fVideoFps_ = drmGralloc_->hwc_get_handle_fps(buffer_);
             drmGralloc_->hwc_get_handle_name(buffer_, pBufferInfo_->sLayerName_);
             layer_name_ = pBufferInfo_->sLayerName_;
             pBufferInfo_->bFbIdCached_ = true;
             drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
             HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
-                         " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c usage=%" PRIx64 " modifier=%" PRIx64 " Name=%s",
+                         " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c fVideoFps=%f usage=%" PRIx64 " modifier=%" PRIx64
+                         " Name=%s",
                          bufferInfoMap_.size(), buffer_id, pBufferInfo_->uniqueFd_.get(), pBufferInfo_->iWidth_,
                          pBufferInfo_->iHeight_, pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
                          pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
-                         pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->iUsage_, pBufferInfo_->uModifier_,
-                         pBufferInfo_->sLayerName_.c_str());
+                         pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->fVideoFps_, pBufferInfo_->iUsage_,
+                         pBufferInfo_->uModifier_, pBufferInfo_->sLayerName_.c_str());
 
             if (last_buffer_id_ != buffer_id) {
                 uFrameCnt_++;
@@ -415,15 +420,17 @@ class DrmHwcTwo : public hwc2_device_t {
             pBufferInfo_->iUsage_ = drmGralloc_->hwc_get_handle_usage(buffer_);
             pBufferInfo_->uFourccFormat_ = drmGralloc_->hwc_get_handle_fourcc_format(buffer_);
             pBufferInfo_->uModifier_ = drmGralloc_->hwc_get_handle_format_modifier(buffer_);
+            pBufferInfo_->fVideoFps_ = drmGralloc_->hwc_get_handle_fps(buffer_);
             drmGralloc_->hwc_get_handle_name(buffer_, pBufferInfo_->sLayerName_);
             layer_name_ = pBufferInfo_->sLayerName_;
             HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
-                         " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c usage=%" PRIx64 " modifier=%" PRIx64 " Name=%s",
+                         " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c fVideoFps=%f usage=%" PRIx64 " modifier=%" PRIx64
+                         " Name=%s",
                          bufferInfoMap_.size(), buffer_id, pBufferInfo_->uniqueFd_.get(), pBufferInfo_->iWidth_,
                          pBufferInfo_->iHeight_, pBufferInfo_->iFormat_, pBufferInfo_->uFourccFormat_,
                          pBufferInfo_->uFourccFormat_ >> 8, pBufferInfo_->uFourccFormat_ >> 16,
-                         pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->iUsage_, pBufferInfo_->uModifier_,
-                         pBufferInfo_->sLayerName_.c_str());
+                         pBufferInfo_->uFourccFormat_ >> 24, pBufferInfo_->fVideoFps_, pBufferInfo_->iUsage_,
+                         pBufferInfo_->uModifier_, pBufferInfo_->sLayerName_.c_str());
             if (last_buffer_id_ != buffer_id) {
                 uFrameCnt_++;
                 last_buffer_id_ = buffer_id;
@@ -499,12 +506,14 @@ class DrmHwcTwo : public hwc2_device_t {
                 pBufferInfo_->uFourccFormat_ = drmGralloc_->hwc_get_handle_fourcc_format(sidebandStreamHandle_);
                 pBufferInfo_->uModifier_ = drmGralloc_->hwc_get_handle_format_modifier(sidebandStreamHandle_);
                 drmGralloc_->hwc_get_handle_name(sidebandStreamHandle_, pBufferInfo_->sLayerName_);
+                pBufferInfo_->fVideoFps_ = drmGralloc_->hwc_get_handle_fps(buffer_);
                 layer_name_ = pBufferInfo_->sLayerName_;
                 pBufferInfo_->gemHandle_.InitGemHandle(pBufferInfo_->sLayerName_.c_str(), pBufferInfo_->uniqueFd_.get(),
                                                        buffer_id);
                 pBufferInfo_->uGemHandle_ = pBufferInfo_->gemHandle_.GetGemHandle();
-                HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64 " Name=%s",
-                             bufferInfoMap_.size(), buffer_id, pBufferInfo_->sLayerName_.c_str());
+                HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! fVideoFps=%f BufferId=%" PRIx64 " Name=%s",
+                             bufferInfoMap_.size(), pBufferInfo_->fVideoFps_, buffer_id,
+                             pBufferInfo_->sLayerName_.c_str());
             }
         }
 

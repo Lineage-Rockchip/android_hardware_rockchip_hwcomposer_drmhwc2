@@ -187,6 +187,9 @@ class DrmGralloc {
     int hwc_get_gemhandle_from_fd(uint64_t buffer_fd, uint64_t buffer_id, uint32_t* out_gem_handle);
     int hwc_free_gemhandle(uint64_t buffer_id);
 
+    // 主要用于获取解码端传递过来的片源帧率
+    float hwc_get_handle_fps(buffer_handle_t hnd);
+
     uint32_t hwc_get_fourcc_from_hal_format(int hal_format, uint64_t modifier = 0);
 
     int64_t hwc_get_offset_of_dynamic_hdr_metadata(buffer_handle_t hnd);

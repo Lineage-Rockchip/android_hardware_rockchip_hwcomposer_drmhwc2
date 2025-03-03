@@ -1151,7 +1151,7 @@ int DrmHwcLayer::DumpInfo(String8& out) {
                 "DrmHwcFBtar[%4u] Buffer[w/h/s/hs/bs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
                 "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
                 "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],afbcd=%d "
-                "hdr=%d fps=%f \n",
+                "hdr=%d fps=%f\n",
                 uId_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
                 uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, TransformToString(transform).c_str(),
                 transform, alpha, BlendingToString(blending).c_str(), source_crop.left, source_crop.top,
@@ -1162,12 +1162,12 @@ int DrmHwcLayer::DumpInfo(String8& out) {
                 "DrmHwcLayer[%4u] Buffer[w/h/s/hs/bs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
                 "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
                 "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] "
-                "display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],skip=%d,afbcd=%d,rfbcd=%d hdr=%d fps=%f \n",
+                "display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],skip=%d,afbcd=%d,rfbcd=%d hdr=%d fps=%f VideoFps=%f\n",
                 uId_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
                 uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, TransformToString(transform).c_str(),
                 transform, alpha, BlendingToString(blending).c_str(), source_crop.left, source_crop.top,
                 source_crop.right, source_crop.bottom, display_frame.left, display_frame.top, display_frame.right,
-                display_frame.bottom, bSkipLayer_, bAfbcd_, bRfbcd_, bHdr_, fFps_);
+                display_frame.bottom, bSkipLayer_, bAfbcd_, bRfbcd_, bHdr_, fFps_, fVideoFps_);
     return 0;
 }
 

@@ -88,7 +88,8 @@ class LayerInfoCache {
     uint32_t uFourccFormat_ = 0;
     uint32_t uGemHandle_ = 0;
     uint64_t uModifier_ = 0;
-    uint64_t uBufferId_;
+    uint64_t uBufferId_ = 0;
+    float fVideoFps_ = 0;
     GemHandle gemHandle_;
     std::string sLayerName_;
     bool bFbIdCached_ = false;

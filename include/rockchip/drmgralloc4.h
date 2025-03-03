@@ -129,6 +129,8 @@ int get_name(buffer_handle_t handle, std::string& name);
 
 int get_buffer_id(buffer_handle_t handle, uint64_t* buffer_id);
 
+int get_fps(buffer_handle_t handle, float* fps);
+
 int64_t get_video_metadata_offset(buffer_handle_t handle);
 
 int64_t get_pq_metadata_offset(buffer_handle_t handle);

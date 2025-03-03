@@ -5021,6 +5021,7 @@ void DrmHwcTwo::HwcLayer::PopulateNormalLayer(DrmHwcLayer* drmHwcLayer, hwc2_drm
         drmHwcLayer->sLayerName_ = pBufferInfo_->sLayerName_;
         drmHwcLayer->uByteStridePlanes_ = pBufferInfo_->uByteStridePlanes_;
         drmHwcLayer->bHasMetadata_ = pBufferInfo_->bHasMetadata_;
+        drmHwcLayer->fVideoFps_ = pBufferInfo_->fVideoFps_;
         drmHwcLayer->pBufferInfo_ = pBufferInfo_;
     } else {
         drmHwcLayer->iFd_ = -1;

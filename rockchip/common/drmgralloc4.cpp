@@ -111,6 +111,21 @@ const static IMapper::MetadataType ArmMetadataType_PLANE_FDS{
         1  // 就是上面的 'PLANE_FDS'
 };
 
+#ifndef OFFSET_OF_DYNAMIC_HDR_METADATA
+#define OFFSET_OF_DYNAMIC_HDR_METADATA (1)
+#define GRALLOC_RK_METADATA_TYPE_NAME "rk.graphics.RkMetadataType"
+const static IMapper::MetadataType RkMetadataType_OFFSET_OF_DYNAMIC_HDR_METADATA{GRALLOC_RK_METADATA_TYPE_NAME,
+                                                                                 OFFSET_OF_DYNAMIC_HDR_METADATA};
+/* 直接将 hdr_metadata_buffer 扩展为 pq_metadata_buffer. */
+#define RkMetadataType_OFFSET_OF_PQ_METADATA RkMetadataType_OFFSET_OF_DYNAMIC_HDR_METADATA
+#endif
+
+#define FPS (2)
+const static IMapper::MetadataType RkMetadataType_FPS{
+        GRALLOC_RK_METADATA_TYPE_NAME,
+        FPS,
+};
+
 #ifndef DRM_FORMAT_NV15
 #define DRM_FORMAT_NV15 fourcc_code('N', 'V', '1', '5') /* 2x2 subsampled Cr:Cb plane */
 #endif
@@ -249,15 +264,6 @@ static android::status_t decodeRkOffsetOfVideoMetadata(const hidl_vec<uint8_t>& 
 
     return android::NO_ERROR;
 }
-
-#ifndef OFFSET_OF_DYNAMIC_HDR_METADATA
-#define OFFSET_OF_DYNAMIC_HDR_METADATA (1)
-#define GRALLOC_RK_METADATA_TYPE_NAME "rk.graphics.RkMetadataType"
-const static IMapper::MetadataType RkMetadataType_OFFSET_OF_DYNAMIC_HDR_METADATA{GRALLOC_RK_METADATA_TYPE_NAME,
-                                                                                 OFFSET_OF_DYNAMIC_HDR_METADATA};
-/* 直接将 hdr_metadata_buffer 扩展为 pq_metadata_buffer. */
-#define RkMetadataType_OFFSET_OF_PQ_METADATA RkMetadataType_OFFSET_OF_DYNAMIC_HDR_METADATA
-#endif
 
 int64_t get_video_metadata_offset(buffer_handle_t handle) {
     auto& mapper = get_service();
@@ -762,6 +768,30 @@ int get_buffer_id(buffer_handle_t handle, uint64_t* buffer_id) {
     }
 
     return err;
+}
+
+static android::status_t decodeFps(const hidl_vec<uint8_t>& input, uint32_t* fps) {
+    memcpy(fps, input.data(), sizeof(*fps));
+
+    return android::NO_ERROR;
+}
+
+int get_fps(buffer_handle_t handle, float* fps) {
+    auto& mapper = get_service();
+
+    uint32_t fps_tmp = 0;
+    int err = get_metadata(mapper, handle, RkMetadataType_FPS, decodeFps, &fps_tmp);
+    if (err != android::OK) {
+        ALOGV("Failed to get FPS. err : %d", err);
+        return err;
+    }
+
+    // ALOGI("rk-debug fps=%d fps=%f", fps, *((float*)(&fps)));
+    // 主要用于获取解码端传递过来的片源帧率，由于 Gralloc 内部采用 uint32_t 存储
+    // 实际片源帧率要求 float，故解码端做了一次 float -> uint32_t 强制存储
+    // 故此处需要做 uint32_t -> float 翻译
+    *fps = *((float*)(&fps_tmp));
+    return 0;
 }
 
 status_t importBuffer(buffer_handle_t rawHandle, buffer_handle_t* outHandle) {
