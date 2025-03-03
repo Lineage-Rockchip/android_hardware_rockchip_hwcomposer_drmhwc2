@@ -2958,6 +2958,18 @@ int Vop356x::TryAcceleratePolicy(std::vector<DrmCompositionPlane>* composition, 
         }
     }
 
+    //保证某个图层必须使用CLIENT合成的请求得到满足
+    int gles_compose_index = -1;
+    for (auto& layer : layers) {
+        if (layer->bGlesCompose_ || layer->bSkipLayer_) {
+            gles_compose_index = layer->iDrmZpos_;
+            break;
+        }
+    }
+    if (gles_compose_index >= 0 && gles_compose_index < layer_indices.first) {
+        layer_indices.first = gles_compose_index;
+    }
+
     ALOGD_IF(LogLevel(DBG_DEBUG), "%s:mix accelerate layer (%d,%d)", __FUNCTION__, layer_indices.first,
              layer_indices.second);
     OutputMatchLayer(layer_indices.first, layer_indices.second, layers, tmp_layers);
