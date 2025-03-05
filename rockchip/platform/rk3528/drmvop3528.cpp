@@ -820,8 +820,9 @@ int Vop3528::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
                         ctx.request.iAfbcdCnt--;
                     }
                     drmlayer->bNeedPreScale_ = true;
-                    drmlayer->SwitchPreScaleBufferInfo();
-                    use_prescale = true;
+                    if (drmlayer->SwitchPreScaleBufferInfo() == 0) {
+                        use_prescale = true;
+                    }
                 }
             }
 
