@@ -322,13 +322,10 @@ struct DrmHwcLayer {
 
 #ifdef RK3528
     // RK3528 vpu prescale info.
-    // 标志需要与缩小的图层请求
-    bool bNeedPreScale_ = false;
-    // 标志此BUFFER为支持预缩小的图层
-    bool bIsPreScale_ = false;
-    // 标志当前已使用本地预缩小黑帧替换预缩小请求，多数为预缩小图层未准备完成才使能此功能
-    bool bUseBlackBuffer_ = false;
-    std::shared_ptr<DrmBuffer> pBlackBuffer_ = NULL;
+    bool bNeedPreScale_;
+    bool bIsPreScale_;
+    bool bUseBlackBuffer_;
+    std::shared_ptr<DrmBuffer> pBlackBuffer_;
 
     DrmLayerInfoStore storePreScaleInfo_;
     metadata_for_rkvdec_scaling_t mMetadata_;
@@ -364,6 +361,7 @@ struct DrmHwcLayer {
     bool IsSkipLayer();
 #ifdef RK3528
     void ModifyDisplayFrame();
+    bool IsPreScaleVideo(uint64_t usage);
 #endif
     bool IsHdr(uint64_t usage, android_dataspace_t dataspace);
     bool IsMetadataHdr(uint64_t usage);

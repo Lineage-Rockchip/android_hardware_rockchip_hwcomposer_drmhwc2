@@ -39,6 +39,7 @@
 #include <utils/Trace.h>
 
 #include <linux/fb.h>
+
 #ifdef USE_LIBEBOOK
 #include "EBookApi.h"
 #endif
@@ -5168,6 +5169,57 @@ void DrmHwcTwo::HwcLayer::PopulateDrmLayer(hwc2_layer_t layer_id, DrmHwcLayer* d
     } else {
         PopulateNormalLayer(drmHwcLayer, ctx);
     }
+#ifdef RK3528
+    if (gIsRK3528()) {
+        int enable_prescale_video = hwc_get_int_property("debug.hwc.enable_prescale_video", "0");
+        if (enable_prescale_video > 0 && drmHwcLayer->bYuv_) {
+            metadata_for_rkvdec_scaling_t* metadata = NULL;
+            drmGralloc_->lock_rkvdec_scaling_metadata(buffer_, &metadata);
+            HWC2_LOGI_IF("lock_rkvdec_scaling_metadata buffer_=%p metadata=%p", buffer_, metadata);
+            if (metadata != NULL) {
+                metadata->requestMask = enable_prescale_video;
+                if (metadata->replyMask > 0) {
+                    memcpy(&(drmHwcLayer->mMetadata_), metadata, sizeof(metadata_for_rkvdec_scaling_t));
+                    drmHwcLayer->bNeedPreScale_ = true;
+                    drmHwcLayer->bIsPreScale_ = true;
+
+                    hwc_frect source_crop;
+                    source_crop.top = metadata->srcTop;
+                    source_crop.left = metadata->srcLeft;
+                    source_crop.right = metadata->srcRight;
+                    source_crop.bottom = metadata->srcBottom;
+                    drmHwcLayer->SetSourceCrop(source_crop);
+
+                    drmHwcLayer->iWidth_ = metadata->width;
+                    drmHwcLayer->iHeight_ = metadata->height;
+                    drmHwcLayer->iStride_ = metadata->pixel_stride;
+                    drmHwcLayer->iFormat_ = metadata->format;
+                    drmHwcLayer->iUsage = metadata->usage;
+                    drmHwcLayer->iByteStride_ = metadata->byteStride[0];
+                    drmHwcLayer->uModifier_ = metadata->modifier;
+                    drmHwcLayer->uFourccFormat_ = drmGralloc_->hwc_get_fourcc_from_hal_format(metadata->format);
+                    drmHwcLayer->Init();
+                }
+
+                // 打印参数
+                HWC2_LOGI_IF("Name=%s metadata = %p", pBufferInfo_->sLayerName_.c_str(), metadata);
+                HWC2_LOGI_IF("version=0x%" PRIx64 " requestMask=0x%" PRIx64 " replyMask=0x%" PRIx64
+                             " BufferId=0x%" PRIx64,
+                             metadata->version, metadata->requestMask, metadata->replyMask, drmHwcLayer->uBufferId_);
+                HWC2_LOGI_IF("w=%d h=%d s=%d f=%d m=0x%" PRIx64 " usage=0x%x ", metadata->width, metadata->height,
+                             metadata->pixel_stride, metadata->format, metadata->modifier, metadata->usage);
+                HWC2_LOGI_IF("crop=(%d,%d,%d,%d) ", metadata->srcLeft, metadata->srcTop, metadata->srcRight,
+                             metadata->srcBottom);
+                HWC2_LOGI_IF("layer_cnt=%d offset=%d,%d,%d,%d byteStride=%d,%d,%d,%d) ", metadata->layer_cnt,
+                             metadata->offset[0], metadata->offset[1], metadata->offset[2], metadata->offset[3],
+                             metadata->byteStride[0], metadata->byteStride[1], metadata->byteStride[2],
+                             metadata->byteStride[3]);
+
+                drmGralloc_->unlock_rkvdec_scaling_metadata(buffer_);
+            }
+        }
+    }
+#endif
     return;
 }
 
