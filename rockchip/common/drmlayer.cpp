@@ -217,7 +217,6 @@ int DrmHwcLayer::Init() {
     uEOTF = GetEOTF(eDataSpace_);
 
 #ifdef RK3528
-    bIsPreScale_ = IsPreScaleVideo(iUsage);
     ModifyDisplayFrame();
 #endif
     return 0;
@@ -714,19 +713,7 @@ void DrmHwcLayer::ModifyDisplayFrame() {
     }
 }
 
-bool DrmHwcLayer::IsPreScaleVideo(uint64_t usage) {
-    // RK3528 usage 0x01000000U 认为是 MetadataHdr 图层
-    // 定义位于 Android 9.0 libhardware/../gralloc.h GRALLOC_USAGE_RKVDEC_SCALING
-    if (gIsRK3528()) {
-        if (((usage & 0x01000000U) > 0)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 #endif
-
 bool DrmHwcLayer::IsScale(hwc_frect_t& source_crop, hwc_rect_t& display_frame, int transform) {
     int src_w, src_h, dst_w, dst_h;
     src_w = (int)(source_crop.right - source_crop.left);
@@ -1151,23 +1138,24 @@ int DrmHwcLayer::DumpInfo(String8& out) {
                 "DrmHwcFBtar[%4u] Buffer[w/h/s/hs/bs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
                 "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
                 "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],afbcd=%d "
-                "hdr=%d fps=%f\n",
+                "hdr=%d fps=%f usage=0x%" PRIx64 "\n",
                 uId_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
                 uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, TransformToString(transform).c_str(),
                 transform, alpha, BlendingToString(blending).c_str(), source_crop.left, source_crop.top,
                 source_crop.right, source_crop.bottom, display_frame.left, display_frame.top, display_frame.right,
-                display_frame.bottom, bAfbcd_, bHdr_, fFps_);
+                display_frame.bottom, bAfbcd_, bHdr_, fFps_, iUsage);
     else
         out.appendFormat(
                 "DrmHwcLayer[%4u] Buffer[w/h/s/hs/bs/format]=[%4d,%4d,%4d,%4d,%4d,%4d] Fourcc=%c%c%c%c "
                 "Transform=%-8.8s(0x%x) Blend[a=%d]=%-8.8s "
                 "source_crop[l,t,r,b]=[%5.0f,%5.0f,%5.0f,%5.0f] "
-                "display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],skip=%d,afbcd=%d,rfbcd=%d hdr=%d fps=%f VideoFps=%f\n",
+                "display_frame[l,t,r,b]=[%4d,%4d,%4d,%4d],skip=%d,afbcd=%d,rfbcd=%d hdr=%d fps=%f VideoFps=%f "
+                "usage=0x%" PRIx64 "\n",
                 uId_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
                 uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, TransformToString(transform).c_str(),
                 transform, alpha, BlendingToString(blending).c_str(), source_crop.left, source_crop.top,
                 source_crop.right, source_crop.bottom, display_frame.left, display_frame.top, display_frame.right,
-                display_frame.bottom, bSkipLayer_, bAfbcd_, bRfbcd_, bHdr_, fFps_, fVideoFps_);
+                display_frame.bottom, bSkipLayer_, bAfbcd_, bRfbcd_, bHdr_, fFps_, fVideoFps_, iUsage);
     return 0;
 }
 
