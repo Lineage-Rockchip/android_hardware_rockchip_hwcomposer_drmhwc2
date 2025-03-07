@@ -3142,12 +3142,11 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
 // Composer 2.4
 HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConnectionType(uint32_t* outType) {
     HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
-    if (connector_->internal())
+    if (handle_ == 0) {
         *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::Internal);
-    else if (connector_->external())
+    } else {
         *outType = static_cast<uint32_t>(HWC2::DisplayConnectionType::External);
-    else
-        return HWC2::Error::BadConfig;
+    }
 
     return HWC2::Error::None;
 }
