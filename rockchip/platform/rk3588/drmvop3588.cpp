@@ -419,7 +419,8 @@ bool Vop3588::SvepMemcAllowedByWhitelist(DrmHwcLayer* layer) {
     return false;
 }
 
-#define SVEP_MEMC_SUPPORT_MAX_FPS 40
+#define SVEP_MEMC_SUPPORT_MAX_FPS 35
+#define SVEP_MEMC_SUPPORT_MIN_FPS 8
 bool Vop3588::SvepMemcAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // 视频大于4K则不使用 MEMC.
     if (layer->iWidth_ > 4096) return false;
@@ -472,8 +473,8 @@ bool Vop3588::SvepMemcAllowedByLocalPolicy(DrmHwcLayer* layer) {
         return false;
     }
 
-    // HWC内部会计算图层刷新率，若刷新率大于40帧，则关闭SR-MEMC功能
-    if (layer->fFps_ > SVEP_MEMC_SUPPORT_MAX_FPS) {
+    // HWC内部会计算图层刷新率，若刷新率大于35帧/小于8帧，则关闭SR-MEMC功能
+    if (layer->fFps_ > SVEP_MEMC_SUPPORT_MAX_FPS || layer->fFps_ < SVEP_MEMC_SUPPORT_MIN_FPS) {
         HWC2_LOGD_IF("disable-memc: video_max_fps=%f name=%s", layer->fFps_, layer->sLayerName_.c_str());
         return false;
     }

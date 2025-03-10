@@ -85,7 +85,7 @@ class DrmHwcTwo : public hwc2_device_t {
             uLastFrameCnt_ = 0;
             lastTimeRecod_ = 0;
             last_buffer_id_ = 0;
-            mSvepFps_ = 30.0;
+            mSvepFps_ = 0.0;
             acquire_fence_ = AcquireFence::NO_FENCE;
             layer_name_ = std::string("UnSet");
         };
@@ -663,7 +663,7 @@ class DrmHwcTwo : public hwc2_device_t {
         // 考虑世界时间的fps, 1s内不刷新则刷新率为0
         float mFps_ = 0;
         // SVEP 使用的帧率估计
-        float mSvepFps_ = 30.0;
+        float mSvepFps_ = 0.0;
 
         // DRM Resource
         DrmGralloc* drmGralloc_;
