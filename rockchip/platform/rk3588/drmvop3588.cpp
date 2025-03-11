@@ -3195,6 +3195,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
                 ClearMemcJob();
                 HWC2_LOGD_IF("skip memc success, last_uid=%u uid=%u.", last_layer_uid, drmLayer->uId_);
                 uMemcFrameNo_ = ctx.request.frame_no_;
+                mMemcLastMode_ = MemcMode::MEMC_UNSUPPORT;
                 last_layer_uid = drmLayer->uId_;
                 skip_memc_cnt = 0;
             }
@@ -3374,7 +3375,6 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
                         }
                     }
                     uMemcFrameNo_ = ctx.request.frame_no_;
-                    mMemcLastMode_ = memc_match_mode;
                     return 0;
                 }
             }
