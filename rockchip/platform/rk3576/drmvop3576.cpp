@@ -402,7 +402,7 @@ bool Vop3576::SvepMemcAllowedByBlacklist(DrmHwcLayer* layer) {
         // 此黑名单内的应用名不参与 SR 处理
         for (auto& black_key : mMemcEnv_.mSvepBlacklist_) {
             if (layer->sLayerName_.find(black_key) != std::string::npos) {
-                HWC2_LOGD_IF("Sr %s in BlackList! not to SR.", layer->sLayerName_.c_str());
+                HWC2_LOGD_IF("Memc %s in BlackList! not to Memc.", layer->sLayerName_.c_str());
                 return false;
             }
         }
@@ -432,21 +432,22 @@ bool Vop3576::SvepMemcAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // 如果不是视频格式，并且不在白名单内，则不使用MEMC
     if (!layer->bYuv_ && !SvepMemcAllowedByWhitelist(layer)) return false;
 
-    bool yuv_10bit = false;
+    bool src_10bit = false;
     switch (layer->iFormat_) {
         case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
         case HAL_PIXEL_FORMAT_YCbCr_422_SP_10:
         case HAL_PIXEL_FORMAT_YCrCb_420_SP_10:
         case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
-            yuv_10bit = true;
+        case HAL_PIXEL_FORMAT_RGBA_1010102:
+            src_10bit = true;
             break;
         default:
-            yuv_10bit = false;
+            src_10bit = false;
             break;
     }
 
     // 10bit 视频不使用MEMC
-    if (yuv_10bit) {
+    if (src_10bit) {
         return false;
     }
 
