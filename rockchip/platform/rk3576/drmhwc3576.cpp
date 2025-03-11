@@ -62,6 +62,7 @@ std::map<uint64_t, std::map<uint64_t, uint64_t>> gMapPlanePolicy = {
          {{DRM_RK3576_VP0,
            {PLANE_RK3576_ALL_CLUSTER_MASK | PLANE_RK3576_ALL_ESMART0_MASK | PLANE_RK3576_ALL_ESMART2_MASK}},
           {DRM_RK3576_VP1, {PLANE_RK3576_ALL_ESMART1_MASK | PLANE_RK3576_ALL_ESMART3_MASK}}}},
+
         {DRM_RK3576_VP0_MASK | DRM_RK3576_VP2_MASK,
          {{DRM_RK3576_VP0,
            PLANE_RK3576_ALL_CLUSTER_MASK | PLANE_RK3576_ALL_ESMART0_MASK | PLANE_RK3576_ALL_ESMART2_MASK},
@@ -136,6 +137,8 @@ int Hwc3576::TryAssignPlane(DrmDevice* drm) {
     for (auto& conn : drm->connectors()) {
         int display_id = conn->display();
         if (conn->state() != DRM_MODE_CONNECTED) continue;
+        // 电源状态不是PowerOn，则不执行图层迁移
+        if (conn->power_state() != DRM_MODE_DPMS_ON) continue;
         DrmCrtc* crtc = drm->GetCrtcForDisplay(display_id);
         if (!crtc) {
             HWC2_LOGE("display %d crtc is NULL.", display_id);

@@ -2127,6 +2127,8 @@ int DrmDevice::BindConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCrtc*
     conn->set_active_mode(conn->current_mode());
     // 成功更新crtc状态，则需要重置Kernel配置的Crtc信息
     conn->reset_kernel_crtc_id();
+    // 更新电源状态 PowerOn
+    conn->set_power_state(DRM_MODE_DPMS_ON);
 
 #ifdef RK3528
     // RK3528 解码支持prescale,故希望获取屏幕分辨率作为是否开启prescale的依据
@@ -2244,6 +2246,9 @@ int DrmDevice::ReleaseConnectorAndCrtc(int display_id, DrmConnector* conn, DrmCr
     conn->set_encoder(NULL);
     // 成功更新crtc状态，则需要重置Kernel配置的Crtc信息
     conn->reset_kernel_crtc_id();
+    // 更新电源状态为PowerOff
+    conn->set_power_state(DRM_MODE_DPMS_OFF);
+
     // 更新属性状态
     char conn_name[50];
     char property_conn_name[50];
@@ -2351,16 +2356,32 @@ int DrmDevice::CheckCrtcOutputCapability(int display_id, DrmCrtc* crtc, DrmMode&
 
 int DrmDevice::SetPowerMode(int display_id, int power_mode) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    int ret = 0;
     switch (power_mode) {
         case DRM_MODE_DPMS_ON:
-            return DoPowerOn(display_id);
+            ret = DoPowerOn(display_id);
+            break;
         case DRM_MODE_DPMS_OFF:
-            return DoPowerOff(display_id);
+            ret = DoPowerOff(display_id);
+            break;
         default:
             HWC2_LOGE("unknow power mode = %d", power_mode);
             return -1;
     }
-    return -1;
+
+    if (ret) {
+        HWC2_LOGE("display-id=%d power_mode=%d, ret = %d", display_id, power_mode, ret);
+        return ret;
+    }
+
+    // 更新 DrmPlane 资源分配规则
+    ret = hwcPlatform_->TryAssignPlane(this);
+    if (ret) {
+        HWC2_LOGW("TryAssignPlane fail, ret = %d", ret);
+        return ret;
+    }
+
+    return ret;
 }
 
 int DrmDevice::DoPowerOn(int display_id) {
@@ -2450,6 +2471,8 @@ int DrmDevice::DoPowerOnNormal(int display_id) {
               request_mode.v_refresh());
 
     DestroyPropertyBlob(blob_id[0]);
+    // 更新电源状态为PowerOn
+    conn->set_power_state(DRM_MODE_DPMS_ON);
 
     // 更新状态查询接口信息
     char conn_name[50];
@@ -2541,6 +2564,8 @@ int DrmDevice::DoPowerOnMirror(int display_id) {
     DestroyPropertyBlob(blob_id[0]);
 
     conn->set_active_mode(conn->current_mode());
+    // 更新电源状态为PowerOn
+    conn->set_power_state(DRM_MODE_DPMS_ON);
 
     // 更新状态查询接口信息
     char conn_name[50];
@@ -2552,6 +2577,8 @@ int DrmDevice::DoPowerOnMirror(int display_id) {
     // 更新Mirror Connector信息
     for (auto mirror_dpy_id : conn->get_connector_mirror_display_id()) {
         DrmConnector* mirror_conn = GetConnectorForDisplay(mirror_dpy_id);
+        // 更新电源状态为PowerOn
+        mirror_conn->set_power_state(DRM_MODE_DPMS_ON);
         snprintf(conn_name, 50, "%s-%d:%d:connected:mirror", connector_type_str(mirror_conn->type()),
                  mirror_conn->type_id(), crtc->id());
         snprintf(property_conn_name, 50, "vendor.hwc.device.display-%d", mirror_dpy_id);
@@ -2635,6 +2662,15 @@ int DrmDevice::DoPowerOffNormal(int display_id) {
               display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
               conn->active_mode().id(), conn->active_mode().h_display(), conn->active_mode().v_display(),
               conn->active_mode().interlaced() > 0 ? "i" : "p", conn->active_mode().v_refresh());
+
+    // 释放DrmPlane相关资源
+    for (auto& plane_group : plane_groups_) {
+        uint32_t crtc_mask = 1 << crtc->pipe();
+        if (!plane_group->acquire(crtc_mask)) continue;
+        plane_group->reset();
+    }
+    // 更新电源状态为PowerOff
+    conn->set_power_state(DRM_MODE_DPMS_OFF);
 
     char conn_name[50];
     char property_conn_name[50];
@@ -2746,6 +2782,14 @@ int DrmDevice::DoPowerOffMirror(int display_id) {
             display_id, conn->id(), connector_type_str(conn->type()), conn->type_id(), crtc->id(),
             conn->active_mode().id(), conn->active_mode().h_display(), conn->active_mode().v_display(),
             conn->active_mode().interlaced() > 0 ? "i" : "p", conn->active_mode().v_refresh());
+    // 释放DrmPlane相关资源
+    for (auto& plane_group : plane_groups_) {
+        uint32_t crtc_mask = 1 << crtc->pipe();
+        if (!plane_group->acquire(crtc_mask)) continue;
+        plane_group->reset();
+    }
+    // 更新电源状态为PowerOff
+    conn->set_power_state(DRM_MODE_DPMS_OFF);
 
     char conn_name[50];
     char property_conn_name[50];

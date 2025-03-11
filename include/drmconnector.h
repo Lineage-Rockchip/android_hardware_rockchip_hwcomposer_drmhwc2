@@ -222,8 +222,11 @@ class DrmConnector {
         return connected_mirror_display_id_set.count(display_id) > 0;
     }
     // Connector Mirror 功能
-
     int UpdateHotplugState(bool fast_mode);
+
+    // PowerState
+    uint64_t power_state() const { return mPowerState_; }
+    void set_power_state(uint64_t state) { mPowerState_ = state; }
 
   private:
     DrmDevice* drm_;
@@ -332,6 +335,8 @@ class DrmConnector {
     std::shared_ptr<dummyEdid> mDummyEDID_ = NULL;
 
     int32_t mKernelCrtcId_;
+
+    uint64_t mPowerState_ = DRM_MODE_DPMS_OFF;
 
     mutable std::recursive_mutex mRecursiveMutex;
     int UpdateOutputFormat(drmModeAtomicReqPtr pset);
