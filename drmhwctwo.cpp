@@ -3604,7 +3604,9 @@ int DrmHwcTwo::HwcDisplay::GetCurrentDisplayMode() {
             const DrmMode best_mode = connector_->best_mode();
             connector_->set_current_mode(best_mode);
             // will change display resolution, to clear all display.
-            if (!(connector_->current_mode() == connector_->active_mode())) {
+            if (connector_->state() == DRM_MODE_CONNECTED && connector_->power_state() == DRM_MODE_DPMS_ON &&
+                connector_->current_mode().id() > 0 && connector_->active_mode().id() > 0 &&
+                !(connector_->current_mode() == connector_->active_mode())) {
                 ClearDisplay();
                 // 标识 Display mode 发生改变
                 ActiveModeChange(true);
@@ -6388,6 +6390,12 @@ int DrmHwcTwo::EventWorker::HandleDisplayModeUpdateEvent(DrmEvent event) {
     DrmConnector* connector = drm->GetConnectorForDisplay(event.display_id);
     if (!connector) {
         HWC2_LOGE("Failed to get connector for display %d", event.display_id);
+        return -1;
+    }
+
+    if (connector->state() != DRM_MODE_CONNECTED) {
+        HWC2_LOGW("hwc_fb_switch: connector %u type=%s, type_id=%d is DRM_MODE_DISCONNECTED skip!\n", connector->id(),
+                  drm->connector_type_str(connector->type()), connector->type_id());
         return -1;
     }
 
