@@ -33,9 +33,8 @@ class DrmBufferQueue {
     bool NeedsReallocation(int w, int h, int format);
     std::shared_ptr<DrmBuffer> FrontDrmBuffer();
     std::shared_ptr<DrmBuffer> BackDrmBuffer();
-    std::shared_ptr<DrmBuffer> GetLastBuffer(int parent_id);
     std::shared_ptr<DrmBuffer> DequeueDrmBuffer(int w, int h, int format, uint64_t usage, std::string name,
-                                                int parent_id = 0);
+                                                int parent_id = 0, int timeout = 3000);
     int QueueBuffer(const std::shared_ptr<DrmBuffer> buffer);
 
   private:

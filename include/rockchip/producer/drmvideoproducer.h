@@ -46,21 +46,25 @@ class DrmVideoProducer : public Worker {
     // Destory Connection
     int DestoryConnection(int display_id, int tunnel_id);
     // Get Last video buffer
-    std::shared_ptr<DrmBuffer> AcquireBuffer(int display_id, int tunnel_id, vt_rect_t* dis_rect, int timeout_ms,
-                                             bool wait_Fence = true);
-    // Release video buffer
-    int ReleaseBuffer(int display_id, int tunnel_id, uint64_t buffer_id);
-    // Signal buffer's ReleaseFence
-    int SignalReleaseFence(int display_id, int tunnel_id, uint64_t buffer_id);
+    std::shared_ptr<VpComposition> AcquireVpCompositon(int display_id, int tunnel_id, vt_rect_t* dis_rect,
+                                                       int timeout_ms, bool wait_Fence = true);
+    void SignalVpCompositon(int display_id, int tunnel_id);
     int SetProducerFps(int tunnel_id, float fps);
     float GetProducerFps(int tunnel_id);
-    void PrintTimeStamp(int display_id, int tunnel_id, uint64_t buffer_id);
-    int DoTransform(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer, std::set<uint32_t> transforms);
 #ifdef USE_LIBPQ_HWPQ
     std::shared_ptr<DrmBuffer> DoHwPq(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer);
 #endif
 
-    enum ReleaseFenceMode { DisableReleaseFence = 0, EnableReleaseFence = 1 };
+    int ReleaseUnuseTunnel();
+    std::vector<int> GetActiveTunnelIdVector();
+
+    int AcqureBuffer(int tunnel_id);
+    int UpdateTransformCtx(int tunnel_id);
+    int DoTransform(int tunnel_id);
+    void PrintPendingReleaseTunnel();
+
+    void Dump(String8& output);
+    void Dump();
 
   protected:
     void Routine() override;
@@ -74,11 +78,8 @@ class DrmVideoProducer : public Worker {
     int iTunnelFd_;
     std::map<int, std::shared_ptr<VpContext>> mMapCtx_;
     mutable std::mutex mtx_;
-    float uFastestFps_ = 120.0f;
-    ReleaseFenceMode iFenceMode_ = EnableReleaseFence;
     //first:tunnel_id second:retry_counter
     std::vector<int> mPendingReleaseTunnel_;
-    void printPendingReleaseTunnel();
     bool bLastAcquireSucceed = false;
 #ifdef USE_LIBPQ_HWPQ
     std::shared_ptr<Pq> hwpq_ = NULL;

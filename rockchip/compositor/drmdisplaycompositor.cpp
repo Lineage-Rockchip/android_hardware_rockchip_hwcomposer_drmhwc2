@@ -721,9 +721,9 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
         DrmHwcLayer& layer = layers[source_layers.front()];
 
         if (layer.bSidebandStreamLayer_) {
-            if (current_sideband2_.enable_ == true && current_sideband2_.buffer_ != NULL &&
-                current_sideband2_.buffer_->HasHwPqRegs())
-                request_mode_set_.hwpq_regs_ = current_sideband2_.buffer_->GetHwPqRegs();
+            if (current_sideband2_.enable_ == true && current_sideband2_.composition_->GetBuffer() != NULL &&
+                current_sideband2_.composition_->GetBuffer()->HasHwPqRegs())
+                request_mode_set_.hwpq_regs_ = current_sideband2_.composition_->GetBuffer()->GetHwPqRegs();
         } else {
             if (layer.hwPqRegAcquireFence_->wait(100) == 0) {
                 request_mode_set_.hwpq_regs_ = layer.hwPqReg_;
@@ -1146,46 +1146,20 @@ int DrmDisplayCompositor::UpdateSidebandState() {
         return -1;
     }
 
-    // 1. ct != dt, 进入切换逻辑
+    // 记录初次提交的时间戳
+    if (current_sideband2_.composition_ != NULL) {
+        current_sideband2_.composition_->MarkCommitTimestamp();
+    }
+
+    drawing_sideband2_.composition_ = current_sideband2_.composition_;
+    // 尝试释放 VpComposition
+    if (drawing_sideband2_.tunnel_id_ > 0) {
+        dvp->SignalVpCompositon(display_, drawing_sideband2_.tunnel_id_);
+    }
+
+    // tunnel_id 存在变化，则需要断开旧连接
     if (current_sideband2_.tunnel_id_ != drawing_sideband2_.tunnel_id_) {
-        if (current_sideband2_.tunnel_id_ > 0) {
-            //  1-1. 如果 ct > 0, dt == 0 : 开启 sideband
-            if (drawing_sideband2_.tunnel_id_ == 0) {
-                // swap
-                drawing_sideband2_.enable_ = current_sideband2_.enable_;
-                drawing_sideband2_.tunnel_id_ = current_sideband2_.tunnel_id_;
-                drawing_sideband2_.buffer_ = current_sideband2_.buffer_;
-            } else {  //  1-2. 如果 ct > 0, dt > 0 : 切换 sideband
-                // 连接改变，断开连接前，先释放上一帧 ReleaseFence
-                if (drawing_sideband2_.buffer_ != NULL) {
-                    if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
-                                                drawing_sideband2_.buffer_->GetExternalId())) {
-                        HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                                  display_, drawing_sideband2_.buffer_->GetId());
-                    }
-                }
-                // 断开旧连接
-                int ret = dvp->DestoryConnection(display_, drawing_sideband2_.tunnel_id_);
-                if (ret) {
-                    HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
-                              display_, drawing_sideband2_.tunnel_id_);
-                } else {
-                    HWC2_LOGD_IF("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
-                                 display_, drawing_sideband2_.tunnel_id_);
-                }
-                drawing_sideband2_.enable_ = current_sideband2_.enable_;
-                drawing_sideband2_.tunnel_id_ = current_sideband2_.tunnel_id_;
-                drawing_sideband2_.buffer_ = current_sideband2_.buffer_;
-            }
-        } else {  //  1-3. 如果 ct == 0 , dt > 0 : 关闭 sideband
-            if (drawing_sideband2_.buffer_ != NULL) {
-                if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
-                                            drawing_sideband2_.buffer_->GetExternalId())) {
-                    HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                              display_, drawing_sideband2_.buffer_->GetId());
-                }
-            }
-            // 断开旧连接
+        if (drawing_sideband2_.tunnel_id_ > 0) {
             int ret = dvp->DestoryConnection(display_, drawing_sideband2_.tunnel_id_);
             if (ret) {
                 HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.", display_,
@@ -1194,29 +1168,11 @@ int DrmDisplayCompositor::UpdateSidebandState() {
                 HWC2_LOGD_IF("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " Success.",
                              display_, drawing_sideband2_.tunnel_id_);
             }
-            drawing_sideband2_.enable_ = current_sideband2_.enable_;
-            drawing_sideband2_.tunnel_id_ = current_sideband2_.tunnel_id_;
-            drawing_sideband2_.buffer_ = current_sideband2_.buffer_;
         }
-    } else if (current_sideband2_.tunnel_id_ > 0) {  // 2. ct == dt, 进入送显逻辑
-        //打印当期帧送显时间戳
-        if (current_sideband2_.buffer_ != NULL)
-            dvp->PrintTimeStamp(display_, current_sideband2_.tunnel_id_, current_sideband2_.buffer_->GetExternalId());
-        // 若上一帧已显示完成，且当前帧与上一帧不同
-        if (drawing_sideband2_.buffer_ != NULL && drawing_sideband2_.buffer_ != current_sideband2_.buffer_) {
-            if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
-                                        drawing_sideband2_.buffer_->GetExternalId())) {
-                HWC2_LOGE("SidebandStream: SignalReleaseFence fail, last buffer id=%" PRIu64,
-                          drawing_sideband2_.buffer_->GetId());
-            }
-        }
-        drawing_sideband2_.enable_ = current_sideband2_.enable_;
-        drawing_sideband2_.buffer_ = current_sideband2_.buffer_;
     }
 
-    // current_sideband2_.enable_ = false;
-    // current_sideband2_.tunnel_id_ = 0;
-    // current_sideband2_.buffer_ = NULL;
+    drawing_sideband2_.enable_ = current_sideband2_.enable_;
+    drawing_sideband2_.tunnel_id_ = current_sideband2_.tunnel_id_;
     return 0;
 }
 
@@ -1273,7 +1229,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
     // Enable DrmDisplayCompositor sideband2 mode
     current_sideband2_.enable_ = display_comp->has_sideband2();
     current_sideband2_.tunnel_id_ = display_comp->get_sideband_tunnel_id();
-    current_sideband2_.buffer_ = NULL;
+    current_sideband2_.composition_ = NULL;
 
 #ifdef USE_LIBSVEP_MEMC
     current_memc_.enable_ = display_comp->has_memc();
@@ -2561,26 +2517,9 @@ void DrmDisplayCompositor::ClearDisplay() {
         HWC2_LOGE_IF("SidebandStream: DrmVideoProducer is invalidate.");
     } else {
         if (current_sideband2_.enable_ || drawing_sideband2_.enable_) {
-            if (drawing_sideband2_.buffer_ != NULL) {
-                // 释放上一帧 ReleaseFence
-                if (dvp->SignalReleaseFence(display_, drawing_sideband2_.tunnel_id_,
-                                            drawing_sideband2_.buffer_->GetExternalId())) {
-                    HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                              display_, drawing_sideband2_.buffer_->GetId());
-                }
-            }
-
-            // 当前帧存在 Sideband Stream Buffer
-            if (current_sideband2_.enable_ && current_sideband2_.buffer_ != NULL) {
-                // 释放上一帧 ReleaseFence
-                if (dvp->SignalReleaseFence(display_, current_sideband2_.tunnel_id_,
-                                            current_sideband2_.buffer_->GetExternalId())) {
-                    HWC2_LOGE("SidebandStream: display-id=%d SignalReleaseFence fail, last buffer id=%" PRIu64,
-                              display_, current_sideband2_.buffer_->GetId());
-                }
-            }
-
             if (current_sideband2_.tunnel_id_ > 0) {
+                current_sideband2_.composition_ = NULL;
+                dvp->SignalVpCompositon(display_, current_sideband2_.tunnel_id_);
                 int ret = dvp->DestoryConnection(display_, current_sideband2_.tunnel_id_);
                 if (ret) {
                     HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
@@ -2590,11 +2529,12 @@ void DrmDisplayCompositor::ClearDisplay() {
                               display_, current_sideband2_.tunnel_id_);
                 }
                 current_sideband2_.enable_ = false;
-                current_sideband2_.buffer_ = NULL;
                 current_sideband2_.tunnel_id_ = 0;
             }
 
             if (drawing_sideband2_.tunnel_id_ > 0) {
+                drawing_sideband2_.composition_ = NULL;
+                dvp->SignalVpCompositon(display_, drawing_sideband2_.tunnel_id_);
                 int ret = dvp->DestoryConnection(display_, drawing_sideband2_.tunnel_id_);
                 if (ret) {
                     HWC2_LOGE("SidebandStream: display-id=%d DestoryConnection old tunnel-id=%" PRIu64 " fail.",
@@ -2604,7 +2544,6 @@ void DrmDisplayCompositor::ClearDisplay() {
                               display_, drawing_sideband2_.tunnel_id_);
                 }
                 drawing_sideband2_.enable_ = false;
-                drawing_sideband2_.buffer_ = NULL;
                 drawing_sideband2_.tunnel_id_ = 0;
             }
         }
@@ -2918,7 +2857,12 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
             if (layer.bSidebandStreamLayer_) {
                 DrmVideoProducer* dvp = DrmVideoProducer::getInstance();
 
-                ret = dvp->CreateConnection(display_, layer.iTunnelId_, layer.eDataSpace_, layer.transform);
+                uint32_t transform = layer.transform;
+                if (layer.bUseSr_) {
+                    transform |= DRM_MODE_POST_PROCESS_SR;
+                }
+
+                ret = dvp->CreateConnection(display_, layer.iTunnelId_, layer.eDataSpace_, transform);
                 if (ret < 0) {
                     HWC2_LOGI("SidebandStream: display-id=%d CreateConnection fail, iTunnelId = %d", display_,
                               layer.iTunnelId_);
@@ -2946,57 +2890,57 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     need_wait_fence = true;
                 }
                 //HWC2_LOGD_IF("DVP AcquireBuffer with acquire_fence_en:%d,display_refresh:%f,ProducerFps:%f",acquire_fence_en,display_refresh,producer_fps);
-                std::shared_ptr<DrmBuffer> buffer =
-                        dvp->AcquireBuffer(display_, layer.iTunnelId_, &dis_rect, 0, need_wait_fence);
-                if (buffer == NULL) {
+                std::shared_ptr<VpComposition> vp_composition =
+                        dvp->AcquireVpCompositon(display_, layer.iTunnelId_, &dis_rect, 0, need_wait_fence);
+                if (vp_composition == NULL) {
                     HWC2_LOGW_IF("SidebandStream: display-id=%d AcquireBuffer fail, iTunnelId = %d", display_,
                                  layer.iTunnelId_);
                     continue;
                 }
 
-                hnd_buffer_id = buffer->GetExternalId();
-                buffer_id = buffer->GetBufferId();
+                hnd_buffer_id = vp_composition->GetBuffer()->GetExternalId();
+                buffer_id = vp_composition->GetBuffer()->GetBufferId();
 #ifdef RK3528
                 if (layer.bNeedPreScale_) {
-                    ret = buffer->SwitchToPreScaleBuffer();
+                    ret = vp_composition->GetBuffer() SwitchToPreScaleBuffer();
                     if (ret) {
                         HWC2_LOGW_IF("SidebandStream: SwitchToPreScaleBuffer fail, iTunnelId = %d", layer.iTunnelId_);
                     } else {
                         // 更新 sideband Buffer 参数
-                        fb_id = buffer->GetPreScaleFbId();
+                        fb_id = vp_composition->GetBuffer()->GetPreScaleFbId();
                         yuv = layer.bYuv_;
-                        afbcd = buffer->GetModifier() > 0;
+                        afbcd = vp_composition->GetBuffer()->GetModifier() > 0;
                         int left = 0, top = 0, right = 0, bottom = 0;
-                        buffer->GetCrop(&left, &top, &right, &bottom);
+                        vp_composition->GetBuffer()->GetCrop(&left, &top, &right, &bottom);
                         source_crop.left = (float)left;
                         source_crop.top = (float)top;
                         source_crop.right = (float)right;
                         source_crop.bottom = (float)bottom;
 
-                        layer.sf_handle = buffer->GetHandle();
+                        layer.sf_handle = vp_composition->GetBuffer()->GetHandle();
                         layer.bIsPreScale_ = true;
                     }
                 } else
 #endif
                 {
                     // 更新 sideband Buffer 参数
-                    fb_id = buffer->GetFbId();
+                    fb_id = vp_composition->GetBuffer()->GetFbId();
                     yuv = layer.bYuv_;
-                    afbcd = buffer->GetModifier() > 0;
+                    afbcd = vp_composition->GetBuffer()->GetModifier() > 0;
                     int left = 0, top = 0, right = 0, bottom = 0;
-                    buffer->GetCrop(&left, &top, &right, &bottom);
+                    vp_composition->GetBuffer()->GetCrop(&left, &top, &right, &bottom);
                     source_crop.left = (float)left;
                     source_crop.top = (float)top;
                     source_crop.right = (float)right;
                     source_crop.bottom = (float)bottom;
 
-                    layer.sf_handle = buffer->GetHandle();
+                    layer.sf_handle = vp_composition->GetBuffer()->GetHandle();
                 }
 
                 // 更新Sideband请求状态状态
                 current_sideband2_.enable_ = true;
                 current_sideband2_.tunnel_id_ = layer.iTunnelId_;
-                current_sideband2_.buffer_ = buffer;
+                current_sideband2_.composition_ = vp_composition;
 
                 // RK3528 更新HDR信息, 若无报错，则使用 metadata Hdr模式
 #if defined(USE_VIVID_HDR) && USE_VIVID_HDR
@@ -4020,7 +3964,7 @@ int DrmDisplayCompositor::WriteBackByRGA() {
         return 0;
     }
 
-    if (current_sideband2_.buffer_ != NULL) {
+    if (current_sideband2_.composition_ != NULL) {
         sideband_update = true;
     }
 
@@ -4125,10 +4069,10 @@ int DrmDisplayCompositor::WriteBackByRGA() {
 
                 if (layer.bSidebandStreamLayer_) {
                     std::shared_ptr<DrmBuffer> avtive_buffer = NULL;
-                    if (current_sideband2_.buffer_ != NULL) {
-                        avtive_buffer = current_sideband2_.buffer_;
-                    } else if (drawing_sideband2_.buffer_ != NULL) {
-                        avtive_buffer = drawing_sideband2_.buffer_;
+                    if (current_sideband2_.composition_ != NULL) {
+                        avtive_buffer = current_sideband2_.composition_->GetBuffer();
+                    } else if (drawing_sideband2_.composition_ != NULL) {
+                        avtive_buffer = drawing_sideband2_.composition_->GetBuffer();
                     }
 
                     if (avtive_buffer == NULL) {
@@ -4928,6 +4872,11 @@ void DrmDisplayCompositor::Dump(String8& output) const {
         for (auto& active_compositon : active_composition_map_) {
             active_compositon.second->Dump(output);
         }
+    }
+
+    if (current_sideband2_.enable_ || drawing_sideband2_.enable_) {
+        DrmVideoProducer* dvp = DrmVideoProducer::getInstance();
+        dvp->Dump(output);
     }
 
     pthread_mutex_unlock(&lock_);

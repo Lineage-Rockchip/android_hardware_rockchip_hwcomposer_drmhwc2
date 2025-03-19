@@ -67,7 +67,7 @@ std::shared_ptr<DrmBuffer> DrmBufferQueue::BackDrmBuffer() {
 }
 
 std::shared_ptr<DrmBuffer> DrmBufferQueue::DequeueDrmBuffer(int w, int h, int format, uint64_t usage, std::string name,
-                                                            int parent_id) {
+                                                            int parent_id, int timeout) {
     HWC2_LOGV_IF("w=%d, h=%d, format=%d usage=0x%" PRIx64 " name=%s", w, h, format, usage, name.c_str());
     if (bufferQueue_.size() == iMaxBufferSize_) {
         currentBuffer_ = bufferQueue_.front();
@@ -81,8 +81,12 @@ std::shared_ptr<DrmBuffer> DrmBufferQueue::DequeueDrmBuffer(int w, int h, int fo
             HWC2_LOGV_IF(" NeedsReallocation sucess! w=%d h=%d format=%d name=%s", w, h, format, name.c_str());
             return currentBuffer_;
         }
-        currentBuffer_->WaitReleaseFence();
-        currentBuffer_->WaitFinishFence();
+        if (currentBuffer_->WaitReleaseFence(timeout)) {
+            return NULL;
+        }
+        if (currentBuffer_->WaitFinishFence(timeout)) {
+            return NULL;
+        }
         currentBuffer_->SetParentId(parent_id);
         HWC2_LOGV_IF("Id=%" PRIu64 " fd=%d Buffer=%p, queue.size()=%zu, dequeue success!", currentBuffer_->GetId(),
                      currentBuffer_->GetFd(), currentBuffer_.get(), bufferQueue_.size());

@@ -27,6 +27,7 @@
 #include "drmbuffer.h"
 #include "rockchip/drmgralloc.h"
 #include "rockchip/producer/videotunnel/video_tunnel.h"
+#include "rockchip/producer/VpTransformContext.h"
 #include "utils/drmfence.h"
 
 namespace android {
@@ -34,10 +35,7 @@ namespace android {
 class VpBufferInfo {
   public:
     VpBufferInfo(vt_buffer_t* vp_buffer, std::shared_ptr<DrmBuffer> drm_buffer)
-        : pVpBuffer_(vp_buffer), mDrmBuffer_(drm_buffer), mReleaseFence_(ReleaseFence::NO_FENCE) {
-        mReleaseRefCnt_.clear();
-        mAcquireFence_ = NULL;
-    };
+        : pVpBuffer_(vp_buffer), mDrmBuffer_(drm_buffer) {};
 
     ~VpBufferInfo() {};
     VpBufferInfo(const VpBufferInfo& rhs) = delete;
@@ -59,128 +57,9 @@ class VpBufferInfo {
         return mDrmBuffer_;
     }
 
-    // Add ref cnt
-    void AddReleaseRefCnt(int display_id) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        mReleaseRefCnt_.insert(display_id);
-        if (mReleaseFence_ != NULL) {
-            HWC2_LOGV_IF("Add refCnt display-id=%d Name=%s", display_id, mReleaseFence_->getName().c_str());
-        }
-    }
-
-    // Get ReleaseFence
-    void SetReleaseFence(sp<ReleaseFence> release_fence) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        mReleaseFence_ = release_fence;
-    }
-
-    // Get ReleaseFence
-    sp<ReleaseFence> GetReleaseFence() const {
-        std::lock_guard<std::mutex> lock(mtx_);
-        return mReleaseFence_;
-    }
-
-    // Get ReleaseFence
-    int SignalReleaseFence(int display_id) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        mReleaseRefCnt_.erase(display_id);
-        // 若ReleaseFence引用计数为0，则释放ReleaseFence
-        if (mReleaseFence_ != NULL) {
-            if (mReleaseRefCnt_.size() == 0) {
-                int act = mReleaseFence_->getActiveCount();
-                int sig = mReleaseFence_->getSignaledCount();
-                mReleaseFence_->signal();
-                ALOGD_IF(LogLevel(DBG_DEBUG),
-                         "ReleaseFence Signal %s Name=%s display_id=%d Info: size=%d act=%d signal=%d err=%d "
-                         "SignalTime=%s, %s,line=%d",
-                         (act == 1 && sig == 0 && mReleaseFence_->getActiveCount() == 0 &&
-                          mReleaseFence_->getSignaledCount() == 1)
-                                 ? "Sucess"
-                                 : "Fail",
-                         mReleaseFence_->getName().c_str(), display_id, mReleaseFence_->getSize(),
-                         mReleaseFence_->getActiveCount(), mReleaseFence_->getSignaledCount(),
-                         mReleaseFence_->getErrorCount(), mReleaseFence_->dump().c_str(), __FUNCTION__, __LINE__);
-                mReleaseFence_ = NULL;
-            } else {
-                ALOGD_IF(LogLevel(DBG_DEBUG),
-                         "ReleaseFence Name=%s ref_count=%zu > 0, display_id=%d no need to signal, %s,line=%d",
-                         mReleaseFence_->getName().c_str(), mReleaseRefCnt_.size(), display_id, __FUNCTION__, __LINE__);
-            }
-        }
-        return 0;
-    }
-
-    void SetAcqurieFence(sp<AcquireFence> acquireFence) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        //HWC2_LOGD_IF("set");
-        mAcquireFence_ = acquireFence;
-    }
-
-    int WaitAcquireFence(int timeout) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (mAcquireFence_ && mAcquireFence_->isValid()) {
-            //HWC2_LOGD_IF("wait for %d ms",timeout);
-            return mAcquireFence_->wait(timeout);
-        }
-        return 0;
-    }
-
-    int CloseAcquireFence() {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (mAcquireFence_ && mAcquireFence_->isValid()) {
-            //HWC2_LOGD_IF("close");
-            mAcquireFence_ = NULL;
-        }
-        return 0;
-    }
-
-    int DupAcquireFence() {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (mAcquireFence_ && mAcquireFence_->isValid()) {
-            return dup(mAcquireFence_->getFd());
-        }
-        return -1;
-    }
-
-    void SetPqAcqurieFence(sp<AcquireFence> acquireFence) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        //HWC2_LOGD_IF("set");
-        mPqReleaseFence_ = acquireFence;
-    }
-
-    int WaitPqAcquireFence(int timeout) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (mPqReleaseFence_ && mPqReleaseFence_->isValid()) {
-            //HWC2_LOGD_IF("wait for %d ms",timeout);
-            return mPqReleaseFence_->wait(timeout);
-        }
-        return 0;
-    }
-
-    int PrintTimestamp(int display_id) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        int64_t mCommitFrameTimestamp_ = ts.tv_sec * 1000 * 1000 + ts.tv_nsec / 1000;
-
-        HWC2_LOGD_IF("display_id=%d hnd_buffer_id=0x%" PRIx64 " buffer_id=0x%" PRIx64 " Queue->Acquire=%" PRIi64
-                     "us Queue->Commit=%" PRIi64 "us",
-                     display_id, mDrmBuffer_->GetExternalId(), mDrmBuffer_->GetBufferId(),
-                     (iAcquireTimestamp_ - iQueuedTimestamp_), (mCommitFrameTimestamp_ - iQueuedTimestamp_));
-
-        return 0;
-    }
-
-    int64_t iAcquireTimestamp_;
-    int64_t iQueuedTimestamp_;
-
   private:
     vt_buffer_t* pVpBuffer_;
     std::shared_ptr<DrmBuffer> mDrmBuffer_;
-    sp<ReleaseFence> mReleaseFence_;
-    sp<AcquireFence> mAcquireFence_;
-    sp<AcquireFence> mPqReleaseFence_ = AcquireFence::NO_FENCE;
-    std::set<int> mReleaseRefCnt_;
     mutable std::mutex mtx_;
 };
 
@@ -189,6 +68,7 @@ class VpContext {
   public:
     VpContext(int tunnel_id);
     ~VpContext();
+    int ReleaseResources();
 
     // Get tunnel fd
     int GetTunnelId();
@@ -204,81 +84,40 @@ class VpContext {
     vt_buffer_t* GetVpBufferInfo(uint64_t buffer_id);
     // Release VpBuffer
     int ReleaseBufferInfo(uint64_t buffer_id);
-    // Get Last Buffer Id
-    uint64_t GetLastHandleBufferId();
-    // Get Last Buffer cache
-    std::shared_ptr<DrmBuffer> GetLastBufferCache(uint64_t buffer_id);
-    // Add ReleaseFence
-    int AddReleaseFence(uint64_t buffer_id);
-    // Add ReleaseFenceRefCnt
-    int AddReleaseFenceRefCnt(int display_id, uint64_t buffer_id);
-    // Get ReleaseFence
-    sp<ReleaseFence> GetReleaseFence(uint64_t buffer_id);
-    // Signal ReleaseFence
-    int SignalReleaseFence(int display_id, uint64_t buffer_id);
-    // Record timestamp
-    int SetTimeStamp(uint64_t buffer_id, int64_t queue_time);
-    // Get queue timestamp
-    int64_t GetQueueTime();
-    // Record timestamp
-    int64_t GetAcquireTime();
-    // Print timestamp
-    int VpPrintTimestamp(int display_id, int64_t buffer_id);
 
-    int SetAcquireFence(uint64_t buffer_id, int fence_fd);
-    int WaitAcquireFence(uint64_t buffer_id, int time);
-    int CloseAcquireFence(uint64_t buffer_id);
-    int DupAcquireFence(uint64_t buffer_id);
+    // 设置/获取变换配置
+    void SetTransform(int display_id, uint32_t transform) { mMapTransform_[display_id] = transform; }
+    uint32_t GetTransform(int display_id);
+    void SetProducerFps(float fps) { mFps_ = fps; }
+    float GetProducerFps() { return mFps_; }
 
-    int SetPqAcquireFence(uint64_t buffer_id, int fence_fd);
-    int WaitPqAcquireFence(uint64_t buffer_id, int time);
+    void SetDataspace(android_dataspace_t dataspace) { iDataSpace_ = dataspace; }
+    android_dataspace_t GetDataspace() { return iDataSpace_; }
 
-    void SetTransform(int display_id, uint32_t transform) { mTransform_[display_id] = transform; }
-    uint32_t GetTransform(int display_id) {
-        if (mTransform_.count(display_id))
-            return mTransform_[display_id];
-        else
-            return DRM_MODE_ROTATE_0;
-    }
+    std::string TransformToString(uint32_t transform) const;
 
-    std::list<std::shared_ptr<DrmBuffer>> lBuffer_;
-
-    //BufferQueue for DoTransform, only access in routine thread, do not need lock.
-    std::map<uint32_t /*DRM_MODE_ROTATE*/, std::shared_ptr<DrmBufferQueue>> mapTransformBufferQueue_;
-
-    //Transform of displays, must lock before read/write.
-    std::map<int /*display_id*/, uint32_t /*DRM_MODE_ROTATE*/> mTransform_;
-
-    //List of rotated buffer, must lock before read/write.
-    std::map<uint32_t /*DRM_MODE_ROTATE*/, std::list<std::shared_ptr<DrmBuffer>>> mTransfromBuffers_;
-
-    void SetProducerFps(float fps) { fps_ = fps; }
-
-    float GetProducerFps() { return fps_; }
     std::vector<uint64_t> mReleaseFailedBuffer_;
 
     void PrintReleaseFailedBuffer();
+    void Dump(String8& output);
 
-    android_dataspace_t iDataSpace_ = HAL_DATASPACE_UNKNOWN;
-
-    uint64_t GetFrameNo() { return uFrameNo_; }
+    // 顺序存储从驱动获取的图像数据
+    std::shared_ptr<VpComposition> mLatestR0Composition_;
+    // Transform of displays, must lock before read/write.
+    std::map<int /*display_id*/, uint32_t /*DRM_MODE_ROTATE*/> mMapTransform_;
+    // 保存 VpTransformContext map结构
+    std::map<uint32_t /*DRM_MODE_ROTATE*/, std::shared_ptr<VpTransformContext>> mMapVpTransformCtx_;
+    // 需要释放的 VpTransformContext
+    std::vector<std::shared_ptr<VpTransformContext>> mNeedReleaseCtx_;
 
   private:
     DrmGralloc* mDrmGralloc_;
     int iTunnelId_;
-    uint64_t uFrameNo_;
     std::map<int, std::shared_ptr<VpBufferInfo>> mMapBuffer_;
-    int64_t mQueueFrameTimestamp_;
-    int64_t mAcquireFrameTimestamp_;
-    int64_t mCommitFrameTimestamp_;
-    uint64_t mLastHandleBufferId_;
-
     std::set<int> refDpyConnection_;
-
-    SyncTimeline mTimeLine_;
+    float mFps_ = 60;
+    android_dataspace_t iDataSpace_ = HAL_DATASPACE_UNKNOWN;
     mutable std::mutex mtx_;
-    float fps_ = 60;
-    uint32_t uTransform_ = DRM_MODE_ROTATE_0;
 };
 };  // namespace android
 

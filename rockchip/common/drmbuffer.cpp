@@ -525,10 +525,10 @@ int DrmBuffer::SetFinishFence(int fence) {
 
     //if iFinishFence_ present, wait and close it.
     if (iFinishFence_.get() > 0) {
-        int ret = sync_wait(iFinishFence_.get(), 1500);
+        int ret = sync_wait(iFinishFence_.get(), 3000);
         iFinishFence_.Close();
         if (ret) {
-            HWC2_LOGE("Failed to wait for finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
+            HWC2_LOGE("Failed to wait for finish fence %d/%d 3000ms", iFinishFence_.get(), ret);
             return -1;
         }
     }
@@ -537,20 +537,37 @@ int DrmBuffer::SetFinishFence(int fence) {
     return 0;
 }
 
-int DrmBuffer::WaitFinishFence() {
+int DrmBuffer::MergeFinishFence(int fence) {
     std::lock_guard<std::mutex> lk(mtx_);
+    int merge_fd = fence;
+    if (iFinishFence_.get() > 0) {
+        int fd = sync_merge("DrmbufferMergeFence", fence, iFinishFence_.get());
+        if (fd > 0) {
+            close(fence);
+            fence = -1;
+            iFinishFence_.Close();
+            merge_fd = fd;
+        }
+    }
+    iFinishFence_.Set(merge_fd);
+    return 0;
+}
+
+int DrmBuffer::WaitFinishFence(int timeout_ms) {
     int ret = 0;
     if (iFinishFence_.get() > 0) {
-        ret = sync_wait(iFinishFence_.get(), 1500);
+        ret = sync_wait(iFinishFence_.get(), timeout_ms);
         if (ret) {
-            HWC2_LOGE("Failed to wait for RGA finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
+            if (timeout_ms > 0) {
+                HWC2_LOGE("Failed to wait for finish fence %d/%d %dms", iFinishFence_.get(), ret, timeout_ms);
+            }
         }
-        iFinishFence_.Close();
     }
     return ret;
 }
 
 int DrmBuffer::GetReleaseFence() {
+    std::lock_guard<std::mutex> lk(mtx_);
     return iReleaseFence_.Dup();
 }
 
@@ -560,15 +577,16 @@ int DrmBuffer::SetReleaseFence(int fence) {
     return 0;
 }
 
-int DrmBuffer::WaitReleaseFence() {
-    std::lock_guard<std::mutex> lk(mtx_);
+int DrmBuffer::WaitReleaseFence(int timeout_ms) {
     int ret = 0;
     if (iReleaseFence_.get() > 0) {
-        ret = sync_wait(iReleaseFence_.get(), 1500);
+        ret = sync_wait(iReleaseFence_.get(), timeout_ms);
         if (ret) {
-            HWC2_LOGE("Failed to wait for RGA finish fence %d/%d 1500ms", iReleaseFence_.get(), ret);
+            if (timeout_ms > 0) {
+                HWC2_LOGE("Failed to wait BufferId=0x%" PRIx64 " for release fence %d/%d %dms", uBufferId_,
+                          iFinishFence_.get(), ret, timeout_ms);
+            }
         }
-        iReleaseFence_.Close();
     }
     return ret;
 }
@@ -583,9 +601,9 @@ int DrmBuffer::DumpData(uint32_t frame_no, int zpos, const char* tag) {
 
     //if iFinishFence_ present, wait and close it.
     if (iFinishFence_.get() > 0) {
-        ret = sync_wait(iFinishFence_.get(), 1500);
+        ret = sync_wait(iFinishFence_.get(), 3000);
         if (ret) {
-            HWC2_LOGE("Failed to wait for finish fence %d/%d 1500ms", iFinishFence_.get(), ret);
+            HWC2_LOGE("Failed to wait for finish fence %d/%d 3000ms", iFinishFence_.get(), ret);
         }
         iFinishFence_.Close();
     }

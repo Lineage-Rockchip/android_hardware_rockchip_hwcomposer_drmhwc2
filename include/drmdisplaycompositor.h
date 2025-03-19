@@ -22,6 +22,8 @@
 #include "drmframebuffer.h"
 #include "drmlayer.h"
 #include "resources/resourcemanager.h"
+#include "utils/drmfence.h"
+#include "rockchip/producer/VpTransformContext.h"
 #include "vsyncworker.h"
 #ifdef USE_LIBPQ
 #include "rkpq.h"
@@ -106,7 +108,7 @@ class DrmDisplayCompositor {
     struct SidebandState {
         bool enable_ = false;
         uint64_t tunnel_id_ = 0;
-        std::shared_ptr<DrmBuffer> buffer_ = NULL;
+        std::shared_ptr<VpComposition> composition_ = NULL;
     };
 
 #ifdef USE_LIBSVEP_MEMC

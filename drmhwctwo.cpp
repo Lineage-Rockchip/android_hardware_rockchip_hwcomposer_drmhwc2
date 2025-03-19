@@ -1661,7 +1661,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
     // 遍历所有删除 bBackgroundSkip_ = true 的图层，并重新排序
     auto it = std::remove_if(drm_hwc_layers_.begin(), drm_hwc_layers_.end(), [](const DrmHwcLayer& layer) {
         if (layer.bBackgroundSkip_) {
-            HWC2_LOGI("Delete Background Skip Layer, id=%d, z_order=%d", layer.uId_, layer.iZpos_);
+            // HWC2_LOGI("Delete Background Skip Layer, id=%d, z_order=%d", layer.uId_, layer.iZpos_);
             return true;
         }
         return false;
@@ -3081,9 +3081,6 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
         return HWC2::Error::None;
     }
 
-    // update sideband mode
-    UpdateSidebandMode();
-
     *num_types = 0;
     *num_requests = 0;
 
@@ -3113,6 +3110,9 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
         return HWC2::Error::BadConfig;
     }
 
+    // update sideband mode
+    UpdateSidebandMode();
+    // update hdr states
     SwitchHdrMode();
     // Static screen opt
     UpdateTimerEnable();
@@ -3519,7 +3519,7 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayLayersInfo(String8& output) {
         }
     }
     // clang-format off
-  output.append("------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
+    output.append("------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
 
     // clang-format on
     return 0;
@@ -3553,7 +3553,7 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayLayersInfo() {
     }
     output.clear();
     // clang-format off
-  output.append("------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
+    output.append("------+-----+-----------+-----------+--------------------+-------------+------------+--------------------------------+------------------------+------------+--------+------------\n");
     // clang-format on
     ALOGD("%s", output.c_str());
     return 0;
@@ -4949,11 +4949,11 @@ void DrmHwcTwo::HwcLayer::PopulateSidebandLayer(DrmHwcLayer* drmHwcLayer, hwc2_d
             drmHwcLayer->iWidth_ = mSidebandInfo_.crop.right - mSidebandInfo_.crop.left;
             drmHwcLayer->iHeight_ = mSidebandInfo_.crop.bottom - mSidebandInfo_.crop.top;
             drmHwcLayer->iStride_ = mSidebandInfo_.crop.right - mSidebandInfo_.crop.left;
-            ;
             drmHwcLayer->iFormat_ = mSidebandInfo_.format;
             drmHwcLayer->iUsage = mSidebandInfo_.usage;
             drmHwcLayer->iHeightStride_ = mSidebandInfo_.crop.bottom - mSidebandInfo_.crop.top;
             drmHwcLayer->uFourccFormat_ = drmGralloc_->hwc_get_fourcc_from_hal_format(mSidebandInfo_.format);
+            drmHwcLayer->fFps_ = mSidebandInfo_.fps;
             drmHwcLayer->bSideband2_ = true;
             // 通过 Sideband Handle compress_mode 来判断图层是否为AFBC压缩格式
             if (mSidebandInfo_.compress_mode > 0) {

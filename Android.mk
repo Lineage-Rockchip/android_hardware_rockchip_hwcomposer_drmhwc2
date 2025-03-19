@@ -82,6 +82,9 @@ LOCAL_SHARED_LIBRARIES := \
   librga \
   libbase
 
+# LOCAL_SHARED_LIBRARIES += \
+#   libutilscallstack
+
 LOCAL_STATIC_LIBRARIES := \
   libdrmhwcutils
 
@@ -144,7 +147,8 @@ LOCAL_SRC_FILES := \
   rockchip/common/drmbuffer.cpp \
   rockchip/common/hdr/drmhdrparser.cpp \
   rockchip/producer/drmvideoproducer.cpp \
-  rockchip/producer/vpcontext.cpp
+  rockchip/producer/vpcontext.cpp \
+  rockchip/producer/VpTransformContext.cpp
 
 
 LOCAL_CPPFLAGS += \
@@ -305,7 +309,7 @@ LOCAL_CPPFLAGS += \
 endif
 
 # SR
-# BOARD_USES_LIBSVEP := true
+BOARD_USES_LIBSVEP := true
 ifeq ($(strip $(BOARD_USES_LIBSVEP)),true)
 BOARD_USES_LIBSVEP_SR := true
 endif
