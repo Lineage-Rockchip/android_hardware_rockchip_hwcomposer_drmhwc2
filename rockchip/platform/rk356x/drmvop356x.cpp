@@ -95,7 +95,10 @@ int Vop356x::InitSvep() {
         mSrSupportScale_ = true;
     }
 
-    HWC2_LOGI("Init SVEP verison=%s SupportScale=%d", SR_VERSION SVEPSR_VERSION_SUFFIX, mSrSupportScale_);
+    mAutoRleaseSrMem_ = hwc_get_int_property("vendor.hwc.enable_auto_release_sr_mem", "0") > 0;
+
+    HWC2_LOGI("Init SVEP verison=%s SupportScale=%d RleaseSrMem=%d", SR_VERSION SVEPSR_VERSION_SUFFIX, mSrSupportScale_,
+              mAutoRleaseSrMem_);
 
     InitSvepSrEnv();
 #endif
@@ -2388,6 +2391,9 @@ int Vop356x::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             return ret;
         }
     } else {
+        if (last_sr_mode && mAutoRleaseSrMem_) {
+            svep_sr_ = std::make_shared<SvepSr>();
+        }
         last_sr_mode = false;
     }
     return -1;

@@ -312,6 +312,7 @@ class Vop3562 : public Planner::PlanStage {
     int last_contrast_offset = 0;
     bool mSrSupportScale_ = false;
     int mSrAuthTimeline_ = 0;
+    bool mAutoRleaseSrMem_ = false;
 #endif
 };
 

@@ -409,6 +409,7 @@ class Vop3576 : public Planner::PlanStage {
     int last_contrast_offset = 0;
     bool mSrSupportScale_ = false;
     int mSrAuthTimeline_ = 0;
+    bool mAutoRleaseSrMem_ = false;
 #endif
 
 #ifdef USE_LIBSVEP_MEMC
