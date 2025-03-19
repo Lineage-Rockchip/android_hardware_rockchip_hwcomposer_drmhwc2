@@ -39,10 +39,7 @@
 #include "drmbufferqueue.h"
 #include "drmdevice.h"
 #include "platform.h"
-
-#ifdef USE_LIBSR
-#include "SvepSr.h"
-#endif
+#include "resources/resourcemanager.h"
 
 #ifdef USE_LIBSVEP_MEMC
 #include "SvepMemc.h"
@@ -238,7 +235,7 @@ class Vop3588 : public Planner::PlanStage {
         : rgaBufferQueue_((std::make_shared<DrmBufferQueue>()))
 #ifdef USE_LIBSR
           ,
-          svep_sr_(std::make_shared<SvepSr>()),
+          svep_sr_(ResourceManager::getInstance()->GetSvepSr()),
           bSrReady_(false),
           bufferQueue_((std::make_shared<DrmBufferQueue>(4)))
 #endif

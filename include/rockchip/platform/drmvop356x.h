@@ -36,14 +36,10 @@
 #ifndef ANDROID_DRM_VOP_356x_H_
 #define ANDROID_DRM_VOP_356x_H_
 
+#include "drmbufferqueue.h"
 #include "drmdevice.h"
 #include "platform.h"
-
-#include "drmbufferqueue.h"
-
-#ifdef USE_LIBSR
-#include "SvepSr.h"
-#endif
+#include "resources/resourcemanager.h"
 
 #include <cutils/properties.h>
 
@@ -208,7 +204,7 @@ class Vop356x : public Planner::PlanStage {
         : rgaBufferQueue_((std::make_shared<DrmBufferQueue>()))
 #ifdef USE_LIBSR
           ,
-          svep_sr_(std::make_shared<SvepSr>()),
+          svep_sr_(ResourceManager::getInstance()->GetSvepSr()),
           bSrReady_(false),
           bufferQueue_((std::make_shared<DrmBufferQueue>(4)))
 #endif

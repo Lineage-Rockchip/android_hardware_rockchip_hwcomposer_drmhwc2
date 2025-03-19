@@ -39,12 +39,10 @@
 #include "drmbufferqueue.h"
 #include "drmdevice.h"
 #include "platform.h"
+#include "resources/resourcemanager.h"
 
 #include <cutils/properties.h>
 
-#ifdef USE_LIBSR
-#include "SvepSr.h"
-#endif
 // define from hardware/rockchip/libgralloc/bifrost/src/mali_gralloc_usages.h
 #ifndef RK_GRALLOC_USAGE_WITHIN_4G
 #define RK_GRALLOC_USAGE_WITHIN_4G (1ULL << 56)
@@ -201,7 +199,7 @@ class Vop3562 : public Planner::PlanStage {
         : rgaBufferQueue_((std::make_shared<DrmBufferQueue>()))
 #ifdef USE_LIBSR
           ,
-          svep_sr_(std::make_shared<SvepSr>()),
+          svep_sr_(ResourceManager::getInstance()->GetSvepSr()),
           bSrReady_(false),
           bufferQueue_((std::make_shared<DrmBufferQueue>(4)))
 #endif

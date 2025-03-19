@@ -259,6 +259,25 @@ bool ResourceManager::GetBlockHotplugInPowerOff() const {
     return mBlockHotplugInPowerOff_;
 }
 
+#ifdef USE_LIBSR
+std::shared_ptr<SvepSr> ResourceManager::GetSvepSr() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mSvepSr_ == nullptr) {
+        mSvepSr_ = std::make_shared<SvepSr>();
+    }
+    return mSvepSr_;
+};
+
+// 主要目的是为了释放旧SvepSr内存
+std::shared_ptr<SvepSr> ResourceManager::ResetAndGetSvepSr() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mSvepSr_ != nullptr) {
+        mSvepSr_ = nullptr;
+    }
+    return GetSvepSr();
+};
+
+#endif
 bool ResourceManager::GetRgaSupportAbove4GB() const {
     if (gIsRK3588() || gIsRK3576())
         return true;

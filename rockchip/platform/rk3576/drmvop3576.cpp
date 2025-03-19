@@ -39,14 +39,13 @@
 #include "rockchip/platform/drmvop3576.h"
 #include <iomanip>
 #include "drmdevice.h"
+#include "rockchip/utils/pqutils.h"
+#include "rockchip/utils/rgautils.h"
 
 #include "im2d.hpp"
 
 #include <drm_fourcc.h>
 #include <log/log.h>
-#include <rockchip/utils/rgautils.h>
-#include "resources/resourcemanager.h"
-#include "rockchip/utils/pqutils.h"
 
 //XML prase
 #include <tinyxml2.h>
@@ -3085,7 +3084,7 @@ int Vop3576::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
         }
     } else {
         if (last_sr_mode && mAutoRleaseSrMem_) {
-            svep_sr_ = std::make_shared<SvepSr>();
+            svep_sr_ = ResourceManager::getInstance()->ResetAndGetSvepSr();
         }
         last_sr_mode = false;
     }
@@ -3146,13 +3145,14 @@ int Vop3576::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     }
 
     // 0. SR模块初始化
+    svep_sr_ = ResourceManager::getInstance()->GetSvepSr();
     if (svep_sr_.get() != NULL) {
         SrError error = svep_sr_->Init(SR_VERSION, true);
         if (error != SrError::None) {
             int auth_timeline = hwc_get_int_property("sys.svep.auth_timeline", "0");
             if (mSrAuthTimeline_ != auth_timeline) {
                 mSrAuthTimeline_ = auth_timeline;
-                svep_sr_ = std::make_shared<SvepSr>();
+                svep_sr_ = ResourceManager::getInstance()->ResetAndGetSvepSr();
                 error = svep_sr_->Init(SR_VERSION, true);
                 if (error != SrError::None) {
                     HWC2_LOGD_IF("Sr Init fail, plase check License.\n");

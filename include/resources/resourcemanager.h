@@ -38,6 +38,10 @@
 #include "rockchip/platform/RkHwcProxyClient.h"
 #endif
 
+#ifdef USE_LIBSR
+#include "SvepSr.h"
+#endif
+
 typedef struct MirrorDisplayInfo {
     uint64_t buffer_id = 0;
     std::string name = std::string("UnSet");
@@ -125,6 +129,10 @@ class ResourceManager {
     std::shared_ptr<SolidColorBuffer> GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h);
     bool GetBlockHotplugInPowerOff() const;
 
+#ifdef USE_LIBSR
+    std::shared_ptr<SvepSr> GetSvepSr();
+    std::shared_ptr<SvepSr> ResetAndGetSvepSr();
+#endif
   private:
     ResourceManager();
     ResourceManager(const ResourceManager&) = delete;
@@ -165,13 +173,9 @@ class ResourceManager {
     DrmMode mWBMode_;
     // WriteBack BufferQueue 信息，用于实现环形缓冲区结构
     std::shared_ptr<DrmBufferQueue> mWriteBackBQ_ = NULL;
-    ;
     std::shared_ptr<DrmBuffer> mResetBackBuffer_ = NULL;
-    ;
     std::shared_ptr<DrmBuffer> mNextWriteBackBuffer_ = NULL;
-    ;
     std::shared_ptr<DrmBuffer> mDrawingWriteBackBuffer_ = NULL;
-    ;
     std::vector<PAIR_ID_BUFFER> mFinishBufferQueue_;
 
     // SolidColor manager
@@ -202,6 +206,10 @@ class ResourceManager {
     // Block hotplug if primary display is powered off
     bool mBlockHotplugInPowerOff_ = false;
 
+#ifdef USE_LIBSR
+    // SVEP SR
+    std::shared_ptr<SvepSr> mSvepSr_ = nullptr;
+#endif
     mutable std::recursive_mutex mRecursiveMutex;
 };
 }  // namespace android

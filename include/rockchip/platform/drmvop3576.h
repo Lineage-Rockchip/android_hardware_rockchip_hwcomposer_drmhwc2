@@ -39,14 +39,11 @@
 #include "drmbufferqueue.h"
 #include "drmdevice.h"
 #include "platform.h"
+#include "resources/resourcemanager.h"
 #include "rockchip/utils/pqutils.h"
 
 #ifdef USE_LIBPQ_HWPQ
 #include "Pq.h"
-#endif
-
-#ifdef USE_LIBSR
-#include "SvepSr.h"
 #endif
 
 #ifdef USE_LIBSVEP_MEMC
@@ -260,7 +257,7 @@ class Vop3576 : public Planner::PlanStage {
 #endif
 #ifdef USE_LIBSR
           ,
-          svep_sr_(std::make_shared<SvepSr>()),
+          svep_sr_(ResourceManager::getInstance()->GetSvepSr()),
           bSrReady_(false),
           bufferQueue_((std::make_shared<DrmBufferQueue>(4)))
 #endif
