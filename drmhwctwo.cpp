@@ -3566,6 +3566,12 @@ int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
             }
         }
 
+        for (auto& drm_layer : drm_hwc_layers_) {
+            if (drm_layer.bBackgraoundLayer_) {
+                drm_layer.DumpData("M");
+            }
+        }
+
         if (iDumpCnt <= 0) {
             int framecnt = hwc_get_int_property("vendor.dump.cnt", "-1");
             if (framecnt > 0) {
@@ -5091,8 +5097,11 @@ void DrmHwcTwo::HwcLayer::PopulateSolidColorLayer(DrmHwcLayer* drmHwcLayer, hwc2
         drmHwcLayer->pBufferInfo_ = NULL;
         mCurrentState.source_crop_.left = 0;
         mCurrentState.source_crop_.top = 0;
-        mCurrentState.source_crop_.right = solid_buffer->GetWidth();
-        mCurrentState.source_crop_.bottom = solid_buffer->GetHeight();
+        //如果目标区域比buffer小，使用目标区域大小避免缩放
+        mCurrentState.source_crop_.right =
+                std::min(solid_buffer->GetWidth(), drmHwcLayer->display_frame.right - drmHwcLayer->display_frame.left);
+        mCurrentState.source_crop_.bottom =
+                std::min(solid_buffer->GetHeight(), drmHwcLayer->display_frame.bottom - drmHwcLayer->display_frame.top);
         drmHwcLayer->SetSourceCrop(mCurrentState.source_crop_);
     } else {
         drmHwcLayer->iFd_ = -1;

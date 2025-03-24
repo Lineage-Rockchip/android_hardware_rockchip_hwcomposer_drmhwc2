@@ -186,7 +186,9 @@ bool Vop3528::IsLayerCombine(DrmHwcLayer* layer_one, DrmHwcLayer* layer_two) {
         (layer_one->bAfbcd_ != layer_two->bAfbcd_) || layer_one->alpha != layer_two->alpha ||
         ((layer_one->bScale_ || layer_two->bScale_) && !ctx.state.bMultiAreaScaleEnable) ||
         IsRec1IntersectRec2(&layer_one->display_frame, &layer_two->display_frame) ||
-        ((layer_one->bBackgraoundLayer_ && layer_two->bBackgraoundLayer_)
+        //纯色图层忽略同行限制的要求：颜色一致且需要内核支持background
+        ((ctx.support.bMultiRegionSupportBackground && layer_one->bBackgraoundLayer_ && layer_two->bBackgraoundLayer_ &&
+          layer_one->uArgbValue_ == layer_two->uArgbValue_)
                  ? false
                  : IsXIntersect(&layer_one->display_frame, &layer_two->display_frame))) {
         HWC2_LOGV_IF("is_layer_combine layer one alpha=%d,is_scale=%d", layer_one->alpha, layer_one->bScale_);
@@ -2130,6 +2132,9 @@ void Vop3528::InitSupportContext(std::vector<PlaneGroup*>& plane_groups, DrmCrtc
     // Update DrmPlane
     UpdateResevedPlane(crtc);
 
+    //是否所有Esmart支持纯色
+    bool multi_region_support_background = true;
+
     for (auto& plane_group : plane_groups) {
         if (plane_group->bReserved) continue;
         for (auto& p : plane_group->planes) {
@@ -2166,7 +2171,13 @@ void Vop3528::InitSupportContext(std::vector<PlaneGroup*>& plane_groups, DrmCrtc
                 if (p->get_hdr2sdr()) ctx.support.iHdrCnt++;
             }
         }
+
+        //检查多区域图层是否支持background
+        if (plane_group->planes.size() >= 2 && plane_group->planes[0]->background_property().id() == 0)
+            multi_region_support_background = false;
     }
+
+    ctx.support.bMultiRegionSupportBackground = multi_region_support_background;
     return;
 }
 

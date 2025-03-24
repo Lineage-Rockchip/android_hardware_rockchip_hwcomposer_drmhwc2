@@ -136,6 +136,8 @@ class Vop3588 : public Planner::PlanStage {
 
         // Reserved DrmPlane
         char arrayReservedPlaneName[PROPERTY_VALUE_MAX] = {0};
+
+        bool bMultiRegionSupportBackground = false;
     } SupCtx;
 
     typedef struct StateContext {
