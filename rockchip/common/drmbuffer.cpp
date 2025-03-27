@@ -631,6 +631,7 @@ int DrmBuffer::SwitchToPreScaleBuffer() {
 
             iWidth_ = metadata->width;
             iHeight_ = metadata->height;
+            iHeightStride_ = metadata->height;
             iStride_ = metadata->pixel_stride;
             iFormat_ = metadata->format;
             iUsage_ = metadata->usage;
