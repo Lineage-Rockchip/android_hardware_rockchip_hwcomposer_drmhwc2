@@ -64,6 +64,8 @@ void Vop3562::Init() {
     ctx.state.bRgaPolicyEnable = true;  //hwc_get_int_property("vendor.hwc.enable_rga_policy","0") > 0;
 
     ctx.state.iVopMaxOverlay4KPlane = hwc_get_int_property("vendor.hwc.vop_max_overlay_4k_plane", "0");
+    // SVEP 配置参数初始化
+    InitSvep();
 }
 
 int Vop3562::InitSvep() {

@@ -68,6 +68,8 @@ void Vop356x::Init() {
 
     memset(ctx.state.accelerate_app_name, 0x00, sizeof(ctx.state.accelerate_app_name));
     hwc_get_string_property("vendor.hwc.accelerate_app_name", "rk_handwrite_sf", ctx.state.accelerate_app_name);
+    // SVEP 配置参数初始化
+    InitSvep();
 }
 
 int Vop356x::InitSvep() {
