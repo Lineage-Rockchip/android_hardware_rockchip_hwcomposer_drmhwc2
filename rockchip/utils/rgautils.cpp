@@ -42,6 +42,7 @@
 #include <rockchip/utils/rgaformats.h>
 #include <rockchip/utils/rgautils.h>
 
+#include <drm_fourcc.h>
 #include <system/graphics.h>
 
 namespace hwc_rga_utils {
@@ -247,6 +248,117 @@ bool isRK3568RGA2SupportFormat(int format) {
     } else {
         return false;
     }
+}
+
+#ifndef ALIGN_DOWN
+#define ALIGN_DOWN(value, base) (value & (~(base - 1)))
+#endif
+
+hwc_frect_t CalculateTransformRect(float srcW, float srcH, hwc_frect_t srcRect, float dstW, float dstH,
+                                   uint32_t transform) {
+    int rotation = 0;
+    bool flipX = false;
+    bool flipY = false;
+    // 处理 transform 信息
+    switch (transform) {
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X:
+            flipX = true;
+            break;
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_Y:
+            flipY = true;
+            break;
+        case DRM_MODE_ROTATE_90:
+            rotation = 90;
+            break;
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y:
+            rotation = 180;
+            break;
+        case DRM_MODE_ROTATE_270:
+            rotation = 270;
+            break;
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_Y | DRM_MODE_ROTATE_90:
+            rotation = 90;
+            flipY = true;
+            break;
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X | DRM_MODE_ROTATE_90:
+            rotation = 90;
+            flipY = true;
+            break;
+        default:
+            rotation = 0;
+    }
+
+    //计算缩放倍数
+    float scaleX = 1.0;
+    float scaleY = 1.0;
+    switch (rotation) {
+        case 90:
+        case 270:
+            scaleX = dstH / srcW;
+            scaleY = dstW / srcH;
+            break;
+        default:
+            scaleX = dstW / srcW;
+            scaleY = dstH / srcH;
+    }
+
+    // 缩放原始区域
+    srcRect.left *= scaleX;
+    srcRect.top *= scaleY;
+    srcRect.right *= scaleX;
+    srcRect.bottom *= scaleY;
+
+    // 处理旋转
+    float newLeft, newTop, newRight, newBottom;
+    switch (rotation) {
+        case 90:
+            newLeft = dstW - srcRect.bottom;
+            newTop = srcRect.left;
+            newRight = dstW - srcRect.top;
+            newBottom = srcRect.right;
+            break;
+        case 180:
+            newLeft = dstW - srcRect.right;
+            newTop = dstH - srcRect.bottom;
+            newRight = dstW - srcRect.left;
+            newBottom = dstH - srcRect.top;
+            break;
+        case 270:
+            newLeft = srcRect.top;
+            newTop = dstH - srcRect.right;
+            newRight = srcRect.bottom;
+            newBottom = dstH - srcRect.left;
+            break;
+        default:
+            newLeft = srcRect.left;
+            newTop = srcRect.top;
+            newRight = srcRect.right;
+            newBottom = srcRect.bottom;
+    }
+
+    // 处理 X 轴翻转
+    if (flipX) {
+        float tmpLeft = dstW - newRight;
+        float tmpRight = dstW - newLeft;
+        newLeft = tmpLeft;
+        newRight = tmpRight;
+    }
+
+    // 处理 Y 轴翻转
+    if (flipY) {
+        float tmpTop = dstH - newBottom;
+        float tmpBottom = dstH - newTop;
+        newTop = tmpTop;
+        newBottom = tmpBottom;
+    }
+
+    int dstLeft = ALIGN_DOWN((int)newLeft, 2);
+    int dstTop = ALIGN_DOWN((int)newTop, 2);
+    int dstRight = ALIGN_DOWN((int)newRight, 2);
+    int dstBottom = ALIGN_DOWN((int)newBottom, 2);
+
+    return {static_cast<float>(dstLeft), static_cast<float>(dstTop), static_cast<float>(dstRight),
+            static_cast<float>(dstBottom)};
 }
 
 };  // namespace hwc_rga_utils

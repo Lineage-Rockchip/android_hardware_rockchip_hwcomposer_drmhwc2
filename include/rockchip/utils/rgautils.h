@@ -1,5 +1,8 @@
 #ifndef RGAUTILS_H
 #define RGAUTILS_H
+
+#include <hardware/hwcomposer2.h>
+
 namespace hwc_rga_utils {
 
 int HwcGetRgaFormat(int format);
@@ -9,6 +12,8 @@ int UnifyAndroidFormatForRK3576(int format);
 bool isRK3576RGA2SupportFormat(int format);
 int UnifyAndroidFormatForRK3568(int format);
 bool isRK3568RGA2SupportFormat(int format);
+hwc_frect_t CalculateTransformRect(float srcW, float srcH, hwc_frect_t srcRect, float dstW, float dstH,
+                                   uint32_t transform);
 
 #ifndef IM_SCHEDULER_RGA2_CORE0
 #define IM_SCHEDULER_RGA2_CORE0 (1 << 2)
@@ -29,5 +34,5 @@ bool isRK3568RGA2SupportFormat(int format);
 #define IM_AFBC32x8_MODE (1 << 5)
 #endif
 
-};  // namespace hwc_rga_utils
+};      // namespace hwc_rga_utils
 #endif  //RGAUTILS_H

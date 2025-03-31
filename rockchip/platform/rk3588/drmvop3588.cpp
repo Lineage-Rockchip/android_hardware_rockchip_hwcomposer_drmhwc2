@@ -2138,10 +2138,21 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                 if (drmLayer->bAfbcd_) src.rd_mode = IM_FBC_MODE;
 
                 // Set src rect info
-                src_rect.x = ALIGN_DOWN((int)drmLayer->source_crop.left, 2);
-                src_rect.y = ALIGN_DOWN((int)drmLayer->source_crop.top, 2);
-                src_rect.width = ALIGN_DOWN((int)(drmLayer->source_crop.right - drmLayer->source_crop.left), 2);
-                src_rect.height = ALIGN_DOWN((int)(drmLayer->source_crop.bottom - drmLayer->source_crop.top), 2);
+                if (yuv_10bit && !drmLayer->bAfbcd_) {
+                    // RGA2要求10bit非压缩图像offset满足64对齐, RGA3要求4对齐
+                    // 因此从src图像取offset满足64对齐且包含source_crop的区域填充到dst_buffer
+                    // 并计算dst_buffer的crop，从而告知VOP从dst_buffer读取数据的区域
+                    // 问题: 原始图像多取了offset向下64对齐的内容, 导致图像经过RGA小倍率缩小+VOP小倍率放大
+                    src_rect.x = ALIGN_DOWN((int)drmLayer->source_crop.left, 64);
+                    src_rect.y = ALIGN_DOWN((int)drmLayer->source_crop.top, 64);
+                    src_rect.width = ALIGN_DOWN((int)(drmLayer->source_crop.right - src_rect.x), 2);
+                    src_rect.height = ALIGN_DOWN((int)(drmLayer->source_crop.bottom - src_rect.y), 2);
+                } else {
+                    src_rect.x = ALIGN_DOWN((int)drmLayer->source_crop.left, 2);
+                    src_rect.y = ALIGN_DOWN((int)drmLayer->source_crop.top, 2);
+                    src_rect.width = ALIGN_DOWN((int)(drmLayer->source_crop.right - drmLayer->source_crop.left), 2);
+                    src_rect.height = ALIGN_DOWN((int)(drmLayer->source_crop.bottom - drmLayer->source_crop.top), 2);
+                }
 
                 // 获取 rga dst hanlde
                 rga_buffer_handle_t dst_handle = dst_buffer->GetRgaHandle();
@@ -2250,17 +2261,39 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                     break;
                 }
 
-                hwc_frect_t source_crop;
-                source_crop.left = dst_rect.x;
-                source_crop.top = dst_rect.y;
-                source_crop.right = dst_rect.x + dst_rect.width;
-                source_crop.bottom = dst_rect.y + dst_rect.height;
+                hwc_frect_t new_source_crop;
+                if (yuv_10bit && !drmLayer->bAfbcd_) {
+                    // crop 修正 new_source_crop ，实际为RGA输入的 crop 信息
+                    hwc_frect_t tmp_source_crop;
+                    tmp_source_crop.left = drmLayer->source_crop.left - (float)src_rect.x;
+                    tmp_source_crop.top = drmLayer->source_crop.top - (float)src_rect.y;
+                    tmp_source_crop.right = drmLayer->source_crop.right - (float)src_rect.x;
+                    tmp_source_crop.bottom = drmLayer->source_crop.bottom - (float)src_rect.y;
+                    // 重新计算10bit格式Rect
+                    // new_10bit_source_crop.right 即等于RGA的输入宽度，结合RGA的输出宽度，用于计算缩放系数
+                    hwc_frect_t new_rect = hwc_rga_utils::CalculateTransformRect(
+                            tmp_source_crop.right, tmp_source_crop.bottom, tmp_source_crop, dst_rect.width,
+                            dst_rect.height, drmLayer->transform);
+                    new_source_crop.left = new_rect.left;
+                    new_source_crop.top = new_rect.top;
+                    new_source_crop.right = new_rect.right;
+                    new_source_crop.bottom = new_rect.bottom;
+                } else {
+                    new_source_crop.left = dst_rect.x;
+                    new_source_crop.top = dst_rect.y;
+                    new_source_crop.right = dst_rect.x + dst_rect.width;
+                    new_source_crop.bottom = dst_rect.y + dst_rect.height;
+                }
+
+                dst_buffer->SetCrop(new_source_crop.left, new_source_crop.top, new_source_crop.right,
+                                    new_source_crop.bottom);
+
                 drmLayer->UpdateAndStoreInfoFromDrmBuffer(
                         dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(), dst_buffer->GetWidth(),
                         dst_buffer->GetHeight(), dst_buffer->GetStride(), dst_buffer->GetHeightStride(),
                         dst_buffer->GetByteStride(), dst_buffer->GetSize(), dst_buffer->GetUsage(),
                         dst_buffer->GetFourccFormat(), dst_buffer->GetModifier(), dst_buffer->GetByteStridePlanes(),
-                        dst_buffer->GetName(), source_crop, dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(),
+                        dst_buffer->GetName(), new_source_crop, dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(),
                         DRM_MODE_ROTATE_0);
                 rga_layer_ready = true;
                 drmLayer->iBestPlaneType = PLANE_RK3588_ALL_ESMART_MASK;
@@ -2275,11 +2308,14 @@ int Vop3588::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
                     break;
                 }
 
+                int left = 0, top = 0, right = 0, bottom = 0;
+                dst_buffer->GetCrop(&left, &top, &right, &bottom);
                 hwc_frect_t source_crop;
-                source_crop.left = 0;
-                source_crop.top = 0;
-                source_crop.right = ALIGN_DOWN((int)(drmLayer->display_frame.right - drmLayer->display_frame.left), 2);
-                source_crop.bottom = ALIGN_DOWN((int)(drmLayer->display_frame.bottom - drmLayer->display_frame.top), 2);
+                source_crop.left = left;
+                source_crop.top = top;
+                source_crop.right = right;
+                source_crop.bottom = bottom;
+
                 drmLayer->UpdateAndStoreInfoFromDrmBuffer(
                         dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(), dst_buffer->GetWidth(),
                         dst_buffer->GetHeight(), dst_buffer->GetStride(), dst_buffer->GetHeightStride(),
