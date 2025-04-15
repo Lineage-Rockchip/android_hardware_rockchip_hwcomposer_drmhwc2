@@ -2059,7 +2059,8 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentVirtualDisplay(int32_t* retire_fence) 
         return HWC2::Error::None;
     }
 
-    if (bUseWriteBack_ && resource_manager_->isWBMode() && !resource_manager_->IsDisableHwVirtualDisplay()) {
+    if (bUseWriteBack_ && resource_manager_->isWBMode() && !resource_manager_->IsDisableHwVirtualDisplay() &&
+        output_layer_.GetBufferInfo() != NULL) {
         if (resource_manager_->isWBMode()) {
             const std::shared_ptr<LayerInfoCache> bufferinfo = output_layer_.GetBufferInfo();
 
