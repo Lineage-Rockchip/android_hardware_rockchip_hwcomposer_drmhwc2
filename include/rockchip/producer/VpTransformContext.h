@@ -109,7 +109,10 @@ class VpTransformContext {
     sp<ReleaseFence> AddReleaseFence(std::shared_ptr<VpComposition> input);
     int DoStore(std::shared_ptr<VpComposition> input);
     int DoTransformByRga(std::shared_ptr<VpComposition> input);
+
+#ifdef USE_LIBSR
     int DoTransformBySvepSr(std::shared_ptr<VpComposition> input);
+#endif
     std::string TransformToString(uint32_t transform) const;
     void CalculateFPS();
 

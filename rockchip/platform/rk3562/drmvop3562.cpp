@@ -225,11 +225,13 @@ bool Vop3562::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
         return false;
     }
 
-    // 如果不是视频格式，并且不在白名单内，则不使用SR
-    if (!layer->bYuv_ && !SvepSrAllowedByWhitelist(layer)) {
-        HWC2_LOGD_IF("disable-sr: %s-YUV, can't find in Whitelist name=%s", (layer->bYuv_ ? "Is" : "Not"),
-                     layer->sLayerName_.c_str());
-        return false;
+    if (!layer->bSidebandStreamLayer_) {
+        // 如果不是视频格式，并且不在白名单内，则不使用SR
+        if (!layer->bYuv_ && !SvepSrAllowedByWhitelist(layer)) {
+            HWC2_LOGD_IF("disable-sr: %s-YUV, can't find in Whitelist name=%s", (layer->bYuv_ ? "Is" : "Not"),
+                         layer->sLayerName_.c_str());
+            return false;
+        }
     }
 
     // 如果SurfaceFlinger 请求Client合成，则不采用SR策略
@@ -239,22 +241,25 @@ bool Vop3562::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
         return false;
     }
 
-    bool yuv_10bit = false;
+    bool unsupport_format = false;
     switch (layer->iFormat_) {
         case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
         case HAL_PIXEL_FORMAT_YCbCr_422_SP_10:
         case HAL_PIXEL_FORMAT_YCrCb_420_SP_10:
         case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
-            yuv_10bit = true;
+        case HAL_PIXEL_FORMAT_YCBCR_444_888:
+            unsupport_format = true;
             break;
         default:
-            yuv_10bit = false;
+            unsupport_format = false;
             break;
     }
 
     // 10bit 视频不使用SR
-    if (yuv_10bit) {
-        HWC2_LOGD_IF("disable-sr: is 10bit YUV, SR unsupport, name=%s", layer->sLayerName_.c_str());
+    if (unsupport_format) {
+        HWC2_LOGD_IF("disable-sr: is unsupport format %d, SR unsupport, name=%s", layer->iFormat_,
+                     layer->sLayerName_.c_str());
+
         return false;
     }
 
@@ -871,7 +876,8 @@ int Vop3562::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                                     //Cluster rotate input_h must <= 2048
                                     if (input_h > 2048) {
                                         ALOGD_IF(LogLevel(DBG_DEBUG),
-                                                 "%s cann't support layer transform(90 or 270) 0x%x and input_h = %d",
+                                                 "%s cann't support layer transform(90 or 270) 0x%x and input_h = "
+                                                 "%d",
                                                  (*iter_plane)->name(), (*iter_layer)->transform, input_h);
                                         continue;
                                     }
@@ -1281,7 +1287,7 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
             // 部分参数变化后需要强制更新
             if (last_sr_mode != sr_mode || last_buffer_id != drmLayer->uBufferId_ ||
                 last_enhancement_rate != enhancement_rate || last_contrast_mode != contrast_mode ||
-                last_contrast_offset != contrast_offset) {
+                last_contrast_offset != contrast_offset || drmLayer->bSidebandStreamLayer_) {
                 ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d", __FUNCTION__, __LINE__);
 
                 // 2. 设置SR强度
@@ -1345,14 +1351,23 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                 }
 
                 // 2. Set buffer Info
-                sr_src_.mBufferInfo_.iFd_ = drmLayer->iFd_;
+                // Sideband 图层SR src 使用假参数
+                if (drmLayer->bSidebandStreamLayer_) {
+                    // 为了跳过 svepsr 的规范性检查
+                    sr_src_.mBufferInfo_.iFd_ = 8399;
+                    sr_src_.mBufferInfo_.iSize_ = 83991906;
+                    sr_src_.mBufferInfo_.uBufferId_ = 83991906;
+                } else {
+                    sr_src_.mBufferInfo_.iFd_ = drmLayer->iFd_;
+                    sr_src_.mBufferInfo_.iSize_ = drmLayer->iSize_;
+                    sr_src_.mBufferInfo_.uBufferId_ = drmLayer->uBufferId_;
+                }
+
                 sr_src_.mBufferInfo_.iWidth_ = drmLayer->iWidth_;
                 sr_src_.mBufferInfo_.iHeight_ = drmLayer->iHeight_;
                 sr_src_.mBufferInfo_.iFormat_ = drmLayer->uFourccFormat_;
                 sr_src_.mBufferInfo_.iStride_ = drmLayer->iStride_;
                 sr_src_.mBufferInfo_.iHeightStride_ = drmLayer->iHeightStride_;
-                sr_src_.mBufferInfo_.iSize_ = drmLayer->iSize_;
-                sr_src_.mBufferInfo_.uBufferId_ = drmLayer->uBufferId_;
                 sr_src_.mBufferInfo_.uColorSpace_ = SR_DATASPACE_UNKNOWN;
                 if (drmLayer->bAfbcd_) {
                     if (drmLayer->iFormat_ == HAL_PIXEL_FORMAT_YUV420_8BIT_I) {
@@ -1398,14 +1413,18 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                 }
 
                 // 4. Alloc dst_buffer
-                dst_buffer = bufferQueue_->DequeueDrmBuffer(
-                        sr_dst_w, sr_dst_h, HAL_PIXEL_FORMAT_YCrCb_NV12,
-                        RK_GRALLOC_USAGE_STRIDE_ALIGN_64 | RK_GRALLOC_USAGE_WITHIN_4G | MALI_GRALLOC_USAGE_NO_AFBC,
-                        "SR-SurfaceView", drmLayer->uId_);
+                // Sideband 图层SR不需要申请内存
+                if (!drmLayer->bSidebandStreamLayer_) {
+                    // 4. Alloc dst_buffer
+                    dst_buffer = bufferQueue_->DequeueDrmBuffer(
+                            sr_dst_w, sr_dst_h, HAL_PIXEL_FORMAT_YCrCb_NV12,
+                            RK_GRALLOC_USAGE_STRIDE_ALIGN_64 | RK_GRALLOC_USAGE_WITHIN_4G | MALI_GRALLOC_USAGE_NO_AFBC,
+                            "SR-SurfaceView", drmLayer->uId_);
 
-                if (dst_buffer == NULL) {
-                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
-                    continue;
+                    if (dst_buffer == NULL) {
+                        HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
+                        continue;
+                    }
                 }
 
                 SrOsdMode osd_mode = SR_OSD_ENABLE_VIDEO;
@@ -1441,15 +1460,6 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                     HWC2_LOGE("Sr SetOsdMode fail.\n");
                     continue;
                 }
-                // 5. Set buffer Info
-                sr_dst_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-                sr_dst_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-                sr_dst_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-                sr_dst_.mBufferInfo_.iFormat_ = dst_buffer->GetFourccFormat();
-                sr_dst_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-                sr_dst_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-                sr_dst_.mBufferInfo_.iSize_ = dst_buffer->GetSize();
-                sr_dst_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
 
                 hwc_frect_t source_crop;
                 // 使用 SR scale输出
@@ -1463,8 +1473,6 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                     source_crop.top = 0.0;
                     source_crop.right = (float)sr_dst_w;
                     source_crop.bottom = (float)sr_dst_h;
-                    dst_buffer->SetCrop((int)source_crop.left, (int)source_crop.top, (int)source_crop.right,
-                                        (int)source_crop.bottom);
                 } else {
                     sr_dst_.mCrop_.iLeft_ = target_image_info.mCrop_.iLeft_;
                     sr_dst_.mCrop_.iTop_ = target_image_info.mCrop_.iTop_;
@@ -1475,17 +1483,30 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
                     source_crop.top = target_image_info.mCrop_.iTop_;
                     source_crop.right = target_image_info.mCrop_.iRight_;
                     source_crop.bottom = target_image_info.mCrop_.iBottom_;
-                    dst_buffer->SetCrop(target_image_info.mCrop_.iLeft_, target_image_info.mCrop_.iTop_,
-                                        target_image_info.mCrop_.iRight_, target_image_info.mCrop_.iBottom_);
                 }
 
-                drmLayer->UpdateAndStoreInfoFromDrmBuffer(
-                        dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(), dst_buffer->GetWidth(),
-                        dst_buffer->GetHeight(), dst_buffer->GetStride(), dst_buffer->GetHeightStride(),
-                        dst_buffer->GetByteStride(), dst_buffer->GetSize(), dst_buffer->GetUsage(),
-                        dst_buffer->GetFourccFormat(), dst_buffer->GetModifier(), dst_buffer->GetByteStridePlanes(),
-                        dst_buffer->GetName(), source_crop, dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(),
-                        DRM_MODE_ROTATE_0);
+                // Sideband 图层SRv不需要更新数据
+                if (!drmLayer->bSidebandStreamLayer_) {
+                    // 5. Set buffer Info
+                    sr_dst_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+                    sr_dst_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+                    sr_dst_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+                    sr_dst_.mBufferInfo_.iFormat_ = dst_buffer->GetFourccFormat();
+                    sr_dst_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+                    sr_dst_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+                    sr_dst_.mBufferInfo_.iSize_ = dst_buffer->GetSize();
+                    sr_dst_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+                    dst_buffer->SetCrop((int)source_crop.left, (int)source_crop.top, (int)source_crop.right,
+                                        (int)source_crop.bottom);
+                    drmLayer->UpdateAndStoreInfoFromDrmBuffer(
+                            dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(),
+                            dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetStride(),
+                            dst_buffer->GetHeightStride(), dst_buffer->GetByteStride(), dst_buffer->GetSize(),
+                            dst_buffer->GetUsage(), dst_buffer->GetFourccFormat(), dst_buffer->GetModifier(),
+                            dst_buffer->GetByteStridePlanes(), dst_buffer->GetName(), source_crop,
+                            dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(), DRM_MODE_ROTATE_0);
+                }
+
                 rga_layer_ready = true;
                 drmLayer->bUseSr_ = true;
                 break;
@@ -1531,6 +1552,15 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
         if (!ret) {  // Match sucess, to call im2d interface
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseSr_) {
+                    if (drmLayer->bSidebandStreamLayer_) {
+                        last_buffer_id = drmLayer->uBufferId_;
+                        last_sr_mode = sr_mode;
+                        last_contrast_mode = contrast_mode;
+                        last_enhancement_rate = enhancement_rate;
+                        last_contrast_offset = contrast_offset;
+                        return 0;
+                    }
+
                     if (drmLayer->acquire_fence->isValid()) {
                         if (drmLayer->acquire_fence->wait(500)) {
                             HWC2_LOGE(

@@ -283,12 +283,15 @@ int VpTransformContext::Handle(std::shared_ptr<VpComposition> input) {
             HWC2_LOGE("DoStore Name=%s fail, ret=%d", input->Name().c_str(), ret);
             return ret;
         }
+
+#ifdef USE_LIBSR
     } else if (mTransform_ & DRM_MODE_POST_PROCESS_SR) {
         int ret = DoTransformBySvepSr(input);
         if (ret) {
             HWC2_LOGE("DoTransformBySvepSr Name=%s fail, ret=%d", input->Name().c_str(), ret);
             return ret;
         }
+#endif
     } else {
         int ret = DoTransformByRga(input);
         if (ret) {
@@ -602,6 +605,7 @@ int VpTransformContext::DoStore(std::shared_ptr<VpComposition> input) {
     return 0;
 }
 
+#ifdef USE_LIBSR
 int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input) {
     ATRACE_CALL();
     // 0. SR模块初始化
@@ -842,7 +846,7 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
     mListVpCompositions_.push_back(compositon);
     return 0;
 }
-
+#endif
 std::shared_ptr<VpComposition> VpTransformContext::GetVpComposition(bool wait_finish) {
     std::unique_lock<std::mutex> lock(mMutex_);
     std::shared_ptr<VpComposition> output_composition = nullptr;

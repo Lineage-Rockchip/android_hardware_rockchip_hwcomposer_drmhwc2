@@ -308,7 +308,7 @@ LOCAL_CPPFLAGS += \
 endif
 
 # SR
-BOARD_USES_LIBSVEP := true
+# BOARD_USES_LIBSVEP := true
 ifeq ($(strip $(BOARD_USES_LIBSVEP)),true)
 BOARD_USES_LIBSVEP_SR := true
 endif
@@ -360,7 +360,7 @@ LOCAL_REQUIRED_MODULES += \
 	HwcSvepMemcEnv.xml
 endif
 
-BOARD_USES_LIBPQ_HWPQ=true
+# BOARD_USES_LIBPQ_HWPQ=true
 ifeq ($(strip $(BOARD_USES_LIBPQ_HWPQ)),true)
 ifneq ($(strip $(TARGET_SOC_PLATFORM)),rk3576)
   $(error BOARD_USES_LIBPQ_HWPQ=true but TARGET_SOC_PLATFORM $(TARGET_SOC_PLATFORM) does not support HWPQ!)
@@ -371,7 +371,7 @@ LOCAL_CFLAGS += \
 	-DUSE_LIBPQ_HWPQ=1
 endif
 
-BOARD_USES_LIBPQ=true
+# BOARD_USES_LIBPQ=true
 ifeq ($(strip $(BOARD_USES_LIBPQ)),true)
 
 CHECKED_DIRECTORY := hardware/rockchip/libpq
