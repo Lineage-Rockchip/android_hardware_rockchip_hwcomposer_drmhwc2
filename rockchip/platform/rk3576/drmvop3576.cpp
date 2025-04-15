@@ -1143,7 +1143,7 @@ int Vop3576::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                                 if ((*iter_plane)->win_type() == PLANE_RK3576_CLUSTER0_WIN0 &&
                                     crtc->get_port_id() == 0 &&
                                     ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE) {
-                                    CheckHwPqDstScale((*iter_layer));
+                                    ResourceManager::getInstance()->GetDrmPq()->CheckHwPqDstScale((*iter_layer));
                                     if ((*iter_layer)->bCheckPqScale &&
                                         (*iter_plane)->is_support_scale((*iter_layer)->fPqHScale) &&
                                         (*iter_plane)->is_support_scale((*iter_layer)->fPqVScale)) {
@@ -1425,21 +1425,8 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
         }
     }
 #ifdef USE_LIBPQ_HWPQ
-    //HWPQ全局模式
-    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_UI_MODE) {
-        for (auto& layer : layers) {
-            if (layer->bMatch_ && layer->bFbTarget_ && layer->uWinType_ == PLANE_RK3576_CLUSTER0_WIN0) {
-                //获取当前图层结构信息，UI模式下，在DoHwPq中使用
-                layer->hwPqDisplayStatus = PqUtils::CollectPqDisplayStatus(
-                        ctx.state.vStoreDrmHwcLayer_, {ctx.state.iDisplayWidth_, ctx.state.iDisplayHeight_,
-                                                       ResourceManager::getInstance()->getSocId()});
-                break;
-            }
-        }
-    }
-
-    // HWPQ非全局模式
-    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE) {
+    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE ||
+        ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_UI_MODE) {
         int hwpq_run_ret = 0;
         bool hwpq_has_video = false;
         // 非全局模式策略：
@@ -1453,26 +1440,26 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
         }
         if (hwpq_has_video) {
             for (auto& layer : layers) {
-                // 查找执行PQ的图层
-                // 有视频时，需要使用Cluster0-Win0的图层执行PQ
-                if (layer->bMatch_ && layer->uWinType_ == PLANE_RK3576_CLUSTER0_WIN0) {
-                    //获取当前图层结构信息
+                if (layer->bMatch_ && layer->uWinType_ == PLANE_RK3576_CLUSTER0_WIN0 &&
+                    layer->bSidebandStreamLayer_ == false) {
+                    //获取当前display status
                     layer->hwPqDisplayStatus = PqUtils::CollectPqDisplayStatus(
                             ctx.state.vStoreDrmHwcLayer_, {ctx.state.iDisplayWidth_, ctx.state.iDisplayHeight_,
                                                            ResourceManager::getInstance()->getSocId()});
-
-                    //执行HWPQ
-                    hwpq_run_ret = RunHwPqVideoMode(layer);
-                    if (hwpq_run_ret) {
-                        HWC2_LOGE("HWPQ: RunHwPqVideoMode fail! ret=%d", hwpq_run_ret);
+                    // Try to match hwpq policy
+                    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE) {
+                        hwpq_run_ret = ResourceManager::getInstance()->GetDrmPq()->RunHwPqVideoMode(layer);
+                        if (hwpq_run_ret) {
+                            HWC2_LOGE("HWPQ: RunHwPqVideoMode fail! ret=%d", hwpq_run_ret);
+                        }
+                        break;
                     }
-                    break;
                 }
             }
         } else {
             for (auto& layer : layers) {
                 if (layer->bMatch_) {
-                    if (int ret = RunHwPqGetReg(layer)) {
+                    if (int ret = ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(layer)) {
                         HWC2_LOGE("HWPQ: RunHwPqGetReg fail! ret=%d", ret);
                     }
                     break;
@@ -2419,358 +2406,6 @@ int Vop3576::TryRgaOverlayPolicy(std::vector<DrmCompositionPlane>* composition, 
     ResetLayerFromTmp(layers, tmp_layers);
     return -1;
 }
-#ifdef USE_LIBPQ_HWPQ
-int Vop3576::RunHwPqGetReg(DrmHwcLayer* drmLayer) {
-    int ret = 0;
-    // 0. Check if HwPq is Ready
-    if (pq_ == NULL) {
-        pq_ = std::make_shared<Pq>();
-        if (pq_ != NULL) {
-            ret = pq_->Init(PQ_VERSION);
-            if (ret != 0) {
-                HWC2_LOGE("HWPQ: Pq module Init Failed, ret=%d", ret);
-                pq_ = NULL;
-            } else {
-                HWC2_LOGD_IF("HWPQ: Pq module Init OK");
-            }
-        }
-    }
-
-    if (pq_ == NULL) {
-        HWC2_LOGD_IF("HWPQ: Pq module not ready! use other policy");
-        return -1;
-    }
-
-    // 1. Alloc dst HWPQ regs
-    if (drmLayer->hwPqReg_ == NULL) {
-        drmLayer->hwPqReg_ = std::shared_ptr<rk_hwpq_reg>(new rk_hwpq_reg);
-        if (drmLayer->hwPqReg_ == NULL) {
-            HWC2_LOGE("HWPQ: rk_hwpq_reg alloc failed");
-            return -1;
-        }
-    }
-
-    // 2. Get HWPQ regs
-    ret = pq_->getHwPqRegConfig(drmLayer->hwPqReg_.get());
-
-    if (ret) {
-        HWC2_LOGD_IF("HWPQ: Failed to get reg config! ret = %d", ret);
-        drmLayer->hwPqReg_ = NULL;
-    }
-
-    return ret;
-}
-
-int Vop3576::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
-    int ret = 0;
-    // 0. Check if HwPq is Ready
-    if (pq_ == NULL) {
-        pq_ = std::make_shared<Pq>();
-        if (pq_ != NULL) {
-            ret = pq_->Init(PQ_VERSION);
-            if (ret != 0) {
-                HWC2_LOGE("Pq module Init Failed, ret=%d", ret);
-                pq_ = NULL;
-            } else {
-                HWC2_LOGD_IF("RKDEBUG: init HWPQ OK");
-            }
-        }
-    }
-
-    if (pq_ == NULL) {
-        HWC2_LOGD_IF("Pq module not ready! use other policy");
-        return -1;
-    }
-
-    std::shared_ptr<DrmBuffer> dst_buffer;
-    bool isHwPqAsPostProcess = false;
-
-    if (drmLayer->bYuv_) {
-        if (!lastHwPqBufInfo.match(drmLayer)) {
-            if (drmLayer->bUseRga_) {
-                isHwPqAsPostProcess = true;
-            }
-            // 1. Fill buffer Info
-            HwPqImageInfo src;
-
-            if (isHwPqAsPostProcess) {
-                src.mBufferInfo_.iFd_ = drmLayer->storeLayerInfo_.iFd_;
-                src.mBufferInfo_.iWidth_ = drmLayer->storeLayerInfo_.iWidth_;
-                src.mBufferInfo_.iHeight_ = drmLayer->storeLayerInfo_.iHeight_;
-                src.mBufferInfo_.iFormat_ = drmLayer->storeLayerInfo_.iFormat_;
-                src.mBufferInfo_.iStride_ = drmLayer->storeLayerInfo_.iStride_;
-                src.mBufferInfo_.iHeightStride_ = drmLayer->storeLayerInfo_.iHeightStride_;
-                src.mBufferInfo_.uBufferId_ = drmLayer->storeLayerInfo_.uBufferId_;
-                src.mBufferInfo_.uDataSpace_ = (uint64_t)drmLayer->storeLayerInfo_.eDataSpace_;
-
-                src.iRotation_ = drmLayer->storeLayerInfo_.transform;
-                src.mIsFbcdFormat_ = drmLayer->storeLayerInfo_.bAfbcd_ || drmLayer->storeLayerInfo_.bRfbcd_;
-
-                src.mCrop_.iLeft_ = (int)drmLayer->storeLayerInfo_.source_crop.left;
-                src.mCrop_.iTop_ = (int)drmLayer->storeLayerInfo_.source_crop.top;
-                src.mCrop_.iRight_ = (int)drmLayer->storeLayerInfo_.source_crop.right;
-                src.mCrop_.iBottom_ = (int)drmLayer->storeLayerInfo_.source_crop.bottom;
-            } else {
-                src.mBufferInfo_.iFd_ = drmLayer->iFd_;
-                src.mBufferInfo_.iWidth_ = drmLayer->iWidth_;
-                src.mBufferInfo_.iHeight_ = drmLayer->iHeight_;
-                src.mBufferInfo_.iFormat_ = drmLayer->iFormat_;
-                src.mBufferInfo_.iStride_ = drmLayer->iStride_;
-                src.mBufferInfo_.iHeightStride_ = drmLayer->iHeightStride_;
-                src.mBufferInfo_.uBufferId_ = drmLayer->uBufferId_;
-                src.mBufferInfo_.uDataSpace_ = (uint64_t)drmLayer->eDataSpace_;
-
-                src.iRotation_ = drmLayer->transform;
-                src.mIsFbcdFormat_ = drmLayer->bAfbcd_ || drmLayer->bRfbcd_;
-
-                src.mCrop_.iLeft_ = (int)drmLayer->source_crop.left;
-                src.mCrop_.iTop_ = (int)drmLayer->source_crop.top;
-                src.mCrop_.iRight_ = (int)drmLayer->source_crop.right;
-                src.mCrop_.iBottom_ = (int)drmLayer->source_crop.bottom;
-            }
-            //Get and set MetaData
-            src.iMetaDataFd_ = -1;
-            src.iMetaDataSize_ = 0;
-            src.iMetaDataOffset_ = 0;
-
-            DrmGralloc* gralloc = DrmGralloc::getInstance();
-            if (gralloc == NULL) {
-                HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
-            } else if (drmLayer->bHasMetadata_) {
-                src.iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(drmLayer->sf_handle);
-                if (src.iMetaDataOffset_ > 0) {
-                    src.iMetaDataFd_ = drmLayer->iFd_;
-                    src.iMetaDataSize_ = drmLayer->iSize_;
-                    HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
-                                 src.iMetaDataOffset_, src.iMetaDataSize_);
-                }
-            }
-
-            src.mDisplayStatus_ = drmLayer->hwPqDisplayStatus;
-
-            // 2. Alloc Dst buffer
-            if (drmLayer->hwPqReg_ == NULL) {
-                drmLayer->hwPqReg_ = std::shared_ptr<rk_hwpq_reg>(new rk_hwpq_reg);
-                if (drmLayer->hwPqReg_ == NULL) {
-                    HWC2_LOGE("rk_hwpq_reg alloc failed");
-                    return -1;
-                }
-            }
-
-            // 3. Set buffer Info
-            dst_buffer = NULL;
-            hwPqDstInfo_.mBufferInfo_.iFd_ = -1;
-            hwPqDstInfo_.mRkHwpqReg_ = drmLayer->hwPqReg_.get();
-
-            bool needAllocNewBuffer = false;
-
-            pq_->Query(src, hwPqDstInfo_, &needAllocNewBuffer);
-
-            // 4. Alloc buffer if needed
-            if (needAllocNewBuffer) {
-                HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
-                dst_buffer = hwPqBufferQueue_->DequeueDrmBuffer(
-                        hwPqDstInfo_.mBufferInfo_.iWidth_, hwPqDstInfo_.mBufferInfo_.iHeight_,
-                        hwPqDstInfo_.mBufferInfo_.iFormat_,
-                        RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
-
-                if (dst_buffer == NULL) {
-                    HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
-                    return -1;
-                }
-
-                // 4.1 Set dst buffer Info
-                hwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-                hwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-                hwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-                hwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-                hwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-                hwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-                hwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
-                //Update info for new buffer
-                src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).VopSrcRect_ = hwPqDstInfo_.mCrop_;
-                src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uFourccFormat_ =
-                        dst_buffer->GetFourccFormat();
-                src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).iHalFormat_ =
-                        dst_buffer->GetFormat();
-                src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uModifier_ =
-                        dst_buffer->GetModifier();
-                src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uDataSpace_ =
-                        hwPqDstInfo_.mBufferInfo_.uDataSpace_;
-            } else {
-                hwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
-            }
-            HwPqImageInfo dst_buffer_Info_ = hwPqDstInfo_;
-            HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
-                         src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
-                         src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
-            ret = pq_->SetHwPqSrcImage(src, hwPqDstInfo_, &needAllocNewBuffer);
-            if (ret) {
-                if (ret == PqUnInit)
-                    HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
-                else if (ret == PqUnSupported)
-                    HWC2_LOGE("Pq SetHwPqSrcImage fail, Src is UnSupported, ret = %d", ret);
-                else
-                    HWC2_LOGE("Pq SetHwPqSrcImage fail, ret = %d", ret);
-                return ret;
-            }
-
-            // 4. ReAlloc buffer if needed
-            if (needAllocNewBuffer) {
-                //if New buffer is needed, and it's resolution changed, realloc buffer
-                if (!dst_buffer || hwPqDstInfo_.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
-                    hwPqDstInfo_.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
-                    hwPqDstInfo_.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
-                    HWC2_LOGW("HWPQ: Dst buffer changed between querry and SetHwPqSrcImage!![%dx%d f=%d]->[%dx%d f=%d]",
-                              dst_buffer_Info_.mBufferInfo_.iWidth_, dst_buffer_Info_.mBufferInfo_.iHeight_,
-                              dst_buffer_Info_.mBufferInfo_.iFormat_, hwPqDstInfo_.mBufferInfo_.iWidth_,
-                              hwPqDstInfo_.mBufferInfo_.iHeight_, hwPqDstInfo_.mBufferInfo_.iFormat_);
-                    if (dst_buffer) {
-                        hwPqBufferQueue_->QueueBuffer(dst_buffer);
-                        dst_buffer = NULL;
-                    }
-                    HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
-                    dst_buffer = hwPqBufferQueue_->DequeueDrmBuffer(
-                            hwPqDstInfo_.mBufferInfo_.iWidth_, hwPqDstInfo_.mBufferInfo_.iHeight_,
-                            hwPqDstInfo_.mBufferInfo_.iFormat_,
-                            RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
-
-                    if (dst_buffer == NULL) {
-                        HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
-                        return -1;
-                    }
-                }
-
-                // 4.1 Set dst buffer Info
-                hwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-                hwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-                hwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-                hwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-                hwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-                hwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-                hwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
-            } else {
-                //If New buffer is not need anymore
-                if (dst_buffer) {
-                    hwPqBufferQueue_->QueueBuffer(dst_buffer);
-                    dst_buffer = NULL;
-                }
-                hwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
-            }
-
-            HWC2_LOGD_IF("dst: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64,
-                         hwPqDstInfo_.mBufferInfo_.iFd_, hwPqDstInfo_.mBufferInfo_.iWidth_,
-                         hwPqDstInfo_.mBufferInfo_.iHeight_, hwPqDstInfo_.mBufferInfo_.iFormat_,
-                         hwPqDstInfo_.mBufferInfo_.iStride_, hwPqDstInfo_.mBufferInfo_.iHeightStride_,
-                         hwPqDstInfo_.mBufferInfo_.uBufferId_);
-            ret = pq_->SetHwPqDstImage(hwPqDstInfo_);
-            if (ret) {
-                HWC2_LOGE("Pq SetHwPqDstImage fail ret = %d", ret);
-                if (dst_buffer != NULL) hwPqBufferQueue_->QueueBuffer(dst_buffer);
-                return ret;
-            }
-            // 5. Run HWPQ
-            int output_fence = -1;
-            int acquire_fence = -1;
-
-            if (drmLayer->acquire_fence->isValid()) {
-                acquire_fence = dup(drmLayer->acquire_fence->getFd());
-            }
-
-            int ret = pq_->RunHwPqAsync(&output_fence, acquire_fence);
-            if (ret) {
-                HWC2_LOGE("RunHwPqAsync fail! ret = %d", ret);
-                if (dst_buffer != NULL) hwPqBufferQueue_->QueueBuffer(dst_buffer);
-                return ret;
-            }
-
-            // 6. Update Layer info
-            drmLayer->hwPqRegAcquireFence_ = sp<AcquireFence>(new AcquireFence(output_fence));
-            if (isHwPqAsPostProcess) {
-                //in Hwpq As PostProcess mode, only pq register is needed, release buffer now
-                if (dst_buffer != NULL) {
-                    dst_buffer->SetFinishFence(dup(output_fence));
-                    hwPqBufferQueue_->QueueBuffer(dst_buffer);
-                    dst_buffer = NULL;
-                }
-            }
-
-            lastHwPqBufInfo.set(drmLayer);
-            lastHwPqReg_ = drmLayer->hwPqReg_;
-            lastHwPqAcquireFence = drmLayer->hwPqRegAcquireFence_;
-
-            if (dst_buffer != NULL) {
-                lastHwPqUseNewBuffer = true;
-
-                dst_buffer->SetFinishFence(dup(output_fence));
-                hwPqBufferQueue_->QueueBuffer(dst_buffer);
-
-                drmLayer->bUseHwpqScale_ = true;
-                drmLayer->pPqBuffer_ = dst_buffer;
-                drmLayer->acquire_fence = sp<AcquireFence>(new AcquireFence(dup(output_fence)));
-                hwc_frect_t source_crop;
-                source_crop.left = hwPqDstInfo_.mCrop_.iLeft_;
-                source_crop.top = hwPqDstInfo_.mCrop_.iTop_;
-                source_crop.right = hwPqDstInfo_.mCrop_.iRight_;
-                source_crop.bottom = hwPqDstInfo_.mCrop_.iBottom_;
-                drmLayer->UpdateAndStoreInfoFromDrmBuffer(
-                        dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(), dst_buffer->GetWidth(),
-                        dst_buffer->GetHeight(), dst_buffer->GetStride(), dst_buffer->GetHeightStride(),
-                        dst_buffer->GetByteStride(), dst_buffer->GetSize(), dst_buffer->GetUsage(),
-                        dst_buffer->GetFourccFormat(), dst_buffer->GetModifier(), dst_buffer->GetByteStridePlanes(),
-                        dst_buffer->GetName(), source_crop, dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(),
-                        drmLayer->transform);
-                //dump HwPq layer if needed
-                char value[PROPERTY_VALUE_MAX];
-                property_get("vendor.dump", value, "false");
-                if (!strcmp(value, "true")) {
-                    dst_buffer->WaitFinishFence();
-                    dst_buffer->DumpData(ctx.request.frame_no_, drmLayer->iZpos_, "M");
-                }
-            } else {
-                lastHwPqUseNewBuffer = false;
-            }
-
-            return 0;
-
-        } else {  //Use last buffer
-
-            if (lastHwPqUseNewBuffer)
-                dst_buffer = hwPqBufferQueue_->BackDrmBuffer();
-            else {
-                dst_buffer = NULL;
-            }
-
-            if (dst_buffer != NULL) {
-                hwc_frect_t source_crop;
-                source_crop.left = hwPqDstInfo_.mCrop_.iLeft_;
-                source_crop.top = hwPqDstInfo_.mCrop_.iTop_;
-                source_crop.right = hwPqDstInfo_.mCrop_.iRight_;
-                source_crop.bottom = hwPqDstInfo_.mCrop_.iBottom_;
-                drmLayer->UpdateAndStoreInfoFromDrmBuffer(
-                        dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(), dst_buffer->GetWidth(),
-                        dst_buffer->GetHeight(), dst_buffer->GetStride(), dst_buffer->GetHeightStride(),
-                        dst_buffer->GetByteStride(), dst_buffer->GetSize(), dst_buffer->GetUsage(),
-                        dst_buffer->GetFourccFormat(), dst_buffer->GetModifier(), dst_buffer->GetByteStridePlanes(),
-                        dst_buffer->GetName(), source_crop, dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(),
-                        drmLayer->transform);
-                // Update Layer info
-                drmLayer->acquire_fence = lastHwPqAcquireFence;
-                drmLayer->bUseHwpqScale_ = true;
-                drmLayer->pPqBuffer_ = dst_buffer;
-            } else {
-                HWC2_LOGD_IF("dst_buffer = null, hwpq use original buffer");
-            }
-
-            drmLayer->hwPqReg_ = lastHwPqReg_;
-            return 0;
-        }
-    } else {
-        HWC2_LOGV_IF("Found cluster0-win0 vp0 layer is not video, skip hwpq policy");
-        return -1;
-    }
-}
-#endif
 
 /*************************mix SidebandStream*************************
    DisplayId=0, Connector 345, Type = HDMI-A-1, Connector state = DRM_MODE_CONNECTED , frame_no = 6611
@@ -4482,18 +4117,6 @@ void Vop3576::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
     if (iPqMode >= 0 && iPqMode < PqUtils::HWPQ_MODE_MAX) {
         ctx.state.bCurrentHwPqMode_ = PqUtils::RkHwPqMode(iPqMode);
     }
-
-#ifdef USE_LIBPQ_HWPQ
-    if (ctx.state.bCurrentHwPqMode_ != PqUtils::HWPQ_UI_MODE) {
-        //Video mode not run if SideBand is present
-        if (!ctx.support.bCanHwPq || iPqMode != PqUtils::HWPQ_VIDEO_MODE) {
-            ctx.state.bCurrentHwPqMode_ = PqUtils::HWPQ_DISABLE;
-            lastHwPqAcquireFence = NULL;
-            lastHwPqBufInfo.clear();
-            lastHwPqReg_ = NULL;
-        }
-    }
-#endif  // USE_LIBPQ_HWPQ
 #endif
 }
 
@@ -4523,111 +4146,6 @@ void Vop3576::TryMix() {
         ctx.state.setHwcPolicy.insert(HWC_ACCELERATE_POLICY);
     }
 }
-#ifdef USE_LIBPQ_HWPQ
-int Vop3576::CheckHwPqDstScale(DrmHwcLayer* drmLayer) {
-    if (drmLayer->bCheckPqScale) {
-        return 0;
-    }
-    int ret = 0;
-    // 0. Check if HwPq is Ready
-    if (pq_ == NULL) {
-        pq_ = std::make_shared<Pq>();
-        if (pq_ != NULL) {
-            ret = pq_->Init(PQ_VERSION);
-            if (ret != 0) {
-                HWC2_LOGE("Pq module Init Failed, ret=%d", ret);
-                pq_ = NULL;
-            }
-        }
-    }
-
-    if (pq_ == NULL) {
-        HWC2_LOGD_IF("Pq module not ready! use other policy");
-        return -1;
-    }
-
-    //目前只考虑对视频图层做HWPQ
-    if (!drmLayer->bYuv_) {
-        HWC2_LOGV_IF("layer is not video, skip hwpq");
-        return -1;
-    }
-    if (drmLayer->bAfbcd_ || drmLayer->bRfbcd_) {
-        HWC2_LOGD_IF("HwPq do not support Fbc layer:%s", drmLayer->sLayerName_.c_str());
-        return -1;
-    }
-    // 1. Fill buffer Info
-    HwPqImageInfo src;
-    src.mBufferInfo_.iFd_ = drmLayer->iFd_;
-    src.mBufferInfo_.iWidth_ = drmLayer->iWidth_;
-    src.mBufferInfo_.iHeight_ = drmLayer->iHeight_;
-    src.mBufferInfo_.iFormat_ = drmLayer->iFormat_;
-    src.mBufferInfo_.iStride_ = drmLayer->iStride_;
-    src.mBufferInfo_.iHeightStride_ = drmLayer->iHeightStride_;
-    src.mBufferInfo_.uBufferId_ = drmLayer->uBufferId_;
-    src.mBufferInfo_.uDataSpace_ = (uint64_t)drmLayer->eDataSpace_;
-
-    src.iMetaDataFd_ = -1;
-    src.iMetaDataSize_ = 0;
-    src.iMetaDataOffset_ = 0;
-
-    DrmGralloc* gralloc = DrmGralloc::getInstance();
-    if (gralloc == NULL) {
-        HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
-    } else if (drmLayer->bHasMetadata_) {
-        src.iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(drmLayer->sf_handle);
-        if (src.iMetaDataOffset_ > 0) {
-            src.iMetaDataFd_ = drmLayer->iFd_;
-            src.iMetaDataSize_ = drmLayer->iSize_;
-            HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_, src.iMetaDataOffset_,
-                         src.iMetaDataSize_);
-        }
-    }
-
-    src.mCrop_.iLeft_ = (int)drmLayer->source_crop.left;
-    src.mCrop_.iTop_ = (int)drmLayer->source_crop.top;
-    src.mCrop_.iRight_ = (int)drmLayer->source_crop.right;
-    src.mCrop_.iBottom_ = (int)drmLayer->source_crop.bottom;
-
-    // 2. Alloc Dst buffer
-    if (drmLayer->hwPqReg_ == NULL) {
-        drmLayer->hwPqReg_ = std::shared_ptr<rk_hwpq_reg>(new rk_hwpq_reg);
-        if (drmLayer->hwPqReg_ == NULL) {
-            HWC2_LOGE("rk_hwpq_reg alloc failed");
-            return -1;
-        }
-    }
-
-    // 3. Set buffer Info
-    hwPqDstInfo_.mBufferInfo_.iFd_ = -1;
-    hwPqDstInfo_.mRkHwpqReg_ = drmLayer->hwPqReg_.get();
-
-    bool needAllocNewBuffer = false;
-    HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
-                 src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
-                 src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
-
-    ret = pq_->Query(src, hwPqDstInfo_, &needAllocNewBuffer);
-    if (ret) {
-        if (ret == PqUnInit)
-            HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
-        else if (PqUnSupported)
-            HWC2_LOGE("Pq SetHwPqSrcImage fail, Src is UnSupported, ret = %d", ret);
-        else
-            HWC2_LOGE("Pq SetHwPqSrcImage fail, ret = %d", ret);
-        return ret;
-    }
-    int dst_w = static_cast<int>(drmLayer->display_frame.right - drmLayer->display_frame.left);
-    int dst_h = static_cast<int>(drmLayer->display_frame.bottom - drmLayer->display_frame.top);
-    int src_w = hwPqDstInfo_.mCrop_.Width();
-    int src_h = hwPqDstInfo_.mCrop_.Height();
-    drmLayer->bCheckPqScale = true;
-    drmLayer->fPqHScale = (float)src_w / (float)dst_w;
-    drmLayer->fPqVScale = (float)src_h / (float)dst_h;
-    HWC2_LOGD_IF("Get After HWPQ scale:(%f,%f), name=%s", drmLayer->fPqHScale, drmLayer->fPqVScale,
-                 drmLayer->sLayerName_.c_str());
-    return 0;
-}
-#endif
 
 int Vop3576::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGroup*>& plane_groups, DrmCrtc* crtc,
                          bool gles_policy) {
@@ -4685,6 +4203,12 @@ int Vop3576::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
             ctx.state.setHwcPolicy.insert(HWC_ACCELERATE_POLICY);
         }
         return 0;
+    } else {
+#ifdef USE_LIBPQ_HWPQ
+        if (!ctx.support.bCanHwPq || ctx.state.bCurrentHwPqMode_ != PqUtils::HWPQ_VIDEO_MODE || ctx.request.iYuvCnt <= 0) {
+            ctx.state.bCurrentHwPqMode_ = PqUtils::HWPQ_DISABLE;
+        }
+#endif  // USE_LIBPQ_HWPQ
     }
 #endif
 

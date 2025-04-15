@@ -48,6 +48,7 @@ class VpComposition {
     uint64_t FrameNo() { return mFrameNo_; };
 
     std::shared_ptr<DrmBuffer> GetBuffer() { return mBuffer_; };
+    void SetBuffer(std::shared_ptr<DrmBuffer> buffer) { mBuffer_ = buffer; };
 
     void SetReleaseFence(sp<ReleaseFence> release_fence) { mReleaseFence_ = release_fence; };
     sp<ReleaseFence> GetReleaseFence() { return mReleaseFence_; }

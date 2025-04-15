@@ -150,7 +150,6 @@ LOCAL_SRC_FILES := \
   rockchip/producer/vpcontext.cpp \
   rockchip/producer/VpTransformContext.cpp
 
-
 LOCAL_CPPFLAGS += \
   -DHWC2_USE_CPP11 \
   -DHWC2_INCLUDE_STRINGIFICATION \
@@ -361,7 +360,7 @@ LOCAL_REQUIRED_MODULES += \
 	HwcSvepMemcEnv.xml
 endif
 
-# BOARD_USES_LIBPQ_HWPQ=true
+BOARD_USES_LIBPQ_HWPQ=true
 ifeq ($(strip $(BOARD_USES_LIBPQ_HWPQ)),true)
 ifneq ($(strip $(TARGET_SOC_PLATFORM)),rk3576)
   $(error BOARD_USES_LIBPQ_HWPQ=true but TARGET_SOC_PLATFORM $(TARGET_SOC_PLATFORM) does not support HWPQ!)
@@ -372,7 +371,7 @@ LOCAL_CFLAGS += \
 	-DUSE_LIBPQ_HWPQ=1
 endif
 
-# BOARD_USES_LIBPQ=true
+BOARD_USES_LIBPQ=true
 ifeq ($(strip $(BOARD_USES_LIBPQ)),true)
 
 CHECKED_DIRECTORY := hardware/rockchip/libpq
@@ -384,6 +383,10 @@ endif
 
 LOCAL_C_INCLUDES += \
   hardware/rockchip/libpq/include
+
+
+LOCAL_SRC_FILES += \
+  rockchip/common/pq/DrmPq.cpp
 
 LOCAL_SHARED_LIBRARIES += \
 	libpq

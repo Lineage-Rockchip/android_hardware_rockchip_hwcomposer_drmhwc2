@@ -191,6 +191,75 @@ class PqUtils {
             }
         }
         //dump收集到的结构
+        if (LogLevel(DBG_VERBOSE)) {
+            std::stringstream ss;
+            for (auto& plane_info_map : status->mapPlaneInfo_) {
+                auto& plane_info = plane_info_map.second;
+                ss << "|Zpos|  VopDstRect(l,t,r,b)   |  VopSrcRect(l,t,r,b)   |  Fourcc  | Transform| Dataspace|  Type "
+                      " | Name"
+                   << std::endl;
+                dumpPqPlaneInfo(plane_info, ss);
+                if (plane_info.vecComposeInfo_.size() > 0) {
+                    ss << "|    |    intRect(l,t,r,b)    |    srcRect(l,t,r,b)    |  Fourcc  | Transform| Dataspace| "
+                          "Name"
+                       << std::endl;
+                    for (auto& buf_info : plane_info.vecComposeInfo_) {
+                        dumpPqBufInfo(buf_info, ss);
+                    }
+                }
+            }
+            HWC2_LOGD_IF("dump HWPQ_DisplayStatus: iPqZpos=%d, type=%d \n%s", status->iPqZpos,
+                         status->mapPlaneInfo_.at(status->iPqZpos).iLayerType_, ss.str().c_str());
+        }
+
+        return status;
+    }
+
+    static std::shared_ptr<HwpqDisplayStatus> CollectPqSidebandDisplayStatus(std::vector<DrmHwcLayer>& drm_hwc_layers,
+                                                                             PqDisplayCtx ctx) {
+        std::shared_ptr<HwpqDisplayStatus> status = std::make_shared<HwpqDisplayStatus>();
+        //初始化平台信息
+        status->iPqZpos = -1;
+        status->uSocId_ = ctx.uSocId;
+        status->iResolutionWidth_ = ctx.iDisplayWidth;
+        status->iResolutionHeight_ = ctx.iDisplayHeight;
+
+        std::vector<android::HwpqDisplayStatus::LayerBufferInfo> clientComposeInfo;
+
+        for (auto& drmlayer : drm_hwc_layers) {
+            //HWC合成图层，TODO：后续增加(RKCV/RGA/Skip)合成判断
+            //获取win_type和zpos
+
+            bool is_hwpq_layer = IsHwpqLayer(drmlayer.uWinType_);
+            int zpos = drmlayer.iDrmZpos_;
+            HwpqDisplayStatus::PlaneInfo layer_info;
+
+            PopulatePqLayerInfo(&drmlayer, layer_info);
+            status->mapPlaneInfo_.emplace(zpos, layer_info);
+
+            if (is_hwpq_layer) {
+                status->iPqZpos = zpos;
+            }
+        }
+
+        //检查是否有pq图层
+        if (status->iPqZpos < 0 || status->mapPlaneInfo_.count(status->iPqZpos) == 0) {
+            HWC2_LOGE("Error Could not found PQ layer!");
+            return NULL;
+        }
+
+        auto setPqLayerType = [&status](HwpqDisplayStatus::PlaneInfo::PQ_LayerType type) {
+            status->mapPlaneInfo_.at(status->iPqZpos).iLayerType_ = type;
+        };
+        //标注pq layer类型
+        if (drm_hwc_layers.size() > 1) {
+            setPqLayerType(HwpqDisplayStatus::PlaneInfo::PQ_LayerType::PQ_LAYER_TYPE_VIDEO_WITH_UI);
+
+        } else {
+            setPqLayerType(HwpqDisplayStatus::PlaneInfo::PQ_LayerType::PQ_LAYER_TYPE_VIDEO);
+        }
+
+        //dump收集到的结构
         if (LogLevel(DBG_DEBUG)) {
             std::stringstream ss;
             for (auto& plane_info_map : status->mapPlaneInfo_) {

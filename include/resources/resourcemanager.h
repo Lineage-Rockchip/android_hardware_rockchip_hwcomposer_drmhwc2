@@ -42,6 +42,9 @@
 #include "SvepSr.h"
 #endif
 
+#ifdef USE_LIBPQ
+#include "rockchip/pq/DrmPq.h"
+#endif
 typedef struct MirrorDisplayInfo {
     uint64_t buffer_id = 0;
     std::string name = std::string("UnSet");
@@ -133,6 +136,12 @@ class ResourceManager {
     std::shared_ptr<SvepSr> GetSvepSr();
     std::shared_ptr<SvepSr> ResetAndGetSvepSr();
 #endif
+
+#ifdef USE_LIBPQ
+    std::shared_ptr<DrmPq> GetDrmPq();
+    std::shared_ptr<DrmPq> ResetAndGetDrmPq();
+#endif
+
   private:
     ResourceManager();
     ResourceManager(const ResourceManager&) = delete;
@@ -210,6 +219,12 @@ class ResourceManager {
     // SVEP SR
     std::shared_ptr<SvepSr> mSvepSr_ = nullptr;
 #endif
+
+#ifdef USE_LIBPQ
+    // DRM PQ
+    std::shared_ptr<DrmPq> mDrmPq_ = nullptr;
+#endif
+
     mutable std::recursive_mutex mRecursiveMutex;
 };
 }  // namespace android

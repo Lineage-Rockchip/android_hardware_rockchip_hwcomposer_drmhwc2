@@ -26,10 +26,6 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
-#ifdef USE_LIBPQ_HWPQ
-#include <Pq.h>
-#include <hardware/hwcomposer_defs.h>
-#endif
 namespace android {
 
 #if defined(__arm64__) || defined(__aarch64__)
@@ -186,6 +182,7 @@ std::string DrmVideoProducer::TransformToString(uint32_t transform) const {
     }
     return result;
 }
+
 // Create tunnel connection.
 int DrmVideoProducer::CreateConnection(int display_id, int tunnel_id, android_dataspace_t dataspace,
                                        uint32_t transform) {
@@ -200,7 +197,7 @@ int DrmVideoProducer::CreateConnection(int display_id, int tunnel_id, android_da
         std::shared_ptr<VpContext> ctx = mMapCtx_[tunnel_id];
         if (!ctx->AddConnRef(display_id)) {
             HWC2_LOGD_IF("display-id=%d tunnel_id=%d success, transform=%s, connections size=%d", display_id, tunnel_id,
-                      TransformToString(transform).c_str(), ctx->ConnectionCnt());
+                         TransformToString(transform).c_str(), ctx->ConnectionCnt());
         }
         ctx->SetDataspace(dataspace);
         ctx->SetTransform(display_id, transform);
@@ -213,7 +210,7 @@ int DrmVideoProducer::CreateConnection(int display_id, int tunnel_id, android_da
     }
 
     HWC2_LOGD_IF("display-id=%d tunnel_id=%d success, transfrom=%s", display_id, tunnel_id,
-              TransformToString(transform).c_str());
+                 TransformToString(transform).c_str());
     mMapCtx_[tunnel_id] = std::make_shared<VpContext>(tunnel_id);
     std::shared_ptr<VpContext> ctx = mMapCtx_[tunnel_id];
     ctx->AddConnRef(display_id);
@@ -250,224 +247,6 @@ int DrmVideoProducer::DestoryConnection(int display_id, int tunnel_id) {
                  ctx->ConnectionCnt());
     return 0;
 }
-
-#ifdef USE_LIBPQ_HWPQ
-
-static bool IsYuvFormat(int format, uint32_t fourcc_format) {
-    switch (fourcc_format) {
-        case DRM_FORMAT_NV12:
-        case DRM_FORMAT_NV12_10:
-        case DRM_FORMAT_NV21:
-        case DRM_FORMAT_NV16:
-        case DRM_FORMAT_NV61:
-        case DRM_FORMAT_YUV420:
-        case DRM_FORMAT_YVU420:
-        case DRM_FORMAT_YUV422:
-        case DRM_FORMAT_YVU422:
-        case DRM_FORMAT_YUV444:
-        case DRM_FORMAT_YVU444:
-        case DRM_FORMAT_UYVY:
-        case DRM_FORMAT_VYUY:
-        case DRM_FORMAT_YUYV:
-        case DRM_FORMAT_YVYU:
-        case DRM_FORMAT_YUV420_8BIT:
-        case DRM_FORMAT_YUV420_10BIT:
-        case DRM_FORMAT_NV24:
-        case DRM_FORMAT_NV42:
-        case DRM_FORMAT_NV15:
-        case DRM_FORMAT_NV20:
-        case DRM_FORMAT_NV30:
-        case DRM_FORMAT_Y210:
-        case DRM_FORMAT_VUY888:
-        case DRM_FORMAT_VUY101010:
-            return true;
-        default:
-            break;
-    }
-
-    switch (format) {
-        case HAL_PIXEL_FORMAT_YCrCb_NV12:
-        case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
-        case HAL_PIXEL_FORMAT_YCrCb_NV12_VIDEO:
-        case HAL_PIXEL_FORMAT_YCbCr_422_SP_10:
-        case HAL_PIXEL_FORMAT_YCrCb_420_SP_10:
-        case HAL_PIXEL_FORMAT_YCBCR_422_I:
-        case HAL_PIXEL_FORMAT_YUV420_8BIT_I:
-        case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
-        case HAL_PIXEL_FORMAT_Y210:
-            return true;
-        default:
-            return false;
-    }
-}
-
-static bool Is10bitYuv(int format, uint32_t fourcc_format) {
-    switch (fourcc_format) {
-        case DRM_FORMAT_NV12_10:
-        case DRM_FORMAT_YUV420_10BIT:
-        case DRM_FORMAT_VUY101010:
-        case DRM_FORMAT_Y210:
-        case DRM_FORMAT_NV30:
-        case DRM_FORMAT_NV20:
-        case DRM_FORMAT_NV15:
-            return true;
-        default:
-            break;
-    }
-
-    switch (format) {
-        case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
-        case HAL_PIXEL_FORMAT_YCbCr_422_SP_10:
-        case HAL_PIXEL_FORMAT_YCrCb_420_SP_10:
-        case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
-            return true;
-        default:
-            return false;
-    }
-}
-
-std::shared_ptr<DrmBuffer> DrmVideoProducer::DoHwPq(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer) {
-    int left, top, right, bottom;
-    buffer->GetCrop(&left, &top, &right, &bottom);
-
-    int act_w = right - left;
-    int act_h = bottom - top;
-
-    int ret = 0;
-    // 0. Check if HwPq is Ready
-    if (hwpq_ == NULL) {
-        hwpq_ = std::make_shared<Pq>();
-        if (hwpq_ != NULL) {
-            ret = hwpq_->Init(PQ_VERSION);
-            if (ret != 0) {
-                HWC2_LOGE("Pq module Init Failed, ret=%d", ret);
-                hwpq_ = NULL;
-            }
-        }
-    }
-    if (hwpq_ == NULL) {
-        HWC2_LOGE("tunnel_id=%d, buffer_id=0x%" PRIx64 " Pq module not ready! Pq::Get() return NULL",
-                  ctx->GetTunnelId(), buffer->GetExternalId());
-        return NULL;
-    }
-    // 1. 初始化Ctx
-    // 2. Fill buffer Info
-    HwPqImageInfo src;
-    src.mBufferInfo_.iFd_ = buffer->GetFd();
-    src.mBufferInfo_.iWidth_ = buffer->GetWidth();
-    src.mBufferInfo_.iHeight_ = buffer->GetHeight();
-    src.mBufferInfo_.iFormat_ = buffer->GetFormat();
-    src.mBufferInfo_.iStride_ = buffer->GetStride();
-    src.mBufferInfo_.iHeightStride_ = buffer->GetHeightStride();
-    src.mBufferInfo_.uBufferId_ = buffer->GetBufferId();
-    src.mBufferInfo_.uDataSpace_ = (uint64_t)ctx->GetDataspace();
-
-    src.mIsFbcdFormat_ = (buffer->IsAfbc() || buffer->IsRfbc());
-
-    src.mCrop_.iLeft_ = (int)left;
-    src.mCrop_.iTop_ = (int)top;
-    src.mCrop_.iRight_ = (int)right;
-    src.mCrop_.iBottom_ = (int)bottom;
-
-    src.iMetaDataFd_ = -1;
-    src.iMetaDataSize_ = 0;
-    src.iMetaDataOffset_ = 0;
-
-    // src.mVirtualAddress_ = buffer->Lock();
-    DrmGralloc* gralloc = DrmGralloc::getInstance();
-    if (gralloc == NULL) {
-        HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
-    } else {
-        src.iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(buffer->GetHandle());
-        if (src.iMetaDataOffset_ > 0) {
-            src.iMetaDataFd_ = buffer->GetFd();
-            src.iMetaDataSize_ = buffer->GetSize();
-        }
-    }
-
-    HwPqImageInfo dst;
-    dst.mBufferInfo_.iFd_ = -1;
-    std::shared_ptr<DrmBuffer> dst_buffer;
-
-    // 3. Set buffer Info
-    bool needAllocNewBuffer = false;
-    ret = hwpq_->SetHwPqSrcImage(src, dst, &needAllocNewBuffer);
-    if (ret) {
-        HWC2_LOGE("tunnel_id=%d, buffer_id=0x%" PRIx64 " Pq SetSrcImage fail ret = %d", ctx->GetTunnelId(),
-                  buffer->GetExternalId(), ret);
-        // buffer->Unlock();
-        return NULL;
-    }
-
-    //判断是否需要新buffer的条件：宽高format存在差异
-    if (needAllocNewBuffer) {
-        dst_buffer = std::make_shared<DrmBuffer>(
-                dst.mBufferInfo_.iWidth_, dst.mBufferInfo_.iHeight_, dst.mBufferInfo_.iFormat_,
-                RK_GRALLOC_USAGE_STRIDE_ALIGN_64 | MALI_GRALLOC_USAGE_NO_AFBC, "HWPQ-target");
-        ret = dst_buffer->Init();
-        if (ret) {
-            HWC2_LOGE("tunnel_id=%d, buffer_id=0x%" PRIx64 " Create DstBuffer fail! ret = %d", ctx->GetTunnelId(),
-                      buffer->GetExternalId(), ret);
-            return NULL;
-        }
-        //更新buffer参数
-        dst.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-        dst.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-        dst.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-        dst.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-        dst.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-        dst.mBufferInfo_.iHeightStride_ = dst_buffer->GetStride();
-        dst.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
-    } else {
-        dst.mBufferInfo_ = src.mBufferInfo_;
-    }
-
-    if (dst.mBufferInfo_.iFd_ < 0) {
-        HWC2_LOGE("tunnel_id=%d, buffer_id=0x%" PRIx64 " dst buffer not set, dst.mBufferInfo_.iFd_=%d",
-                  ctx->GetTunnelId(), buffer->GetExternalId(), dst.mBufferInfo_.iFd_);
-        return NULL;
-    }
-
-    //Alloc rk_hwpq_reg变量
-    if (dst_buffer == NULL)
-        dst.mRkHwpqReg_ = buffer->GetHwPqRegs().get();
-    else
-        dst.mRkHwpqReg_ = dst_buffer->GetHwPqRegs().get();
-
-    //设置目标属性
-    ret = hwpq_->SetHwPqDstImage(dst);
-    if (ret) {
-        HWC2_LOGE("tunnel_id=%d, buffer_id=0x%" PRIx64 " Pq SetHwPqDstImage fail, ret = %d", ctx->GetTunnelId(),
-                  buffer->GetExternalId(), ret);
-        return NULL;
-    }
-
-    //执行PQ
-    int output_fence = -1;
-    ret = hwpq_->RunHwPqAsync(&output_fence, ctx->DupAcquireFence(buffer->GetExternalId()));
-    if (ret) {
-        HWC2_LOGE("tunnel_id=%d, buffer_id=0x%" PRIx64 " .hwPq Run fail ret = %d", ctx->GetTunnelId(),
-                  buffer->GetExternalId(), ret);
-        return NULL;
-    }
-    ctx->SetPqAcquireFence(buffer->GetExternalId(), output_fence);
-
-    if (dst_buffer) {
-        char value[PROPERTY_VALUE_MAX];
-        property_get("vendor.dump", value, "false");
-        if (!strcmp(value, "true")) {
-            ctx->WaitAcquireFence(buffer->GetExternalId(), 3000);
-            ctx->WaitPqAcquireFence(buffer->GetExternalId(), 3000);
-            dst_buffer->DumpData(ctx->GetFrameNo(), 0, "S");
-        }
-        //Update Crop form Query Result
-        dst_buffer->SetCrop(dst.mCrop_.iLeft_, dst.mCrop_.iTop_, dst.mCrop_.iRight_, dst.mCrop_.iBottom_);
-        return dst_buffer;
-    } else {
-        return NULL;
-    }
-}
-#endif
 
 // Get Last video buffer
 std::shared_ptr<VpComposition> DrmVideoProducer::AcquireVpCompositon(int display_id, int tunnel_id, vt_rect_t* dis_rect,

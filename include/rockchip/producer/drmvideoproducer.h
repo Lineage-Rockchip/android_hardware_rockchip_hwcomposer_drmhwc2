@@ -51,9 +51,6 @@ class DrmVideoProducer : public Worker {
     void SignalVpCompositon(int display_id, int tunnel_id);
     int SetProducerFps(int tunnel_id, float fps);
     float GetProducerFps(int tunnel_id);
-#ifdef USE_LIBPQ_HWPQ
-    std::shared_ptr<DrmBuffer> DoHwPq(std::shared_ptr<VpContext> ctx, std::shared_ptr<DrmBuffer> buffer);
-#endif
 
     int ReleaseUnuseTunnel();
     std::vector<int> GetActiveTunnelIdVector();
@@ -81,9 +78,6 @@ class DrmVideoProducer : public Worker {
     //first:tunnel_id second:retry_counter
     std::vector<int> mPendingReleaseTunnel_;
     bool bLastAcquireSucceed = false;
-#ifdef USE_LIBPQ_HWPQ
-    std::shared_ptr<Pq> hwpq_ = NULL;
-#endif
 };
 
 };  // namespace android

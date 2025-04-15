@@ -40,6 +40,7 @@
 #include "rockchip/drmtype.h"
 #include "rockchip/producer/drmvideoproducer.h"
 #include "rockchip/utils/drmdebug.h"
+#include "rockchip/utils/pqutils.h"
 #include "utils/autolock.h"
 
 #include <rga.h>
@@ -721,9 +722,11 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
         DrmHwcLayer& layer = layers[source_layers.front()];
 
         if (layer.bSidebandStreamLayer_) {
-            if (current_sideband2_.enable_ == true && current_sideband2_.composition_->GetBuffer() != NULL &&
-                current_sideband2_.composition_->GetBuffer()->HasHwPqRegs())
+            if (current_sideband2_.enable_ == true && current_sideband2_.composition_ != NULL &&
+                current_sideband2_.composition_->GetBuffer() != NULL &&
+                current_sideband2_.composition_->GetBuffer()->HasHwPqRegs()) {
                 request_mode_set_.hwpq_regs_ = current_sideband2_.composition_->GetBuffer()->GetHwPqRegs();
+            }
         } else {
             if (layer.hwPqRegAcquireFence_->wait(100) == 0) {
                 request_mode_set_.hwpq_regs_ = layer.hwPqReg_;
@@ -747,15 +750,6 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
             }
 
             hwpq_crtc = crtc;
-            HWC2_LOGD_IF("hwpq enabled,hwpq reg info:");
-            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_shp_reg.module_name,
-                         request_mode_set_.hwpq_regs_->rk_hwpq_shp_reg.prop_length);
-            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_csc_reg.module_name,
-                         request_mode_set_.hwpq_regs_->rk_hwpq_csc_reg.prop_length);
-            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_acm_reg.module_name,
-                         request_mode_set_.hwpq_regs_->rk_hwpq_acm_reg.prop_length);
-            HWC2_LOGD_IF("%s:len:%" PRIu32, request_mode_set_.hwpq_regs_->rk_hwpq_dci_reg.module_name,
-                         request_mode_set_.hwpq_regs_->rk_hwpq_dci_reg.prop_length);
             break;
         }
     }
@@ -764,7 +758,6 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
     if (current_mode_set_.hwpq_regs_ != hwpq_regs) {
         if (hwpq_regs != NULL) {
             //下发HWPQ相关寄存器
-            HWC2_LOGD_IF("crtc_id = %" PRIu32 " new hwpq setting! update hwpq reg", crtc->id());
             if (use_dci && hwpq_plane == NULL) {
                 HWC2_LOGE("Could not found HWPQ Plane, skip setting, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
                           drm->getSocId(), crtc->id());
@@ -864,13 +857,17 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                               hwpq_plane->dci_data().name().c_str(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
                 }
             }
-            HWC2_LOGD_IF("Done Setting HWPQ regs for crtc_id=%" PRIu32 " %s", hwpq_crtc->id(),
-                         hwpq_plane ? hwpq_plane->name() : "");
+
+            HWC2_LOGD_IF("Enable HWPQ Crtc-id=%d PlaneName=%s Success : sharp(%" PRIu32 ") csc(%" PRIu32
+                         ") acm(%" PRIu32 ") dci(%" PRIu32 ")(%d)",
+                         hwpq_crtc->id(), hwpq_plane != NULL ? hwpq_plane->name() : "NULL",
+                         hwpq_regs->rk_hwpq_shp_reg.prop_length, hwpq_regs->rk_hwpq_csc_reg.prop_length,
+                         hwpq_regs->rk_hwpq_acm_reg.prop_length, hwpq_regs->rk_hwpq_dci_reg.prop_length, use_dci);
         } else {
             //如果reg为空，删除HWPQ下发的寄存器参数
             //先检查记录中HWPQ所在的crtc和plane是否有效
 
-            HWC2_LOGD_IF("crtc_id = %" PRIu32 " disable hwpq", crtc->id());
+            // HWC2_LOGD_IF("crtc_id = %" PRIu32 " disable hwpq", crtc->id());
             if (hwpq_crtc == NULL) {
                 HWC2_LOGD_IF("Could not found HWPQ Crtc, skip disable, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
                              drm->getSocId(), crtc->id());
@@ -934,8 +931,8 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                 }
             }
 
-            HWC2_LOGD_IF("Done Setting HWPQ regs for crtc_id=%" PRIu32 " %s", hwpq_crtc->id(),
-                         hwpq_plane ? hwpq_plane->name() : "");
+            HWC2_LOGD_IF("Disable HWPQ Crtc-id=%d PlaneName=%s Success.", hwpq_crtc->id(),
+                         hwpq_plane != NULL ? hwpq_plane->name() : "NULL");
         }
     }
     return ret < 0 ? -1 : 0;
@@ -2898,11 +2895,34 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     continue;
                 }
 
+#ifdef USE_LIBPQ_HWPQ
+                if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0) {
+                    int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
+                    if (iPqMode == PqUtils::HWPQ_HDMIRX_MODE) {
+                        // 准备当前屏幕的分辨率信息
+                        int display_w = conn->active_mode().h_display();
+                        int display_h = conn->active_mode().v_display();
+                        //获取当前display status
+                        layer.hwPqDisplayStatus = PqUtils::CollectPqSidebandDisplayStatus(
+                                layers, {display_w, display_h, ResourceManager::getInstance()->getSocId()});
+                        std::shared_ptr<DrmBuffer> hwpq_buffer =
+                                ResourceManager::getInstance()->GetDrmPq()->RunHwPqSidebandMode(
+                                        vp_composition->GetBuffer(), layer.hwPqDisplayStatus);
+                        if (hwpq_buffer != NULL && hwpq_buffer != vp_composition->GetBuffer()) {
+                            vp_composition->SetBuffer(hwpq_buffer);
+                        }
+                    } else {
+                        vp_composition->GetBuffer()->RemoveHwPqRegs();
+                    }
+                }
+#endif
+
                 hnd_buffer_id = vp_composition->GetBuffer()->GetExternalId();
                 buffer_id = vp_composition->GetBuffer()->GetBufferId();
+
 #ifdef RK3528
                 if (layer.bNeedPreScale_) {
-                    ret = vp_composition->GetBuffer() SwitchToPreScaleBuffer();
+                    ret = vp_composition->GetBuffer()->SwitchToPreScaleBuffer();
                     if (ret) {
                         HWC2_LOGW_IF("SidebandStream: SwitchToPreScaleBuffer fail, iTunnelId = %d", layer.iTunnelId_);
                     } else {

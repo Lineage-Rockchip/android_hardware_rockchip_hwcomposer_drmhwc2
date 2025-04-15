@@ -278,6 +278,27 @@ std::shared_ptr<SvepSr> ResourceManager::ResetAndGetSvepSr() {
 };
 
 #endif
+
+#ifdef USE_LIBPQ
+std::shared_ptr<DrmPq> ResourceManager::GetDrmPq() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mDrmPq_ == nullptr) {
+        mDrmPq_ = std::make_shared<DrmPq>();
+    }
+    mDrmPq_->Init();
+    return mDrmPq_;
+};
+
+// 主要目的是为了释放旧DrmPq内存
+std::shared_ptr<DrmPq> ResourceManager::ResetAndGetDrmPq() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mDrmPq_ != nullptr) {
+        mDrmPq_ = nullptr;
+    }
+    return GetDrmPq();
+};
+#endif
+
 bool ResourceManager::GetRgaSupportAbove4GB() const {
     if (gIsRK3588() || gIsRK3576())
         return true;
