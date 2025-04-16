@@ -30,6 +30,13 @@
 
 namespace android {
 
+enum DrmBufferType {
+    DRM_BUFFER_TYPE_NONE = 0,
+    DRM_BUFFER_TYPE_RGA = 1,
+    DRM_BUFFER_TYPE_SR = 2,
+    DRM_BUFFER_TYPE_MEMC = 3,
+    DRM_BUFFER_TYPE_PQ = 4,
+};
 class DrmBuffer {
   public:
     DrmBuffer(int w, int h, int format, uint64_t usage = 0, std::string sName_ = "unset", int parent_id = 0);
@@ -98,6 +105,9 @@ class DrmBuffer {
     uint32_t GetPreScaleFbId();
 #endif
 
+    void SetBufferType(DrmBufferType type) { mType_ = type; };
+    DrmBufferType GetBufferType() { return mType_; };
+
   private:
     uint64_t uId = 0;
     int iParentId_ = -1;
@@ -144,6 +154,7 @@ class DrmBuffer {
     buffer_handle_t buffer_ = NULL;
     sp<GraphicBuffer> ptrBuffer_ = NULL;
     DrmGralloc* ptrDrmGralloc_ = NULL;
+    DrmBufferType mType_;
     mutable std::mutex mtx_;
 #ifdef USE_LIBPQ_HWPQ
     std::shared_ptr<rk_hwpq_reg> spHwPqReg_ = NULL;

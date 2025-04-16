@@ -1034,22 +1034,24 @@ void DrmHwcLayer::UpdateAndStoreInfoFromDrmBuffer(buffer_handle_t handle, int fd
 
     transform = replace_transform;
     Init();
-    HWC2_LOGD_IF(
-            "SrTransform : LayerId[%u] Fourcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
-            "src=[%5.0f,%5.0f,%5.0f,%5.0f] dis=[%4d,%4d,%4d,%4d] Transform=%-8.8s(0x%x) gemhandle=%d\n"
-            "                            Fourcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
-            "src=[%5.0f,%5.0f,%5.0f,%5.0f] dis=[%4d,%4d,%4d,%4d] Transform=%-8.8s(0x%x) gemhandle=%d\n",
-            uId_, storeLayerInfo_.uFourccFormat_, storeLayerInfo_.uFourccFormat_ >> 8,
-            storeLayerInfo_.uFourccFormat_ >> 16, storeLayerInfo_.uFourccFormat_ >> 24, storeLayerInfo_.iWidth_,
-            storeLayerInfo_.iHeight_, storeLayerInfo_.iStride_, storeLayerInfo_.iHeightStride_, storeLayerInfo_.iSize_,
-            storeLayerInfo_.source_crop.left, storeLayerInfo_.source_crop.top, storeLayerInfo_.source_crop.right,
-            storeLayerInfo_.source_crop.bottom, storeLayerInfo_.display_frame.left, storeLayerInfo_.display_frame.top,
-            storeLayerInfo_.display_frame.right, storeLayerInfo_.display_frame.bottom,
-            TransformToString(storeLayerInfo_.transform).c_str(), storeLayerInfo_.transform,
-            storeLayerInfo_.uGemHandle_, uFourccFormat_, uFourccFormat_ >> 8, uFourccFormat_ >> 16,
-            uFourccFormat_ >> 24, iWidth_, iHeight_, iStride_, iHeightStride_, iSize_, source_crop.left,
-            source_crop.top, source_crop.right, source_crop.bottom, display_frame.left, display_frame.top,
-            display_frame.right, display_frame.bottom, TransformToString(transform).c_str(), transform, uGemHandle_);
+    ALOGD_IF(LogLevel(DBG_DEBUG),
+             "UpdateSrcInfo: fcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
+             "src=[%5.0f,%5.0f,%5.0f,%5.0f] dis=[%4d,%4d,%4d,%4d] Transform=%-8.8s(0x%x) gemhandle=%d Name=%s",
+             storeLayerInfo_.uFourccFormat_, storeLayerInfo_.uFourccFormat_ >> 8, storeLayerInfo_.uFourccFormat_ >> 16,
+             storeLayerInfo_.uFourccFormat_ >> 24, storeLayerInfo_.iWidth_, storeLayerInfo_.iHeight_,
+             storeLayerInfo_.iStride_, storeLayerInfo_.iHeightStride_, storeLayerInfo_.iSize_,
+             storeLayerInfo_.source_crop.left, storeLayerInfo_.source_crop.top, storeLayerInfo_.source_crop.right,
+             storeLayerInfo_.source_crop.bottom, storeLayerInfo_.display_frame.left, storeLayerInfo_.display_frame.top,
+             storeLayerInfo_.display_frame.right, storeLayerInfo_.display_frame.bottom,
+             TransformToString(storeLayerInfo_.transform).c_str(), storeLayerInfo_.transform,
+             storeLayerInfo_.uGemHandle_, storeLayerInfo_.sLayerName_.c_str());
+    ALOGD_IF(LogLevel(DBG_DEBUG),
+             "UpdateDstInfo: fcc=%c%c%c%c Buf[w,h,s,hs,size]=[%4d,%4d,%4d,%4d,%4d]  "
+             "src=[%5.0f,%5.0f,%5.0f,%5.0f] dis=[%4d,%4d,%4d,%4d] Transform=%-8.8s(0x%x) gemhandle=%d Name=%s",
+             uFourccFormat_, uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, iWidth_, iHeight_,
+             iStride_, iHeightStride_, iSize_, source_crop.left, source_crop.top, source_crop.right, source_crop.bottom,
+             display_frame.left, display_frame.top, display_frame.right, display_frame.bottom,
+             TransformToString(transform).c_str(), transform, uGemHandle_, sLayerName_.c_str());
     return;
 }
 

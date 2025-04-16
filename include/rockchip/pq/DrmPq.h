@@ -41,7 +41,8 @@
 #include "drmbufferqueue.h"
 #include "drmlayer.h"
 
-struct DrmPqBufferInfo {
+class DrmPqBufferInfo {
+  public:
     hwc_frect_t source_crop;
     hwc_rect_t display_frame;
     uint64_t buffer_id = 0;
@@ -53,23 +54,39 @@ struct DrmPqBufferInfo {
                     memcmp(&layer->source_crop, &source_crop, sizeof(source_crop)) == 0 &&
                     memcmp(&layer->display_frame, &display_frame, sizeof(display_frame)) == 0);
     }
+
+    bool match(DrmHwcLayer& layer) {
+        return (layer.uBufferId_ == buffer_id && memcmp(&layer.source_crop, &source_crop, sizeof(source_crop)) == 0 &&
+                memcmp(&layer.display_frame, &display_frame, sizeof(display_frame)) == 0);
+    }
+
     void set(DrmHwcLayer* layer) {
         if (!layer) return;
         buffer_id = layer->uBufferId_;
         source_crop = layer->source_crop;
         display_frame = layer->display_frame;
     }
+
+    void set(DrmHwcLayer& layer) {
+        buffer_id = layer.uBufferId_;
+        source_crop = layer.source_crop;
+        display_frame = layer.display_frame;
+    }
+
     void clear() {
         buffer_id = 0;
         memset(&source_crop, 0, sizeof(source_crop));
         memset(&display_frame, 0, sizeof(display_frame));
     }
 };
+
 class DrmPq {
   public:
     DrmPq();
     ~DrmPq();
     int Init();
+
+    int RunHwPqUiMode(std::vector<DrmHwcLayer>& layers);
     int CheckHwPqDstScale(DrmHwcLayer* drmLayer);
     int RunHwPqVideoMode(DrmHwcLayer* drmLayer);
     std::shared_ptr<DrmBuffer> RunHwPqSidebandMode(std::shared_ptr<DrmBuffer> src_buffer,

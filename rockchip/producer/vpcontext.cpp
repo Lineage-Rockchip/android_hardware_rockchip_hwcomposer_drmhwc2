@@ -196,11 +196,11 @@ void VpContext::PrintReleaseFailedBuffer() {
 void VpContext::Dump(String8& output) {
     std::unique_lock<std::mutex> lock(mtx_);
     output.appendFormat(
-            "SidebandCtxId=%d CacheBufferSize=%zu TransformSize=%zu ProducerFps=%.2f refDpyConnection=%zu "
-            "DataSpace=0x%x ReleaseFailedBufferSize=%zu NeedReleaseCtxSize=%zu LatestComposition=%s \n",
+            "SidebandCtxInfo: Id=%d CacheBufferSize=%zu TransformSize=%zu ProducerFps=%.2f refDpyConnection=%zu "
+            "DataSpace=0x%x ReleaseFailedBufferSize=%zu NeedReleaseCtxSize=%zu\n",
             iTunnelId_, mMapBuffer_.size(), mMapVpTransformCtx_.size(), mFps_, refDpyConnection_.size(), iDataSpace_,
-            mReleaseFailedBuffer_.size(), mNeedReleaseCtx_.size(),
-            mLatestR0Composition_ != NULL ? mLatestR0Composition_->Name().c_str() : "None");
+            mReleaseFailedBuffer_.size(), mNeedReleaseCtx_.size());
+    output.appendFormat("\tSidebandCtxTransformInfo: \n");
     output.appendFormat("\t[DisplayId, Transform]: ");
     for (auto pair_transform : mMapTransform_) {
         // display-id = -1/100x 均是内部控制逻辑，不需要打印

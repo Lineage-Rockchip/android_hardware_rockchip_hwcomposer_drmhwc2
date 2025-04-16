@@ -477,13 +477,27 @@ int DrmDisplayCompositor::SyntheticWaitVBlank() {
     if (IsSidebandMode()) {
         char property_value[PROPERTY_VALUE_MAX];
         int sideband_percentage = 50;
-        property_get("vendor.hwc.siedeband_wait_vsync_percentage", property_value, "50");
+#ifdef USE_LIBPQ_HWPQ
+        if (current_sideband2_.composition_ != NULL && current_sideband2_.composition_->GetBuffer() != NULL &&
+            current_sideband2_.composition_->GetBuffer()->HasHwPqRegs()) {
+            sideband_percentage = 20;
+        }
+#endif
+        property_get("vendor.hwc.siedeband_wait_vsync_percentage", property_value, "0");
+        int property_precentage = atoi(property_value);
         //确认是否获取到了有效的percentage
-        if (sscanf(property_value, "%d", &sideband_percentage) == 1 && sideband_percentage >= 0 &&
-            sideband_percentage <= 80)
+        if (property_precentage > 0) {
+            if (property_precentage > 80) {
+                property_precentage = 80;
+            }
+
+            if (property_precentage < 10) {
+                property_precentage = 10;
+            }
+            percentage = (float)property_precentage / 100.0f;
+        } else {
             percentage = (float)sideband_percentage / 100.0f;
-        else
-            percentage = 0.5f;
+        }
     }
     int64_t phased_timestamp =
             GetPhasedVSync(kOneSecondNs / refresh * percentage, vsync_.tv_sec * kOneSecondNs + vsync_.tv_nsec);
@@ -723,9 +737,9 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
 
         if (layer.bSidebandStreamLayer_) {
             if (current_sideband2_.enable_ == true && current_sideband2_.composition_ != NULL &&
-                current_sideband2_.composition_->GetBuffer() != NULL &&
-                current_sideband2_.composition_->GetBuffer()->HasHwPqRegs()) {
-                request_mode_set_.hwpq_regs_ = current_sideband2_.composition_->GetBuffer()->GetHwPqRegs();
+                current_sideband2_.composition_->GetPqBuffer() != NULL &&
+                current_sideband2_.composition_->GetPqBuffer()->HasHwPqRegs()) {
+                request_mode_set_.hwpq_regs_ = current_sideband2_.composition_->GetPqBuffer()->GetHwPqRegs();
             }
         } else {
             if (layer.hwPqRegAcquireFence_->wait(100) == 0) {
@@ -2883,7 +2897,8 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                 //若屏幕帧率大于sideband producer帧率，则需要等待AcquireFence
                 //若使用RGAWriteBack，也需要等待AcquireFence
                 if ((resource_manager_->isWBMode() && resource_manager_->IsWriteBackByRga()) ||
-                    display_refresh > producer_fps) {
+                    display_refresh > producer_fps ||
+                    (transform & DRM_MODE_POST_PROCESS_SR) == DRM_MODE_POST_PROCESS_SR) {
                     need_wait_fence = true;
                 }
                 //HWC2_LOGD_IF("DVP AcquireBuffer with acquire_fence_en:%d,display_refresh:%f,ProducerFps:%f",acquire_fence_en,display_refresh,producer_fps);
@@ -2895,6 +2910,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     continue;
                 }
 
+                std::shared_ptr<DrmBuffer> output_buffer = vp_composition->GetBuffer();
 #ifdef USE_LIBPQ_HWPQ
                 if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0) {
                     int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
@@ -2907,54 +2923,55 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                                 layers, {display_w, display_h, ResourceManager::getInstance()->getSocId()});
                         std::shared_ptr<DrmBuffer> hwpq_buffer =
                                 ResourceManager::getInstance()->GetDrmPq()->RunHwPqSidebandMode(
-                                        vp_composition->GetBuffer(), layer.hwPqDisplayStatus);
-                        if (hwpq_buffer != NULL && hwpq_buffer != vp_composition->GetBuffer()) {
-                            vp_composition->SetBuffer(hwpq_buffer);
+                                        output_buffer, layer.hwPqDisplayStatus);
+                        if (hwpq_buffer != NULL) {
+                            vp_composition->SetPqBuffer(hwpq_buffer);
+                            output_buffer = hwpq_buffer;
                         }
-                    } else {
-                        vp_composition->GetBuffer()->RemoveHwPqRegs();
                     }
                 }
 #endif
 
-                hnd_buffer_id = vp_composition->GetBuffer()->GetExternalId();
-                buffer_id = vp_composition->GetBuffer()->GetBufferId();
+                hnd_buffer_id = output_buffer->GetExternalId();
+                buffer_id = output_buffer->GetBufferId();
 
 #ifdef RK3528
                 if (layer.bNeedPreScale_) {
-                    ret = vp_composition->GetBuffer()->SwitchToPreScaleBuffer();
+                    ret = output_buffer->SwitchToPreScaleBuffer();
                     if (ret) {
                         HWC2_LOGW_IF("SidebandStream: SwitchToPreScaleBuffer fail, iTunnelId = %d", layer.iTunnelId_);
                     } else {
                         // 更新 sideband Buffer 参数
-                        fb_id = vp_composition->GetBuffer()->GetPreScaleFbId();
+                        fb_id = output_buffer->GetPreScaleFbId();
                         yuv = layer.bYuv_;
-                        afbcd = vp_composition->GetBuffer()->GetModifier() > 0;
+                        afbcd = output_buffer->GetModifier() > 0;
                         int left = 0, top = 0, right = 0, bottom = 0;
-                        vp_composition->GetBuffer()->GetCrop(&left, &top, &right, &bottom);
+                        output_buffer->GetCrop(&left, &top, &right, &bottom);
                         source_crop.left = (float)left;
                         source_crop.top = (float)top;
                         source_crop.right = (float)right;
                         source_crop.bottom = (float)bottom;
 
-                        layer.sf_handle = vp_composition->GetBuffer()->GetHandle();
+                        layer.sf_handle = output_buffer->GetHandle();
                         layer.bIsPreScale_ = true;
                     }
                 } else
 #endif
                 {
                     // 更新 sideband Buffer 参数
-                    fb_id = vp_composition->GetBuffer()->GetFbId();
+                    fb_id = output_buffer->GetFbId();
                     yuv = layer.bYuv_;
-                    afbcd = vp_composition->GetBuffer()->GetModifier() > 0;
+                    afbcd = output_buffer->GetModifier() > 0;
                     int left = 0, top = 0, right = 0, bottom = 0;
-                    vp_composition->GetBuffer()->GetCrop(&left, &top, &right, &bottom);
+                    output_buffer->GetCrop(&left, &top, &right, &bottom);
                     source_crop.left = (float)left;
                     source_crop.top = (float)top;
                     source_crop.right = (float)right;
                     source_crop.bottom = (float)bottom;
 
-                    layer.sf_handle = vp_composition->GetBuffer()->GetHandle();
+                    layer.sf_handle = output_buffer->GetHandle();
+                    eotf = layer.uEOTF;
+                    colorspace = layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
                 }
 
                 // 更新Sideband请求状态状态
@@ -2976,6 +2993,8 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                 afbcd = layer.bAfbcd_;
                 yuv = layer.bYuv_;
                 source_crop = layer.source_crop;
+                eotf = layer.uEOTF;
+                colorspace = layer.uColorSpace;
             }
 
 #ifdef RK3528
@@ -2989,8 +3008,6 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
             display_frame = layer.display_frame;
             display_frame_mirror = layer.display_frame_mirror;
             if (layer.blending == DrmHwcBlending::kPreMult) alpha = layer.alpha << 8;
-            eotf = layer.uEOTF;
-            colorspace = layer.uColorSpace;
 
             if (plane->blend_property().id()) {
                 switch (layer.blending) {
@@ -4892,11 +4909,6 @@ void DrmDisplayCompositor::Dump(String8& output) const {
         for (auto& active_compositon : active_composition_map_) {
             active_compositon.second->Dump(output);
         }
-    }
-
-    if (current_sideband2_.enable_ || drawing_sideband2_.enable_) {
-        DrmVideoProducer* dvp = DrmVideoProducer::getInstance();
-        dvp->Dump(output);
     }
 
     pthread_mutex_unlock(&lock_);

@@ -76,7 +76,8 @@ DrmBuffer::DrmBuffer(int w, int h, int format, uint64_t usage, std::string name,
       sName_(name),
       buffer_(NULL),
       ptrBuffer_(NULL),
-      ptrDrmGralloc_(DrmGralloc::getInstance()) {}
+      ptrDrmGralloc_(DrmGralloc::getInstance()),
+      mType_(DRM_BUFFER_TYPE_NONE) {}
 
 DrmBuffer::DrmBuffer(native_handle_t* in_handle)
     : uId(getUniqueId()),
@@ -104,7 +105,8 @@ DrmBuffer::DrmBuffer(native_handle_t* in_handle)
       sName_(""),
       inBuffer_(in_handle),
       ptrBuffer_(NULL),
-      ptrDrmGralloc_(DrmGralloc::getInstance()) {
+      ptrDrmGralloc_(DrmGralloc::getInstance()),
+      mType_(DRM_BUFFER_TYPE_NONE) {
     int ret = ptrDrmGralloc_->importBuffer(inBuffer_, &buffer_);
     if (ret) {
         ALOGE("importBuffer in_handle=%p, local_handle=%p fail, ret=%d", inBuffer_, buffer_, ret);
@@ -165,7 +167,8 @@ DrmBuffer::DrmBuffer(int fd, int width, int height, int stride, int heightStride
       sName_(name),
       inBuffer_(NULL),
       ptrBuffer_(NULL),
-      ptrDrmGralloc_(DrmGralloc::getInstance()) {
+      ptrDrmGralloc_(DrmGralloc::getInstance()),
+      mType_(DRM_BUFFER_TYPE_NONE) {
     uByteStridePlanes_ = {0, 0, 0, 0};
     int ret = ptrDrmGralloc_->hwc_get_gemhandle_from_fd(iFd_, uBufferId_, &uGemHandle_);
     if (ret) {

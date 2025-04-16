@@ -277,8 +277,9 @@ std::shared_ptr<VpComposition> DrmVideoProducer::AcquireVpCompositon(int display
         transform_ctx->SetDisplayFrameInfo(display_id, dis_rect);
         std::shared_ptr<VpComposition> composition = transform_ctx->GetVpComposition(wait_fence);
         if (composition != nullptr) {
-            ALOGD_IF(LogLevel(DBG_DEBUG), "AcquireVpCompositon display-id=%d Name=%s success! transform=%s", display_id,
-                     composition->Name().c_str(), TransformToString(transform).c_str());
+            ALOGD_IF(LogLevel(DBG_DEBUG),
+                     "AcquireVpCompositon display-id=%d Name=%s success! transform=%s wait_fence=%d", display_id,
+                     composition->Name().c_str(), TransformToString(transform).c_str(), wait_fence);
             return composition;
         }
     }
@@ -378,7 +379,7 @@ int DrmVideoProducer::UpdateTransformCtx(int tunnel_id) {
             // 如果未创建 VpTransformContext ，则创建
             if (ctx->mMapVpTransformCtx_.count(pair_transform.second) == 0) {
                 ctx->mMapVpTransformCtx_[pair_transform.second] =
-                        std::make_shared<VpTransformContext>(tunnel_id, pair_transform.second);
+                        std::make_shared<VpTransformContext>(tunnel_id, pair_transform.second, ctx->GetDataspace());
             }
         }
     }
@@ -625,12 +626,12 @@ void DrmVideoProducer::PrintPendingReleaseTunnel() {
 }
 
 void DrmVideoProducer::Dump(String8& output) {
-    output.appendFormat("Sideband-2.0 Info Dump: \n");
-    output.appendFormat("%s", bInit_ ? "InitSuccess " : "UnInit ");
     if (!bInit_) {
-        output.appendFormat("\n");
+        output.appendFormat("\nSideband-2.0 is Disable.\n");
         return;
     }
+    output.appendFormat("\nSideband-2.0 Info Dump: \n");
+    output.appendFormat("%s", bInit_ ? "InitSuccess " : "UnInit ");
     std::vector<int> active_tunnel_id = GetActiveTunnelIdVector();
     std::unique_lock<std::mutex> lock(mtx_);
 

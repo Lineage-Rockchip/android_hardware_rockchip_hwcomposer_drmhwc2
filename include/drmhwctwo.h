@@ -584,7 +584,6 @@ class DrmHwcTwo : public hwc2_device_t {
         float GetActiveFps() { return mSvepFps_; }
 
         int DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_drm_display_t* ctx);
-        int DoHwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_drm_display_t* ctx);
 
         bool CanSkipSolidColorLayer(int have_skip_layer_zpos);
 
@@ -672,7 +671,6 @@ class DrmHwcTwo : public hwc2_device_t {
 #ifdef USE_LIBPQ
         std::shared_ptr<DrmBufferQueue> bufferQueue_;
         Pq* swpq_ = NULL;
-        std::shared_ptr<Pq> hwpq_;
         bool bPqReady_ = false;
         PqContext pqCtx_;
 #endif
@@ -827,10 +825,6 @@ class DrmHwcTwo : public hwc2_device_t {
 
 #ifdef USE_LIBEBOOK
         int isEBook() { return ebook_framebuffer_width > 0; }
-#endif
-
-#ifdef USE_LIBPQ_HWPQ
-        int CollectInfoForHwPqUIMode();
 #endif
         HWC2::Error GetOrCreateDummyLayer();
         HWC2::Error DestoryDummyLayer();

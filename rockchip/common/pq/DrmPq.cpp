@@ -63,6 +63,305 @@ int DrmPq::Init() {
     return 0;
 }
 
+int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
+    if (bInit_ == false) {
+        HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
+        return -1;
+    }
+    int ret = 0;
+    std::shared_ptr<DrmBuffer> dst_buffer;
+
+    //如果存在视频图层有HWPQ metadata 先取出来
+    int hwpq_meta_fd = -1;
+    int64_t hwpq_meta_offset = 0;
+    int64_t hwpq_meta_size = 0;
+
+    DrmGralloc* gralloc = DrmGralloc::getInstance();
+
+    if (gralloc == NULL) {
+        HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
+    } else {
+        for (auto& layer : layers) {
+            if (layer.bYuv_ && layer.bHasMetadata_) {
+                int64_t iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(layer.sf_handle);
+                if (iMetaDataOffset_ > 0) {
+                    hwpq_meta_fd = layer.iFd_;
+                    hwpq_meta_offset = iMetaDataOffset_;
+                    hwpq_meta_size = layer.iSize_;
+                    HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " name:%s", hwpq_meta_fd, hwpq_meta_offset,
+                                 layer.sLayerName_.c_str());
+                    break;
+                }
+            }
+        }
+    }
+
+    for (auto& drmLayer : layers) {
+        if (drmLayer.bFbTarget_) {
+            if (!mLastHwPqBufInfo_.match(drmLayer)) {
+                // 1. Fill buffer Info
+                HwPqImageInfo src;
+                src.mBufferInfo_.iFd_ = drmLayer.iFd_;
+                src.mBufferInfo_.iWidth_ = drmLayer.iWidth_;
+                src.mBufferInfo_.iHeight_ = drmLayer.iHeight_;
+                src.mBufferInfo_.iFormat_ = drmLayer.iFormat_;
+                src.mBufferInfo_.iStride_ = drmLayer.iStride_;
+                src.mBufferInfo_.iHeightStride_ = drmLayer.iHeightStride_;
+                src.mBufferInfo_.uBufferId_ = drmLayer.uBufferId_;
+                src.mBufferInfo_.uDataSpace_ = (uint64_t)drmLayer.eDataSpace_;
+
+                src.iRotation_ = drmLayer.transform;
+                src.mIsFbcdFormat_ = drmLayer.bAfbcd_ || drmLayer.bRfbcd_;
+
+                src.mCrop_.iLeft_ = (int)drmLayer.source_crop.left;
+                src.mCrop_.iTop_ = (int)drmLayer.source_crop.top;
+                src.mCrop_.iRight_ = (int)drmLayer.source_crop.right;
+                src.mCrop_.iBottom_ = (int)drmLayer.source_crop.bottom;
+                //Get and set MetaData
+                src.iMetaDataFd_ = hwpq_meta_fd;
+                src.iMetaDataSize_ = hwpq_meta_size;
+                src.iMetaDataOffset_ = hwpq_meta_offset;
+
+                DrmGralloc* gralloc = DrmGralloc::getInstance();
+                if (gralloc == NULL) {
+                    HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
+                }
+
+                src.mDisplayStatus_ = drmLayer.hwPqDisplayStatus;
+
+                // 2. Alloc Dst buffer
+                if (drmLayer.hwPqReg_ == NULL) {
+                    drmLayer.hwPqReg_ = std::shared_ptr<rk_hwpq_reg>(new rk_hwpq_reg);
+                    if (drmLayer.hwPqReg_ == NULL) {
+                        HWC2_LOGE("rk_hwpq_reg alloc failed");
+                        return -1;
+                    }
+                }
+
+                // 3. Set buffer Info
+                dst_buffer = NULL;
+                mHwPqDstInfo_.mBufferInfo_.iFd_ = -1;
+                mHwPqDstInfo_.mRkHwpqReg_ = drmLayer.hwPqReg_.get();
+
+                bool needAllocNewBuffer = false;
+
+                mPq_->Query(src, mHwPqDstInfo_, &needAllocNewBuffer);
+
+                // 4. Alloc buffer if needed
+                if (needAllocNewBuffer) {
+                    HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
+                    dst_buffer = mBufferQueue_->DequeueDrmBuffer(
+                            mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
+                            mHwPqDstInfo_.mBufferInfo_.iFormat_,
+                            RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
+
+                    if (dst_buffer == NULL) {
+                        HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
+                        return -1;
+                    }
+
+                    // 4.1 Set dst buffer Info
+                    mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+                    mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+                    mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+                    mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+                    mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+                    mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+                    mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+                    //Update info for new buffer
+                    src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).VopSrcRect_ =
+                            mHwPqDstInfo_.mCrop_;
+                    src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uFourccFormat_ =
+                            dst_buffer->GetFourccFormat();
+                    src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).iHalFormat_ =
+                            dst_buffer->GetFormat();
+                    src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uModifier_ =
+                            dst_buffer->GetModifier();
+                    src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uDataSpace_ =
+                            mHwPqDstInfo_.mBufferInfo_.uDataSpace_;
+                } else {
+                    mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+                }
+                HwPqImageInfo dst_buffer_Info_ = mHwPqDstInfo_;
+                HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
+                             src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
+                             src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
+                ret = mPq_->SetHwPqSrcImage(src, mHwPqDstInfo_, &needAllocNewBuffer);
+                if (ret) {
+                    if (ret == PqUnInit)
+                        HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
+                    else if (PqUnSupported)
+                        HWC2_LOGE("Pq SetHwPqSrcImage fail, Src is UnSupported, ret = %d", ret);
+                    else
+                        HWC2_LOGE("Pq SetHwPqSrcImage fail, ret = %d", ret);
+                    return ret;
+                }
+
+                // 4. ReAlloc buffer if needed
+                if (needAllocNewBuffer) {
+                    //if New buffer is needed, and it's resolution changed, realloc buffer
+                    if (!dst_buffer || mHwPqDstInfo_.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
+                        mHwPqDstInfo_.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
+                        mHwPqDstInfo_.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
+                        HWC2_LOGW(
+                                "HWPQ: Dst buffer changed between querry and SetHwPqSrcImage!![%dx%d f=%d]->[%dx%d "
+                                "f=%d]",
+                                dst_buffer_Info_.mBufferInfo_.iWidth_, dst_buffer_Info_.mBufferInfo_.iHeight_,
+                                dst_buffer_Info_.mBufferInfo_.iFormat_, mHwPqDstInfo_.mBufferInfo_.iWidth_,
+                                mHwPqDstInfo_.mBufferInfo_.iHeight_, mHwPqDstInfo_.mBufferInfo_.iFormat_);
+                        if (dst_buffer) {
+                            mBufferQueue_->QueueBuffer(dst_buffer);
+                            dst_buffer = NULL;
+                        }
+                        HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
+                        dst_buffer = mBufferQueue_->DequeueDrmBuffer(
+                                mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
+                                mHwPqDstInfo_.mBufferInfo_.iFormat_,
+                                RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
+
+                        if (dst_buffer == NULL) {
+                            HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
+                            return -1;
+                        }
+                    }
+
+                    // 4.1 Set dst buffer Info
+                    mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+                    mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+                    mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+                    mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+                    mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+                    mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+                    mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+                } else {
+                    //If New buffer is not need anymore
+                    if (dst_buffer) {
+                        mBufferQueue_->QueueBuffer(dst_buffer);
+                        dst_buffer = NULL;
+                    }
+                    mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+                }
+
+                HWC2_LOGD_IF("dst: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64,
+                             mHwPqDstInfo_.mBufferInfo_.iFd_, mHwPqDstInfo_.mBufferInfo_.iWidth_,
+                             mHwPqDstInfo_.mBufferInfo_.iHeight_, mHwPqDstInfo_.mBufferInfo_.iFormat_,
+                             mHwPqDstInfo_.mBufferInfo_.iStride_, mHwPqDstInfo_.mBufferInfo_.iHeightStride_,
+                             mHwPqDstInfo_.mBufferInfo_.uBufferId_);
+                ret = mPq_->SetHwPqDstImage(mHwPqDstInfo_);
+                if (ret) {
+                    HWC2_LOGE("Pq SetHwPqDstImage fail ret = %d", ret);
+                    if (dst_buffer != NULL) mBufferQueue_->QueueBuffer(dst_buffer);
+                    return ret;
+                }
+                // 5. Run HWPQ
+                int output_fence = -1;
+                int acquire_fence = -1;
+
+                if (drmLayer.acquire_fence->isValid()) {
+                    acquire_fence = dup(drmLayer.acquire_fence->getFd());
+                }
+
+                int ret = mPq_->RunHwPqAsync(&output_fence, acquire_fence);
+                if (ret) {
+                    HWC2_LOGE("RunHwPqAsync fail! ret = %d", ret);
+                    if (dst_buffer != NULL) mBufferQueue_->QueueBuffer(dst_buffer);
+                    return ret;
+                }
+
+                // 6. Update Layer info
+                drmLayer.hwPqRegAcquireFence_ = sp<AcquireFence>(new AcquireFence(output_fence));
+
+                mLastHwPqBufInfo_.set(drmLayer);
+                mLastHwPqReg_ = drmLayer.hwPqReg_;
+                mLastAcquireFence_ = drmLayer.hwPqRegAcquireFence_;
+
+                if (dst_buffer != NULL) {
+                    mLastHwPqUseNewBuffer_ = true;
+
+                    dst_buffer->SetFinishFence(dup(output_fence));
+                    mBufferQueue_->QueueBuffer(dst_buffer);
+
+                    drmLayer.bUseHwpqScale_ = true;
+                    drmLayer.bUsePq_ = true;
+                    drmLayer.pPqBuffer_ = dst_buffer;
+                    drmLayer.acquire_fence = sp<AcquireFence>(new AcquireFence(dup(output_fence)));
+                    hwc_frect_t source_crop;
+                    source_crop.left = mHwPqDstInfo_.mCrop_.iLeft_;
+                    source_crop.top = mHwPqDstInfo_.mCrop_.iTop_;
+                    source_crop.right = mHwPqDstInfo_.mCrop_.iRight_;
+                    source_crop.bottom = mHwPqDstInfo_.mCrop_.iBottom_;
+                    drmLayer.UpdateAndStoreInfoFromDrmBuffer(
+                            dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(),
+                            dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetStride(),
+                            dst_buffer->GetHeightStride(), dst_buffer->GetByteStride(), dst_buffer->GetSize(),
+                            dst_buffer->GetUsage(), dst_buffer->GetFourccFormat(), dst_buffer->GetModifier(),
+                            dst_buffer->GetByteStridePlanes(), dst_buffer->GetName(), source_crop,
+                            dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(), drmLayer.transform);
+                    //dump HwPq layer if needed
+                    char value[PROPERTY_VALUE_MAX];
+                    property_get("vendor.dump", value, "false");
+                    if (!strcmp(value, "true")) {
+                        dst_buffer->WaitFinishFence();
+                        dst_buffer->DumpData(drmLayer.uFrameNo_, drmLayer.iZpos_, "M");
+                    }
+                } else {
+                    mLastHwPqUseNewBuffer_ = false;
+                }
+
+                drmLayer.Init();
+                if (gIsDrmVerison6_1()) {
+                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_encoding_ = DRM_COLOR_YCBCR_BT601;
+                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_range_ = DRM_COLOR_YCBCR_FULL_RANGE;
+                } else {
+                    drmLayer.uColorSpace.colorspace_kernel_510_ = V4L2_COLORSPACE_JPEG;
+                }
+                return 0;
+
+            } else {  //Use last buffer
+
+                if (mLastHwPqUseNewBuffer_)
+                    dst_buffer = mBufferQueue_->BackDrmBuffer();
+                else {
+                    dst_buffer = NULL;
+                }
+
+                if (dst_buffer != NULL) {
+                    hwc_frect_t source_crop;
+                    source_crop.left = mHwPqDstInfo_.mCrop_.iLeft_;
+                    source_crop.top = mHwPqDstInfo_.mCrop_.iTop_;
+                    source_crop.right = mHwPqDstInfo_.mCrop_.iRight_;
+                    source_crop.bottom = mHwPqDstInfo_.mCrop_.iBottom_;
+                    drmLayer.UpdateAndStoreInfoFromDrmBuffer(
+                            dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(),
+                            dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetStride(),
+                            dst_buffer->GetHeightStride(), dst_buffer->GetByteStride(), dst_buffer->GetSize(),
+                            dst_buffer->GetUsage(), dst_buffer->GetFourccFormat(), dst_buffer->GetModifier(),
+                            dst_buffer->GetByteStridePlanes(), dst_buffer->GetName(), source_crop,
+                            dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(), drmLayer.transform);
+                    // Update Layer info
+                    drmLayer.acquire_fence = mLastAcquireFence_;
+                    drmLayer.bUseHwpqScale_ = true;
+                    drmLayer.bUsePq_ = true;
+                    drmLayer.pPqBuffer_ = dst_buffer;
+                } else {
+                    HWC2_LOGD_IF("dst_buffer = null, hwpq use original buffer");
+                }
+
+                drmLayer.hwPqReg_ = mLastHwPqReg_;
+                drmLayer.Init();
+                if (gIsDrmVerison6_1()) {
+                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_encoding_ = DRM_COLOR_YCBCR_BT601;
+                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_range_ = DRM_COLOR_YCBCR_FULL_RANGE;
+                } else {
+                    drmLayer.uColorSpace.colorspace_kernel_510_ = V4L2_COLORSPACE_JPEG;
+                }
+                return 0;
+            }
+        }
+    }
+    return -1;
+}
+
 int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
     if (bInit_ == false) {
         HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
@@ -423,7 +722,7 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
         dst_buffer = mBufferQueue_->DequeueDrmBuffer(
                 mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
                 mHwPqDstInfo_.mBufferInfo_.iFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
-                "PQ-Video-target");
+                "PQ-Sideband-target");
 
         if (dst_buffer == NULL) {
             HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
@@ -518,6 +817,13 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
     else
         mHwPqDstInfo_.mRkHwpqReg_ = dst_buffer->GetHwPqRegs().get();
 
+    // SR 使能需要关闭HWPQ 锐化
+    if (src_buffer->GetBufferType() == DRM_BUFFER_TYPE_SR) {
+        mPq_->setSharpEnable(false);
+    } else {
+        mPq_->setSharpEnable(true);
+    }
+
     //设置目标属性
     ret = mPq_->SetHwPqDstImage(mHwPqDstInfo_);
     if (ret) {
@@ -543,6 +849,7 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
         //Update Crop form Query Result
         dst_buffer->SetCrop(mHwPqDstInfo_.mCrop_.iLeft_, mHwPqDstInfo_.mCrop_.iTop_, mHwPqDstInfo_.mCrop_.iRight_,
                             mHwPqDstInfo_.mCrop_.iBottom_);
+        mBufferQueue_->QueueBuffer(dst_buffer);
         return dst_buffer;
     }
     return src_buffer;

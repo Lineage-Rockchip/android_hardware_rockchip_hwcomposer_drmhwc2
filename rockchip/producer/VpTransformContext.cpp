@@ -92,6 +92,7 @@ void VpComposition::Dump(String8& output) {
     output.appendFormat(" %8" PRIu64 " |", mFrameNo_);
     output.appendFormat("  B%-5" PRIx64 " |", mBuffer_->GetExternalId());
     output.appendFormat("  0x%-12" PRIx64 " |", mBuffer_->GetBufferId());
+    output.appendFormat(" %5" PRId32 " |", mBuffer_->GetFbId());
     output.appendFormat(" %c%c%c%c |", mBuffer_->GetFourccFormat(), mBuffer_->GetFourccFormat() >> 8,
                         mBuffer_->GetFourccFormat() >> 16, mBuffer_->GetFourccFormat() >> 24);
     output.appendFormat(" %6d x%7d |", mBuffer_->GetStride(), mBuffer_->GetHeightStride());
@@ -107,7 +108,7 @@ void VpComposition::Dump(String8& output) {
     output.appendFormat("\n");
 }
 
-VpTransformContext::VpTransformContext(int tunnel_id, uint32_t transform)
+VpTransformContext::VpTransformContext(int tunnel_id, uint32_t transform, android_dataspace_t dataspace)
     : mTunnelId_(tunnel_id),
       mTransform_(transform),
       mBufferQueue_(std::make_shared<DrmBufferQueue>(4)),
@@ -116,7 +117,8 @@ VpTransformContext::VpTransformContext(int tunnel_id, uint32_t transform)
       mLastFrameNoCnt_(0),
       mLastTimestampUs_(0),
       mFps_(0.0),
-      bNeedRelease_(false) {
+      bNeedRelease_(false),
+      mDataspace_(dataspace) {
     mFenceTag_ = "VP-" + TransformToString(mTransform_);
 }
 
@@ -163,14 +165,14 @@ std::string VpTransformContext::TransformToString(uint32_t transform) const {
 
 void VpTransformContext::Dump(String8& output) {
     std::unique_lock<std::mutex> lock(mMutex_);
-    output.appendFormat("\t[%s] TunnelId=%d VpCompositionSize=%zu mFps=%.2f FrameNo=%" PRIu64 "\n",
+    output.appendFormat("\t[%s] TunnelId=%d VpCompositionSize=%zu Fps=%.2f Latency=%.3f ms FrameNo=%" PRIu64 "\n",
                         TransformToString(mTransform_).c_str(), mTunnelId_, mListVpCompositions_.size(), mFps_,
-                        uFrameNo_);
+                        mCommitAvgLatencyMs_, uFrameNo_);
     // clang-format off
     output.append(
-            "\t----------+---------+-----------------+------+-----------------+-------+---------+----------+----------+----------------------\n"
-            "\t    FN    |  HndId  |    BufferId     | Fcc  | stride x height | Ready | Present |  Q->A ms |  Q->P ms |    name              \n"
-            "\t----------+---------+-----------------+------+-----------------+-------+---------+----------+----------+----------------------\n");
+            "\t----------+---------+-----------------+-------+------+-----------------+-------+---------+----------+----------+----------------------\n"
+            "\t    FN    |  HndId  |    BufferId     | FbId  | Fcc  | stride x height | Ready | Present |  Q->A ms |  Q->P ms |    name              \n"
+            "\t----------+---------+-----------------+-------+------+-----------------+-------+---------+----------+----------+----------------------\n");
     // clang-format on
 
     if (mListVpCompositions_.size() > 0) {
@@ -179,7 +181,7 @@ void VpTransformContext::Dump(String8& output) {
         }
     }
     // clang-format off
-    output.append("\t----------+---------+-----------------+------+-----------------+-------+--------+----------+----------+----------------------\n");
+    output.append("\t----------+---------+-----------------+-------+------+-----------------+-------+---------+----------+----------+----------------------\n");
     // clang-format on
 
     return;
@@ -188,14 +190,14 @@ void VpTransformContext::Dump(String8& output) {
 void VpTransformContext::Dump() {
     std::unique_lock<std::mutex> lock(mMutex_);
     String8 output;
-    output.appendFormat("\t[%s] TunnelId=%d VpCompositionSize=%zu mFps=%.2f FrameNo=%" PRIu64 "\n",
+    output.appendFormat("\t[%s] TunnelId=%d VpCompositionSize=%zu Fps=%.2f Latency=%.3f ms FrameNo=%" PRIu64 "\n",
                         TransformToString(mTransform_).c_str(), mTunnelId_, mListVpCompositions_.size(), mFps_,
-                        uFrameNo_);
+                        mCommitAvgLatencyMs_, uFrameNo_);
     // clang-format off
     output.append(
-            "\t----------+---------+-----------------+------+-----------------+-------+---------+----------+----------+----------------------\n"
-            "\t    FN    |  HndId  |    BufferId     | Fcc  | stride x height | Ready | Present |  Q->A ms |  Q->P ms |    name              \n"
-            "\t----------+---------+-----------------+------+-----------------+-------+---------+----------+----------+----------------------\n");
+            "\t----------+---------+-----------------+-------+------+-----------------+-------+---------+----------+----------+----------------------\n"
+            "\t    FN    |  HndId  |    BufferId     | FbId  | Fcc  | stride x height | Ready | Present |  Q->A ms |  Q->P ms |    name              \n"
+            "\t----------+---------+-----------------+-------+------+-----------------+-------+---------+----------+----------+----------------------\n");
     // clang-format on
     ALOGD("%s", output.c_str());
     output.clear();
@@ -208,7 +210,7 @@ void VpTransformContext::Dump() {
         }
     }
     // clang-format off
-    output.append("\t----------+---------+-----------------+------+-----------------+-------+--------+----------+----------+----------------------\n");
+    output.append("\t----------+---------+-----------------+-------+------+-----------------+-------+---------+----------+----------+----------------------\n");
     // clang-format on
     ALOGD("%s", output.c_str());
     output.clear();
@@ -241,6 +243,17 @@ int VpTransformContext::ReleaseUnuseComposition() {
         //           first_old_composition->GetBuffer()->WaitReleaseFence(0), first_old_composition.use_count());
         // 丢弃逻辑为次旧完成,且最旧没有其他显示引用，则释放最旧
         if (second_old_composition->GetBuffer()->WaitFinishFence(0) == 0 && first_old_composition.use_count() == 1) {
+            // 统计延迟数据
+            if (first_old_composition->GetCommitLatencyMs() > 0) {
+                mCommitLatencyCnt_++;
+                mCommitLatencyTotalMs_ += first_old_composition->GetCommitLatencyMs();
+                // 统计60帧的平均延迟数据
+                if (mCommitLatencyCnt_ > 60) {
+                    mCommitAvgLatencyMs_ = mCommitLatencyTotalMs_ / mCommitLatencyCnt_;
+                    mCommitLatencyCnt_ = 0;
+                    mCommitLatencyTotalMs_ = 0;
+                }
+            }
             first_old_composition = nullptr;
             mListVpCompositions_.push_front(second_old_composition);
             continue;
@@ -606,6 +619,55 @@ int VpTransformContext::DoStore(std::shared_ptr<VpComposition> input) {
 }
 
 #ifdef USE_LIBSR
+
+SrDatapace VpTransformContext::ConvertToSrDataspace(android_dataspace_t dataspace) {
+    SrDatapace output = SR_DATASPACE_UNKNOWN;
+
+    bool is_601 = false;
+    switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
+        case HAL_DATASPACE_STANDARD_BT601_625:
+        case HAL_DATASPACE_STANDARD_BT601_625_UNADJUSTED:
+        case HAL_DATASPACE_STANDARD_BT601_525:
+        case HAL_DATASPACE_STANDARD_BT601_525_UNADJUSTED:
+            is_601 = true;
+            break;
+        case HAL_DATASPACE_STANDARD_BT709:
+            is_601 = false;
+            break;
+        default:
+            is_601 = false;
+            break;
+    }
+
+    bool is_full = false;
+    switch (dataspace & HAL_DATASPACE_RANGE_MASK) {
+        case HAL_DATASPACE_RANGE_FULL:
+            is_full = true;
+            break;
+        case HAL_DATASPACE_RANGE_LIMITED:
+            is_full = false;
+            break;
+        default:
+            is_full = false;
+            break;
+    }
+
+    if (is_601) {
+        if (is_full) {
+            output = SR_DATAPACE_BT601_FULL_RANGE;
+        } else {
+            output = SR_DATAPACE_BT601_LIMIT_RANGE;
+        }
+    } else {
+        if (is_full) {
+            output = SR_DATAPACE_BT709_FULL_RANGE;
+        } else {
+            output = SR_DATAPACE_BT709_LIMIT_RANGE;
+        }
+    }
+    return output;
+}
+
 int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input) {
     ATRACE_CALL();
     // 0. SR模块初始化
@@ -721,8 +783,7 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
     sr_src.mBufferInfo_.iHeightStride_ = src_buffer->GetHeightStride();
     sr_src.mBufferInfo_.iSize_ = src_buffer->GetSize();
     sr_src.mBufferInfo_.uBufferId_ = src_buffer->GetBufferId();
-    sr_src.mBufferInfo_.uColorSpace_ = SR_DATASPACE_UNKNOWN;
-
+    sr_src.mBufferInfo_.uColorSpace_ = ConvertToSrDataspace(mDataspace_);
     int left = 0, top = 0, right = 0, bottom = 0;
     src_buffer->GetCrop(&left, &top, &right, &bottom);
 
@@ -825,6 +886,8 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
     //           dst_buffer->GetBufferId());
 
     dst_buffer->SetFinishFence(output_fence);
+    dst_buffer->SetBufferType(DrmBufferType::DRM_BUFFER_TYPE_SR);
+    dst_buffer->SetDataspace(HAL_DATASPACE_V0_BT709);
 
     sp<ReleaseFence> release_fence = AddReleaseFence(input);
     dst_buffer->SetReleaseFence(dup(release_fence->getFd()));

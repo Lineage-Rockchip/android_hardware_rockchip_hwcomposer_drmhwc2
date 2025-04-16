@@ -28,6 +28,9 @@
 #include "rockchip/drmgralloc.h"
 #include "rockchip/producer/videotunnel/video_tunnel.h"
 #include "utils/drmfence.h"
+#ifdef USE_LIBSR
+#include "SvepSr.h"
+#endif
 
 namespace android {
 // 用于外部获取 vp composition 结构
@@ -50,10 +53,17 @@ class VpComposition {
     std::shared_ptr<DrmBuffer> GetBuffer() { return mBuffer_; };
     void SetBuffer(std::shared_ptr<DrmBuffer> buffer) { mBuffer_ = buffer; };
 
+    std::shared_ptr<DrmBuffer> GetPqBuffer() { return mPpBuffer_; };
+    void SetPqBuffer(std::shared_ptr<DrmBuffer> buffer) { mPpBuffer_ = buffer; };
+
     void SetReleaseFence(sp<ReleaseFence> release_fence) { mReleaseFence_ = release_fence; };
     sp<ReleaseFence> GetReleaseFence() { return mReleaseFence_; }
 
     int64_t GetQueueTimestamp() { return mQueueTimestampUs_; }
+    int64_t GetCommitTimestamp() { return mCommitTimestampUs_; }
+    float GetCommitLatencyMs() {
+        return mCommitTimestampUs_ > 0 ? ((mCommitTimestampUs_ - mQueueTimestampUs_) / 1000.0) : -1;
+    }
     void MarkCommitTimestamp();
 
     void Dump(String8& output);
@@ -64,6 +74,7 @@ class VpComposition {
     uint32_t mTransform_;
     uint64_t mFrameNo_;
     std::shared_ptr<DrmBuffer> mBuffer_;
+    std::shared_ptr<DrmBuffer> mPpBuffer_;
     sp<AcquireFence> mAcquireFence_;
     sp<ReleaseFence> mReleaseFence_;
     int64_t mQueueTimestampUs_;
@@ -85,7 +96,7 @@ class VpComposition {
 #define DRM_MODE_POST_PROCESS_MEMC (1 << 7)
 class VpTransformContext {
   public:
-    VpTransformContext(int tunnel_id, uint32_t transform);
+    VpTransformContext(int tunnel_id, uint32_t transform, android_dataspace_t dataspace);
     // 处理 VpComposition 对外接口
     int Handle(std::shared_ptr<VpComposition> input);
     // 获取最新的 VpComposition
@@ -111,6 +122,7 @@ class VpTransformContext {
     int DoTransformByRga(std::shared_ptr<VpComposition> input);
 
 #ifdef USE_LIBSR
+    SrDatapace ConvertToSrDataspace(android_dataspace_t dataspace);
     int DoTransformBySvepSr(std::shared_ptr<VpComposition> input);
 #endif
     std::string TransformToString(uint32_t transform) const;
@@ -131,6 +143,10 @@ class VpTransformContext {
     int64_t mLastTimestampUs_;
     float mFps_;
     bool bNeedRelease_;
+    int64_t mCommitLatencyCnt_;
+    float mCommitLatencyTotalMs_;
+    float mCommitAvgLatencyMs_;
+    android_dataspace_t mDataspace_;
 
     mutable std::mutex mMutex_;
 };
