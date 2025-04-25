@@ -1649,6 +1649,9 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
                 if (hwc2layer.second.CanSkipSolidColorLayer(have_skip_layer_zpos)) {
                     have_skip_layer_zpos++;
                     drm_hwc_layer.bBackgroundSkip_ = true;
+                    if(hwc2layer.second.sf_type()!= HWC2::Composition::SolidColor){
+                        hwc2layer.second.set_validated_type(HWC2::Composition::SolidColor);
+                    }
                     break;
                 }
             }
