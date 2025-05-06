@@ -3347,7 +3347,7 @@ bool Vop356x::CheckGLESLayer(DrmHwcLayer* layer) {
 #define ALIGN_DOWN(value, base) (value & (~(base - 1)))
 #endif
 
-bool Vop356x::PreAlignForAfbc(DrmHwcLayer* layer) {
+void Vop356x::PreAlignForAfbc(DrmHwcLayer* layer) {
     if (layer->bAfbcd_) {
         int src_w = static_cast<int>(layer->source_crop.right - layer->source_crop.left);
         int src_w_fix = ALIGN_DOWN(src_w, 4);
@@ -3358,10 +3358,23 @@ bool Vop356x::PreAlignForAfbc(DrmHwcLayer* layer) {
                          origin_crop_right, layer->source_crop.top, layer->source_crop.bottom, layer->source_crop.left,
                          layer->source_crop.right, layer->source_crop.top, layer->source_crop.bottom,
                          layer->sLayerName_.c_str());
-            return true;
         }
     }
-    return false;
+}
+
+void Vop356x::PreAlignForNoAfbc(DrmHwcLayer* layer) {
+    if (!layer->bAfbcd_) {
+        int act_w = static_cast<int>(layer->source_crop.right - layer->source_crop.left);
+        if (act_w % 16 == 1 && layer->fHScaleMul_ > 1.0) {
+            act_w = ALIGN_DOWN(act_w, 2);
+            auto origin_crop_right = layer->source_crop.right;
+            layer->source_crop.right = layer->source_crop.left + act_w;
+            HWC2_LOGD_IF("layer[%u] (%f,%f,%f,%f)=>(%f,%f,%f,%f) sLayerName=%s", layer->uId_, layer->source_crop.left,
+                         origin_crop_right, layer->source_crop.top, layer->source_crop.bottom, layer->source_crop.left,
+                         layer->source_crop.right, layer->source_crop.top, layer->source_crop.bottom,
+                         layer->sLayerName_.c_str());
+        }
+    }
 }
 
 void Vop356x::PrepareLayers(std::vector<DrmHwcLayer*>& layers) {
@@ -3369,6 +3382,9 @@ void Vop356x::PrepareLayers(std::vector<DrmHwcLayer*>& layers) {
         //将afbc图层预对齐至4，使其可被硬件合成，提高流畅度
         //注意！！此修改可能会导致缩放等动画不平滑
         PreAlignForAfbc(layer);
+        //将no afbc图层规避 act_w % 16 == 1 && layer->fHScaleMul_ > 1.0 场景
+        //提高流畅性
+        PreAlignForNoAfbc(layer);
     }
 }
 

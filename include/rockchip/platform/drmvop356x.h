@@ -304,7 +304,8 @@ class Vop356x : public Planner::PlanStage {
     int MatchPlaneMirror(std::vector<DrmCompositionPlane>* composition_planes, std::vector<PlaneGroup*>& plane_groups,
                          DrmCompositionPlane::Type type, DrmCrtc* crtc,
                          std::pair<int, std::vector<DrmHwcLayer*>> layers, int zpos, bool match_best);
-    bool PreAlignForAfbc(DrmHwcLayer* layer);
+    void PreAlignForAfbc(DrmHwcLayer* layer);
+    void PreAlignForNoAfbc(DrmHwcLayer* layer);
     void PrepareLayers(std::vector<DrmHwcLayer*>& layers);
     bool NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc);
 
