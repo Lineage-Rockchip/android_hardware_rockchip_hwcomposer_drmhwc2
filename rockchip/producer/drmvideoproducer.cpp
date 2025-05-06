@@ -175,9 +175,9 @@ std::string DrmVideoProducer::TransformToString(uint32_t transform) const {
             break;
     }
 
-    if (transform & DRM_MODE_POST_PROCESS_SR) {
+    if (transform & DRM_MODE_RK_POST_PROCESS_SR) {
         result += "_SR";
-    } else if (transform & DRM_MODE_POST_PROCESS_MEMC) {
+    } else if (transform & DRM_MODE_RK_POST_PROCESS_MEMC) {
         result += "_MM";
     }
     return result;
@@ -256,6 +256,8 @@ std::shared_ptr<VpComposition> DrmVideoProducer::AcquireVpCompositon(int display
     // 更新调试日志
     UpdateLogLevel();
 
+    if (timeout_ms) HWC2_LOGW("FIXME: timeout_ms is ignored now!");
+
     if (!bInit_) {
         HWC2_LOGE("fail, display=%d bInit_=%d tunnel-fd=%d", display_id, bInit_, iTunnelFd_);
         return NULL;
@@ -303,7 +305,7 @@ void DrmVideoProducer::SignalVpCompositon(int display_id, int tunnel_id) {
 
     std::shared_ptr<VpContext> ctx = mMapCtx_[tunnel_id];
 
-    std::shared_ptr<DrmBuffer> acquired_buffer = NULL;
+    // std::shared_ptr<DrmBuffer> acquired_buffer = NULL;
 
     // uint32_t transform = ctx->GetTransform(display_id);
     // if (ctx->mMapVpTransformCtx_.count(transform)) {
@@ -353,9 +355,8 @@ std::vector<int> DrmVideoProducer::GetActiveTunnelIdVector() {
     std::unique_lock<std::mutex> lock(mtx_);
     std::vector<int> tunnelShouldAcquire;
 
-    //检查当前tunnel状态
+    //检查当前tunnel connection数量不为0则为Active Tunnel
     for (auto& map_ctx : mMapCtx_) {
-        //如果引用计数为0，则释放tunnel
         if (map_ctx.second->ConnectionCnt() != 0) {
             tunnelShouldAcquire.push_back(map_ctx.first);
         }
@@ -464,6 +465,7 @@ int DrmVideoProducer::AcqureBuffer(int tunnel_id) {
     int ret = g_rkvt_ops.rk_vt_acquire_buffer(iTunnelFd_, tunnel_id, waitTime_ms, &acquire_buffer, &queue_timestamp);
     //不管是否获取成功均需要重新锁定不然有重复unlock风险
     lock.lock();
+
     if (ret != 0) {
         HWC2_LOGE("tunnel_id=%d rk_vt_acquire_buffer failed! ret:%d", tunnel_id, ret);
         return -1;
@@ -528,7 +530,7 @@ int DrmVideoProducer::AcqureBuffer(int tunnel_id) {
     ctx->ReleaseBufferInfo(hnd_buffer_id);
     ctx->PrintReleaseFailedBuffer();
 
-    // Add buff to list
+    // Set latest composition
     ctx->mLatestR0Composition_ = composition;
 
     HWC2_LOGD_IF("AcquireBuffer Name=%s success! buffer_id=0x%" PRIx64
@@ -664,9 +666,7 @@ void DrmVideoProducer::Dump() {
         output.clear();
         for (auto& pair_transform_ctx : ctx->mMapVpTransformCtx_) {
             if (pair_transform_ctx.second != NULL) {
-                pair_transform_ctx.second->Dump(output);
-                ALOGD("%s", output.c_str());
-                output.clear();
+                pair_transform_ctx.second->Dump();
             }
         }
     }

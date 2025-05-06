@@ -22,8 +22,8 @@
 #include "drmframebuffer.h"
 #include "drmlayer.h"
 #include "resources/resourcemanager.h"
-#include "utils/drmfence.h"
 #include "rockchip/producer/VpTransformContext.h"
+#include "utils/drmfence.h"
 #include "vsyncworker.h"
 #ifdef USE_LIBPQ
 #include "rkpq.h"

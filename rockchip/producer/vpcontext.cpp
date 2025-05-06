@@ -115,9 +115,9 @@ std::string VpContext::TransformToString(uint32_t transform) const {
             break;
     }
 
-    if (transform & DRM_MODE_POST_PROCESS_SR) {
+    if (transform & DRM_MODE_RK_POST_PROCESS_SR) {
         result += "_SR";
-    } else if (transform & DRM_MODE_POST_PROCESS_MEMC) {
+    } else if (transform & DRM_MODE_RK_POST_PROCESS_MEMC) {
         result += "_MM";
     }
     return result;

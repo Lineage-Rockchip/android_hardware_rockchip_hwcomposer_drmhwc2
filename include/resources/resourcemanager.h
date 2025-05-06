@@ -42,7 +42,7 @@
 #include "SvepSr.h"
 #endif
 
-#ifdef USE_LIBPQ
+#ifdef USE_LIBPQ_HWPQ
 #include "rockchip/pq/DrmPq.h"
 #endif
 typedef struct MirrorDisplayInfo {
@@ -137,7 +137,7 @@ class ResourceManager {
     std::shared_ptr<SvepSr> ResetAndGetSvepSr();
 #endif
 
-#ifdef USE_LIBPQ
+#ifdef USE_LIBPQ_HWPQ
     std::shared_ptr<DrmPq> GetDrmPq();
     std::shared_ptr<DrmPq> ResetAndGetDrmPq();
 #endif
@@ -220,7 +220,7 @@ class ResourceManager {
     std::shared_ptr<SvepSr> mSvepSr_ = nullptr;
 #endif
 
-#ifdef USE_LIBPQ
+#ifdef USE_LIBPQ_HWPQ
     // DRM PQ
     std::shared_ptr<DrmPq> mDrmPq_ = nullptr;
 #endif

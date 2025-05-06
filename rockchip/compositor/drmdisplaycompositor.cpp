@@ -2870,7 +2870,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
 
                 uint32_t transform = layer.transform;
                 if (layer.bUseSr_) {
-                    transform |= DRM_MODE_POST_PROCESS_SR;
+                    transform |= DRM_MODE_RK_POST_PROCESS_SR;
                 }
 
                 ret = dvp->CreateConnection(display_, layer.iTunnelId_, layer.eDataSpace_, transform);
@@ -2898,7 +2898,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                 //若使用RGAWriteBack，也需要等待AcquireFence
                 if ((resource_manager_->isWBMode() && resource_manager_->IsWriteBackByRga()) ||
                     display_refresh > producer_fps ||
-                    (transform & DRM_MODE_POST_PROCESS_SR) == DRM_MODE_POST_PROCESS_SR) {
+                    (transform & DRM_MODE_RK_POST_PROCESS_SR) == DRM_MODE_RK_POST_PROCESS_SR) {
                     need_wait_fence = true;
                 }
                 //HWC2_LOGD_IF("DVP AcquireBuffer with acquire_fence_en:%d,display_refresh:%f,ProducerFps:%f",acquire_fence_en,display_refresh,producer_fps);
@@ -2955,6 +2955,8 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                         layer.sf_handle = output_buffer->GetHandle();
                         layer.bIsPreScale_ = true;
                     }
+                    eotf = layer.uEOTF;
+                    colorspace = layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
                 } else
 #endif
                 {

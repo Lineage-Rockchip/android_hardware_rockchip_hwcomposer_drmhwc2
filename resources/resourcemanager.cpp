@@ -279,7 +279,7 @@ std::shared_ptr<SvepSr> ResourceManager::ResetAndGetSvepSr() {
 
 #endif
 
-#ifdef USE_LIBPQ
+#ifdef USE_LIBPQ_HWPQ
 std::shared_ptr<DrmPq> ResourceManager::GetDrmPq() {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (mDrmPq_ == nullptr) {

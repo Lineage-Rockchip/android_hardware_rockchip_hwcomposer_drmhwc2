@@ -245,6 +245,8 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     }
 
     bool unsupport_format = false;
+    //检查视频格式是否支持SR
+    //目前10bit格式和NV24不受支持
     switch (layer->iFormat_) {
         case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
         case HAL_PIXEL_FORMAT_YCbCr_422_SP_10:
@@ -258,7 +260,7 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
             break;
     }
 
-    // 10bit 视频不使用SR
+    // 格式不支持则不使用SR
     if (unsupport_format) {
         HWC2_LOGD_IF("disable-sr: is unsupport format %d, SR unsupport, name=%s", layer->iFormat_,
                      layer->sLayerName_.c_str());
@@ -3103,7 +3105,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseSr_) {
                     if (drmLayer->bSidebandStreamLayer_) {
-                        last_buffer_id = drmLayer->uBufferId_;
+                        last_buffer_id = 0;
                         last_sr_mode = sr_mode;
                         last_contrast_mode = contrast_mode;
                         last_enhancement_rate = enhancement_rate;

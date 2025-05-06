@@ -260,6 +260,8 @@ bool Vop3576::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     }
 
     bool unsupport_format = false;
+    //检查视频格式是否支持SR
+    //目前10bit格式和NV24不受支持
     switch (layer->iFormat_) {
         case HAL_PIXEL_FORMAT_YCrCb_NV12_10:
         case HAL_PIXEL_FORMAT_YCbCr_422_SP_10:
@@ -273,7 +275,7 @@ bool Vop3576::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
             break;
     }
 
-    // 不支持的格式不进行SR处理
+    // 格式不支持则不使用SR
     if (unsupport_format) {
         HWC2_LOGD_IF("disable-sr: is unsupport format %d, SR unsupport, name=%s", layer->iFormat_,
                      layer->sLayerName_.c_str());
@@ -3111,7 +3113,8 @@ int Vop3576::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseSr_) {
                     if (drmLayer->bSidebandStreamLayer_) {
-                        last_buffer_id = drmLayer->uBufferId_;
+                        //对于Sideband图层，uBufferId_应该是未定义的
+                        last_buffer_id = 0;
                         last_sr_mode = sr_mode;
                         last_contrast_mode = contrast_mode;
                         last_enhancement_rate = enhancement_rate;
@@ -4219,6 +4222,23 @@ int Vop3576::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
 #endif
 
 #ifdef USE_LIBPQ
+    //reset HwPq state
+    ctx.state.bCurrentHwPqMode_ = PqUtils::HWPQ_DISABLE;
+
+    int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
+    HWC2_LOGD_IF("%s=%d ", "persist.vendor.tvinput.rkpq.mode", iPqMode);
+
+    if (iPqMode >= 0 && iPqMode < PqUtils::HWPQ_MODE_MAX) {
+        ctx.state.bCurrentHwPqMode_ = PqUtils::RkHwPqMode(iPqMode);
+    }
+
+#ifdef USE_LIBPQ_HWPQ
+    // 如果关闭了HWPQ，则清除缓存
+    if (iPqMode == 0) {
+        ResourceManager::getInstance()->GetDrmPq()->ClearCache();
+    }
+#endif
+
     if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_UI_MODE) {
         // UI模式下，只允许GLES_Sideband/手写加速/GLES策略
         ctx.state.setHwcPolicy.insert(HWC_GLES_POLICY);

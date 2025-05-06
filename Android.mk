@@ -367,6 +367,9 @@ ifneq ($(strip $(TARGET_SOC_PLATFORM)),rk3576)
 endif
 BOARD_USES_LIBPQ=true
 
+LOCAL_SRC_FILES += \
+  rockchip/common/pq/DrmPq.cpp
+
 LOCAL_CFLAGS += \
 	-DUSE_LIBPQ_HWPQ=1
 endif
@@ -383,10 +386,6 @@ endif
 
 LOCAL_C_INCLUDES += \
   hardware/rockchip/libpq/include
-
-
-LOCAL_SRC_FILES += \
-  rockchip/common/pq/DrmPq.cpp
 
 LOCAL_SHARED_LIBRARIES += \
 	libpq

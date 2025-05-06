@@ -557,14 +557,24 @@ int DrmBuffer::MergeFinishFence(int fence) {
 }
 
 int DrmBuffer::WaitFinishFence(int timeout_ms) {
+    std::unique_lock<std::mutex> lk(mtx_);
     int ret = 0;
     if (iFinishFence_.get() > 0) {
-        ret = sync_wait(iFinishFence_.get(), timeout_ms);
+        int fence_fd = dup(iFinishFence_.get());
+        if (fence_fd < 0) {
+            HWC2_LOGE("Failed to dup fence fd BufferId=0x%" PRIx64 " for Finish fence %d/%d %dms", uBufferId_,
+                      fence_fd, ret, timeout_ms);
+            return -1;
+        }
+        lk.unlock();
+        ret = sync_wait(fence_fd, timeout_ms);
         if (ret) {
             if (timeout_ms > 0) {
                 HWC2_LOGE("Failed to wait for finish fence %d/%d %dms", iFinishFence_.get(), ret, timeout_ms);
             }
         }
+        close(fence_fd);
+        fence_fd = -1;
     }
     return ret;
 }
@@ -581,15 +591,25 @@ int DrmBuffer::SetReleaseFence(int fence) {
 }
 
 int DrmBuffer::WaitReleaseFence(int timeout_ms) {
+    std::unique_lock<std::mutex> lk(mtx_);
     int ret = 0;
     if (iReleaseFence_.get() > 0) {
-        ret = sync_wait(iReleaseFence_.get(), timeout_ms);
+        int fence_fd = dup(iReleaseFence_.get());
+        if (fence_fd < 0) {
+            HWC2_LOGE("Failed to dup fence fd BufferId=0x%" PRIx64 " for release fence %d/%d %dms", uBufferId_,
+                      fence_fd, ret, timeout_ms);
+            return -1;
+        }
+        lk.unlock();
+        ret = sync_wait(fence_fd, timeout_ms);
         if (ret) {
             if (timeout_ms > 0) {
-                HWC2_LOGE("Failed to wait BufferId=0x%" PRIx64 " for release fence %d/%d %dms", uBufferId_,
-                          iFinishFence_.get(), ret, timeout_ms);
+                HWC2_LOGE("Failed to wait BufferId=0x%" PRIx64 " for release fence %d/%d %dms", uBufferId_, fence_fd,
+                          ret, timeout_ms);
             }
         }
+        close(fence_fd);
+        fence_fd = -1;
     }
     return ret;
 }

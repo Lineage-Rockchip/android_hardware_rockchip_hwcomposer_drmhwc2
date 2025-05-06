@@ -41,6 +41,8 @@
 #include "drmbufferqueue.h"
 #include "drmlayer.h"
 
+#include <mutex>
+
 class DrmPqBufferInfo {
   public:
     hwc_frect_t source_crop;
@@ -92,19 +94,21 @@ class DrmPq {
     std::shared_ptr<DrmBuffer> RunHwPqSidebandMode(std::shared_ptr<DrmBuffer> src_buffer,
                                                    std::shared_ptr<android::HwpqDisplayStatus> display_state);
     int RunHwPqGetReg(DrmHwcLayer* drmLayer);
+    void ClearCache() { mLastHwPqBufInfo_.clear(); }
 
   private:
     bool bInit_;
     std::shared_ptr<Pq> mPq_;
     std::shared_ptr<DrmBufferQueue> mBufferQueue_;
-    sp<AcquireFence> mLastAcquireFence_;
-    bool mLastHwPqUseNewBuffer_;
-
     // SWPQ 上下文
     PqContext mSwpqCtx_;
-    HwPqImageInfo mHwPqDstInfo_;
+
+    // HWPQ
+    sp<AcquireFence> mLastAcquireFence_;
+    bool mLastHwPqUseNewBuffer_;
     DrmPqBufferInfo mLastHwPqBufInfo_;
     std::shared_ptr<rk_hwpq_reg> mLastHwPqReg_;
+    mutable std::recursive_mutex mRecursiveMutex;
 };
 
 #endif  // _DRM_PQ_H_

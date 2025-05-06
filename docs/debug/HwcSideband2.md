@@ -122,7 +122,7 @@ SidebandCtxInfo: Id=2 CacheBufferSize=9 TransformSize=1 ProducerFps=60.00 refDpy
         - MM_R90,后级执行MEMC处理，并且旋转90度
     - ProducerFps：前级的帧率信息，视频就是解码帧率，HDMI-IN就是HDMI-IN输入帧率
     - refDpyConnection：引用的实例数量，实例包括后级物理屏幕，以及内部的逻辑引用，refDpyConnection 等于则进入销毁逻辑
-    - DataSpace：Producer 设置的色域信息，定位为 android_dataspace_t
+    - DataSpace：Producer 设置的色域信息，类型为android_dataspace_t，定义参考[Android Dataspace文档](https://developer.android.com/reference/android/hardware/DataSpace)
     - ReleaseFailedBufferSize: Release失败的Buffer数目，大于0可能出现内存泄漏或者DMA-Buffer泄漏；
     - NeedReleaseCtxSize： 需要执行Release TransformCtx 数目，比如前级旋转由90度变成180度，则90度进入待销毁的列表，等所有的后级引用解除后进入销毁逻辑；
 - SidebandCtxTransformInfo：Sideband 通路后端可能存在 Transform，比如屏幕旋转需求/SR/MEMC后处理需求等，每一个Transform则创建对应SidebandCtxTransform

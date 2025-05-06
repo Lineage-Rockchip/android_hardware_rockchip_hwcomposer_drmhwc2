@@ -1911,6 +1911,10 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
                         if (atoi(value) == 1) {
                             ResourceManager::getInstance()->GetDrmPq()->RunHwPqUiMode(drm_hwc_layers_);
                         } else {
+                            // 如果关闭了HWPQ，则清除缓存
+                            if (atoi(value) == 0) {
+                                ResourceManager::getInstance()->GetDrmPq()->ClearCache();
+                            }
                             drm_hwc_layer.hwPqReg_ = NULL;
                         }
                     }

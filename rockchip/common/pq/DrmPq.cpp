@@ -64,6 +64,7 @@ int DrmPq::Init() {
 }
 
 int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (bInit_ == false) {
         HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
         return -1;
@@ -75,6 +76,8 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
     int hwpq_meta_fd = -1;
     int64_t hwpq_meta_offset = 0;
     int64_t hwpq_meta_size = 0;
+
+    HwPqImageInfo pq_dst_info;
 
     DrmGralloc* gralloc = DrmGralloc::getInstance();
 
@@ -122,11 +125,6 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                 src.iMetaDataSize_ = hwpq_meta_size;
                 src.iMetaDataOffset_ = hwpq_meta_offset;
 
-                DrmGralloc* gralloc = DrmGralloc::getInstance();
-                if (gralloc == NULL) {
-                    HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
-                }
-
                 src.mDisplayStatus_ = drmLayer.hwPqDisplayStatus;
 
                 // 2. Alloc Dst buffer
@@ -140,19 +138,19 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
 
                 // 3. Set buffer Info
                 dst_buffer = NULL;
-                mHwPqDstInfo_.mBufferInfo_.iFd_ = -1;
-                mHwPqDstInfo_.mRkHwpqReg_ = drmLayer.hwPqReg_.get();
+                pq_dst_info.mBufferInfo_.iFd_ = -1;
+                pq_dst_info.mRkHwpqReg_ = drmLayer.hwPqReg_.get();
 
                 bool needAllocNewBuffer = false;
 
-                mPq_->Query(src, mHwPqDstInfo_, &needAllocNewBuffer);
+                mPq_->Query(src, pq_dst_info, &needAllocNewBuffer);
 
                 // 4. Alloc buffer if needed
                 if (needAllocNewBuffer) {
                     HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
                     dst_buffer = mBufferQueue_->DequeueDrmBuffer(
-                            mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
-                            mHwPqDstInfo_.mBufferInfo_.iFormat_,
+                            pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_,
+                            pq_dst_info.mBufferInfo_.iFormat_,
                             RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
 
                     if (dst_buffer == NULL) {
@@ -161,16 +159,16 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                     }
 
                     // 4.1 Set dst buffer Info
-                    mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-                    mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-                    mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-                    mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-                    mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-                    mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-                    mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+                    pq_dst_info.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+                    pq_dst_info.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+                    pq_dst_info.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+                    pq_dst_info.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+                    pq_dst_info.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+                    pq_dst_info.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+                    pq_dst_info.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
                     //Update info for new buffer
                     src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).VopSrcRect_ =
-                            mHwPqDstInfo_.mCrop_;
+                            pq_dst_info.mCrop_;
                     src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uFourccFormat_ =
                             dst_buffer->GetFourccFormat();
                     src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).iHalFormat_ =
@@ -178,15 +176,15 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                     src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uModifier_ =
                             dst_buffer->GetModifier();
                     src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uDataSpace_ =
-                            mHwPqDstInfo_.mBufferInfo_.uDataSpace_;
+                            pq_dst_info.mBufferInfo_.uDataSpace_;
                 } else {
-                    mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+                    pq_dst_info.mBufferInfo_ = src.mBufferInfo_;
                 }
-                HwPqImageInfo dst_buffer_Info_ = mHwPqDstInfo_;
+                HwPqImageInfo dst_buffer_Info_ = pq_dst_info;
                 HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
                              src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
                              src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
-                ret = mPq_->SetHwPqSrcImage(src, mHwPqDstInfo_, &needAllocNewBuffer);
+                ret = mPq_->SetHwPqSrcImage(src, pq_dst_info, &needAllocNewBuffer);
                 if (ret) {
                     if (ret == PqUnInit)
                         HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
@@ -200,23 +198,23 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                 // 4. ReAlloc buffer if needed
                 if (needAllocNewBuffer) {
                     //if New buffer is needed, and it's resolution changed, realloc buffer
-                    if (!dst_buffer || mHwPqDstInfo_.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
-                        mHwPqDstInfo_.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
-                        mHwPqDstInfo_.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
+                    if (!dst_buffer || pq_dst_info.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
+                        pq_dst_info.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
+                        pq_dst_info.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
                         HWC2_LOGW(
                                 "HWPQ: Dst buffer changed between querry and SetHwPqSrcImage!![%dx%d f=%d]->[%dx%d "
                                 "f=%d]",
                                 dst_buffer_Info_.mBufferInfo_.iWidth_, dst_buffer_Info_.mBufferInfo_.iHeight_,
-                                dst_buffer_Info_.mBufferInfo_.iFormat_, mHwPqDstInfo_.mBufferInfo_.iWidth_,
-                                mHwPqDstInfo_.mBufferInfo_.iHeight_, mHwPqDstInfo_.mBufferInfo_.iFormat_);
+                                dst_buffer_Info_.mBufferInfo_.iFormat_, pq_dst_info.mBufferInfo_.iWidth_,
+                                pq_dst_info.mBufferInfo_.iHeight_, pq_dst_info.mBufferInfo_.iFormat_);
                         if (dst_buffer) {
                             mBufferQueue_->QueueBuffer(dst_buffer);
                             dst_buffer = NULL;
                         }
                         HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
                         dst_buffer = mBufferQueue_->DequeueDrmBuffer(
-                                mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
-                                mHwPqDstInfo_.mBufferInfo_.iFormat_,
+                                pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_,
+                                pq_dst_info.mBufferInfo_.iFormat_,
                                 RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
 
                         if (dst_buffer == NULL) {
@@ -226,28 +224,28 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                     }
 
                     // 4.1 Set dst buffer Info
-                    mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-                    mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-                    mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-                    mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-                    mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-                    mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-                    mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+                    pq_dst_info.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+                    pq_dst_info.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+                    pq_dst_info.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+                    pq_dst_info.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+                    pq_dst_info.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+                    pq_dst_info.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+                    pq_dst_info.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
                 } else {
                     //If New buffer is not need anymore
                     if (dst_buffer) {
                         mBufferQueue_->QueueBuffer(dst_buffer);
                         dst_buffer = NULL;
                     }
-                    mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+                    pq_dst_info.mBufferInfo_ = src.mBufferInfo_;
                 }
 
                 HWC2_LOGD_IF("dst: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64,
-                             mHwPqDstInfo_.mBufferInfo_.iFd_, mHwPqDstInfo_.mBufferInfo_.iWidth_,
-                             mHwPqDstInfo_.mBufferInfo_.iHeight_, mHwPqDstInfo_.mBufferInfo_.iFormat_,
-                             mHwPqDstInfo_.mBufferInfo_.iStride_, mHwPqDstInfo_.mBufferInfo_.iHeightStride_,
-                             mHwPqDstInfo_.mBufferInfo_.uBufferId_);
-                ret = mPq_->SetHwPqDstImage(mHwPqDstInfo_);
+                             pq_dst_info.mBufferInfo_.iFd_, pq_dst_info.mBufferInfo_.iWidth_,
+                             pq_dst_info.mBufferInfo_.iHeight_, pq_dst_info.mBufferInfo_.iFormat_,
+                             pq_dst_info.mBufferInfo_.iStride_, pq_dst_info.mBufferInfo_.iHeightStride_,
+                             pq_dst_info.mBufferInfo_.uBufferId_);
+                ret = mPq_->SetHwPqDstImage(pq_dst_info);
                 if (ret) {
                     HWC2_LOGE("Pq SetHwPqDstImage fail ret = %d", ret);
                     if (dst_buffer != NULL) mBufferQueue_->QueueBuffer(dst_buffer);
@@ -286,10 +284,13 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                     drmLayer.pPqBuffer_ = dst_buffer;
                     drmLayer.acquire_fence = sp<AcquireFence>(new AcquireFence(dup(output_fence)));
                     hwc_frect_t source_crop;
-                    source_crop.left = mHwPqDstInfo_.mCrop_.iLeft_;
-                    source_crop.top = mHwPqDstInfo_.mCrop_.iTop_;
-                    source_crop.right = mHwPqDstInfo_.mCrop_.iRight_;
-                    source_crop.bottom = mHwPqDstInfo_.mCrop_.iBottom_;
+                    source_crop.left = pq_dst_info.mCrop_.iLeft_;
+                    source_crop.top = pq_dst_info.mCrop_.iTop_;
+                    source_crop.right = pq_dst_info.mCrop_.iRight_;
+                    source_crop.bottom = pq_dst_info.mCrop_.iBottom_;
+
+                    dst_buffer->SetCrop(source_crop.left, source_crop.top, source_crop.right, source_crop.bottom);
+
                     drmLayer.UpdateAndStoreInfoFromDrmBuffer(
                             dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(),
                             dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetStride(),
@@ -326,11 +327,13 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                 }
 
                 if (dst_buffer != NULL) {
+                    int left = 0, top = 0, right = 0, bottom = 0;
+                    dst_buffer->GetCrop(&left, &top, &right, &bottom);
                     hwc_frect_t source_crop;
-                    source_crop.left = mHwPqDstInfo_.mCrop_.iLeft_;
-                    source_crop.top = mHwPqDstInfo_.mCrop_.iTop_;
-                    source_crop.right = mHwPqDstInfo_.mCrop_.iRight_;
-                    source_crop.bottom = mHwPqDstInfo_.mCrop_.iBottom_;
+                    source_crop.left = left;
+                    source_crop.top = top;
+                    source_crop.right = right;
+                    source_crop.bottom = bottom;
                     drmLayer.UpdateAndStoreInfoFromDrmBuffer(
                             dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(),
                             dst_buffer->GetWidth(), dst_buffer->GetHeight(), dst_buffer->GetStride(),
@@ -363,11 +366,13 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
 }
 
 int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (bInit_ == false) {
         HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
         return -1;
     }
     int ret = 0;
+    HwPqImageInfo pq_dst_info;
     std::shared_ptr<DrmBuffer> dst_buffer;
     bool isHwPqAsPostProcess = false;
 
@@ -445,19 +450,19 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
 
             // 3. Set buffer Info
             dst_buffer = NULL;
-            mHwPqDstInfo_.mBufferInfo_.iFd_ = -1;
-            mHwPqDstInfo_.mRkHwpqReg_ = drmLayer->hwPqReg_.get();
+            pq_dst_info.mBufferInfo_.iFd_ = -1;
+            pq_dst_info.mRkHwpqReg_ = drmLayer->hwPqReg_.get();
 
             bool needAllocNewBuffer = false;
 
-            mPq_->Query(src, mHwPqDstInfo_, &needAllocNewBuffer);
+            mPq_->Query(src, pq_dst_info, &needAllocNewBuffer);
 
             // 4. Alloc buffer if needed
             if (needAllocNewBuffer) {
                 HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
                 dst_buffer = mBufferQueue_->DequeueDrmBuffer(
-                        mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
-                        mHwPqDstInfo_.mBufferInfo_.iFormat_,
+                        pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_,
+                        pq_dst_info.mBufferInfo_.iFormat_,
                         RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
 
                 if (dst_buffer == NULL) {
@@ -466,15 +471,15 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
                 }
 
                 // 4.1 Set dst buffer Info
-                mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-                mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-                mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-                mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-                mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-                mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-                mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+                pq_dst_info.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+                pq_dst_info.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+                pq_dst_info.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+                pq_dst_info.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+                pq_dst_info.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+                pq_dst_info.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+                pq_dst_info.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
                 //Update info for new buffer
-                src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).VopSrcRect_ = mHwPqDstInfo_.mCrop_;
+                src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).VopSrcRect_ = pq_dst_info.mCrop_;
                 src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uFourccFormat_ =
                         dst_buffer->GetFourccFormat();
                 src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).iHalFormat_ =
@@ -482,15 +487,15 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
                 src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uModifier_ =
                         dst_buffer->GetModifier();
                 src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uDataSpace_ =
-                        mHwPqDstInfo_.mBufferInfo_.uDataSpace_;
+                        pq_dst_info.mBufferInfo_.uDataSpace_;
             } else {
-                mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+                pq_dst_info.mBufferInfo_ = src.mBufferInfo_;
             }
-            HwPqImageInfo dst_buffer_Info_ = mHwPqDstInfo_;
+            HwPqImageInfo dst_buffer_Info_ = pq_dst_info;
             HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
                          src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
                          src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
-            ret = mPq_->SetHwPqSrcImage(src, mHwPqDstInfo_, &needAllocNewBuffer);
+            ret = mPq_->SetHwPqSrcImage(src, pq_dst_info, &needAllocNewBuffer);
             if (ret) {
                 if (ret == PqUnInit)
                     HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
@@ -504,21 +509,21 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
             // 4. ReAlloc buffer if needed
             if (needAllocNewBuffer) {
                 //if New buffer is needed, and it's resolution changed, realloc buffer
-                if (!dst_buffer || mHwPqDstInfo_.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
-                    mHwPqDstInfo_.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
-                    mHwPqDstInfo_.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
+                if (!dst_buffer || pq_dst_info.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
+                    pq_dst_info.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
+                    pq_dst_info.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
                     HWC2_LOGW("HWPQ: Dst buffer changed between querry and SetHwPqSrcImage!![%dx%d f=%d]->[%dx%d f=%d]",
                               dst_buffer_Info_.mBufferInfo_.iWidth_, dst_buffer_Info_.mBufferInfo_.iHeight_,
-                              dst_buffer_Info_.mBufferInfo_.iFormat_, mHwPqDstInfo_.mBufferInfo_.iWidth_,
-                              mHwPqDstInfo_.mBufferInfo_.iHeight_, mHwPqDstInfo_.mBufferInfo_.iFormat_);
+                              dst_buffer_Info_.mBufferInfo_.iFormat_, pq_dst_info.mBufferInfo_.iWidth_,
+                              pq_dst_info.mBufferInfo_.iHeight_, pq_dst_info.mBufferInfo_.iFormat_);
                     if (dst_buffer) {
                         mBufferQueue_->QueueBuffer(dst_buffer);
                         dst_buffer = NULL;
                     }
                     HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
                     dst_buffer = mBufferQueue_->DequeueDrmBuffer(
-                            mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
-                            mHwPqDstInfo_.mBufferInfo_.iFormat_,
+                            pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_,
+                            pq_dst_info.mBufferInfo_.iFormat_,
                             RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Video-target");
 
                     if (dst_buffer == NULL) {
@@ -528,28 +533,27 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
                 }
 
                 // 4.1 Set dst buffer Info
-                mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-                mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-                mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-                mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-                mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-                mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-                mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+                pq_dst_info.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+                pq_dst_info.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+                pq_dst_info.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+                pq_dst_info.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+                pq_dst_info.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+                pq_dst_info.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+                pq_dst_info.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
             } else {
                 //If New buffer is not need anymore
                 if (dst_buffer) {
                     mBufferQueue_->QueueBuffer(dst_buffer);
                     dst_buffer = NULL;
                 }
-                mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+                pq_dst_info.mBufferInfo_ = src.mBufferInfo_;
             }
 
-            HWC2_LOGD_IF("dst: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64,
-                         mHwPqDstInfo_.mBufferInfo_.iFd_, mHwPqDstInfo_.mBufferInfo_.iWidth_,
-                         mHwPqDstInfo_.mBufferInfo_.iHeight_, mHwPqDstInfo_.mBufferInfo_.iFormat_,
-                         mHwPqDstInfo_.mBufferInfo_.iStride_, mHwPqDstInfo_.mBufferInfo_.iHeightStride_,
-                         mHwPqDstInfo_.mBufferInfo_.uBufferId_);
-            ret = mPq_->SetHwPqDstImage(mHwPqDstInfo_);
+            HWC2_LOGD_IF("dst: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, pq_dst_info.mBufferInfo_.iFd_,
+                         pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_,
+                         pq_dst_info.mBufferInfo_.iFormat_, pq_dst_info.mBufferInfo_.iStride_,
+                         pq_dst_info.mBufferInfo_.iHeightStride_, pq_dst_info.mBufferInfo_.uBufferId_);
+            ret = mPq_->SetHwPqDstImage(pq_dst_info);
             if (ret) {
                 HWC2_LOGE("Pq SetHwPqDstImage fail ret = %d", ret);
                 if (dst_buffer != NULL) mBufferQueue_->QueueBuffer(dst_buffer);
@@ -595,10 +599,13 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
                 drmLayer->pPqBuffer_ = dst_buffer;
                 drmLayer->acquire_fence = sp<AcquireFence>(new AcquireFence(dup(output_fence)));
                 hwc_frect_t source_crop;
-                source_crop.left = mHwPqDstInfo_.mCrop_.iLeft_;
-                source_crop.top = mHwPqDstInfo_.mCrop_.iTop_;
-                source_crop.right = mHwPqDstInfo_.mCrop_.iRight_;
-                source_crop.bottom = mHwPqDstInfo_.mCrop_.iBottom_;
+                source_crop.left = pq_dst_info.mCrop_.iLeft_;
+                source_crop.top = pq_dst_info.mCrop_.iTop_;
+                source_crop.right = pq_dst_info.mCrop_.iRight_;
+                source_crop.bottom = pq_dst_info.mCrop_.iBottom_;
+
+                dst_buffer->SetCrop(source_crop.left, source_crop.top, source_crop.right, source_crop.bottom);
+
                 drmLayer->UpdateAndStoreInfoFromDrmBuffer(
                         dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(), dst_buffer->GetWidth(),
                         dst_buffer->GetHeight(), dst_buffer->GetStride(), dst_buffer->GetHeightStride(),
@@ -628,11 +635,13 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
             }
 
             if (dst_buffer != NULL) {
+                int left = 0, top = 0, right = 0, bottom = 0;
+                dst_buffer->GetCrop(&left, &top, &right, &bottom);
                 hwc_frect_t source_crop;
-                source_crop.left = mHwPqDstInfo_.mCrop_.iLeft_;
-                source_crop.top = mHwPqDstInfo_.mCrop_.iTop_;
-                source_crop.right = mHwPqDstInfo_.mCrop_.iRight_;
-                source_crop.bottom = mHwPqDstInfo_.mCrop_.iBottom_;
+                source_crop.left = left;
+                source_crop.top = top;
+                source_crop.right = right;
+                source_crop.bottom = bottom;
                 drmLayer->UpdateAndStoreInfoFromDrmBuffer(
                         dst_buffer->GetHandle(), dst_buffer->GetFd(), dst_buffer->GetFormat(), dst_buffer->GetWidth(),
                         dst_buffer->GetHeight(), dst_buffer->GetStride(), dst_buffer->GetHeightStride(),
@@ -659,6 +668,7 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
 
 std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer> src_buffer,
                                                       std::shared_ptr<android::HwpqDisplayStatus> display_state) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (bInit_ == false) {
         HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
         return NULL;
@@ -709,20 +719,20 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
 
     // 3. Set buffer Info
     std::shared_ptr<DrmBuffer> dst_buffer = NULL;
-    mHwPqDstInfo_.mBufferInfo_.iFd_ = -1;
-    mHwPqDstInfo_.mRkHwpqReg_ = src_buffer->GetHwPqRegs().get();
+    HwPqImageInfo pq_dst_info;
+    pq_dst_info.mBufferInfo_.iFd_ = -1;
+    pq_dst_info.mRkHwpqReg_ = src_buffer->GetHwPqRegs().get();
 
     bool needAllocNewBuffer = false;
 
-    mPq_->Query(src, mHwPqDstInfo_, &needAllocNewBuffer);
+    mPq_->Query(src, pq_dst_info, &needAllocNewBuffer);
 
     // 4. Alloc buffer if needed
     if (needAllocNewBuffer) {
         HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
         dst_buffer = mBufferQueue_->DequeueDrmBuffer(
-                mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
-                mHwPqDstInfo_.mBufferInfo_.iFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
-                "PQ-Sideband-target");
+                pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_, pq_dst_info.mBufferInfo_.iFormat_,
+                RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC, "PQ-Sideband-target");
 
         if (dst_buffer == NULL) {
             HWC2_LOGD_IF("DequeueDrmBuffer fail!, skip this policy.");
@@ -730,29 +740,29 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
         }
 
         // 4.1 Set dst buffer Info
-        mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-        mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-        mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-        mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-        mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-        mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-        mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+        pq_dst_info.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+        pq_dst_info.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+        pq_dst_info.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+        pq_dst_info.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+        pq_dst_info.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+        pq_dst_info.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+        pq_dst_info.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
         //Update info for new buffer
-        src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).VopSrcRect_ = mHwPqDstInfo_.mCrop_;
+        src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).VopSrcRect_ = pq_dst_info.mCrop_;
         src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uFourccFormat_ =
                 dst_buffer->GetFourccFormat();
         src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).iHalFormat_ = dst_buffer->GetFormat();
         src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uModifier_ = dst_buffer->GetModifier();
         src.mDisplayStatus_->mapPlaneInfo_.at(src.mDisplayStatus_->iPqZpos).uDataSpace_ =
-                mHwPqDstInfo_.mBufferInfo_.uDataSpace_;
+                pq_dst_info.mBufferInfo_.uDataSpace_;
     } else {
-        mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+        pq_dst_info.mBufferInfo_ = src.mBufferInfo_;
     }
-    HwPqImageInfo dst_buffer_Info_ = mHwPqDstInfo_;
+    HwPqImageInfo dst_buffer_Info_ = pq_dst_info;
     HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
                  src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
                  src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
-    ret = mPq_->SetHwPqSrcImage(src, mHwPqDstInfo_, &needAllocNewBuffer);
+    ret = mPq_->SetHwPqSrcImage(src, pq_dst_info, &needAllocNewBuffer);
     if (ret) {
         if (ret == PqUnInit)
             HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
@@ -766,21 +776,21 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
     // 4. ReAlloc buffer if needed
     if (needAllocNewBuffer) {
         //if New buffer is needed, and it's resolution changed, realloc buffer
-        if (!dst_buffer || mHwPqDstInfo_.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
-            mHwPqDstInfo_.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
-            mHwPqDstInfo_.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
+        if (!dst_buffer || pq_dst_info.mBufferInfo_.iWidth_ != dst_buffer_Info_.mBufferInfo_.iWidth_ ||
+            pq_dst_info.mBufferInfo_.iHeight_ != dst_buffer_Info_.mBufferInfo_.iHeight_ ||
+            pq_dst_info.mBufferInfo_.iFormat_ != dst_buffer_Info_.mBufferInfo_.iFormat_) {
             HWC2_LOGW("HWPQ: Dst buffer changed between querry and SetHwPqSrcImage!![%dx%d f=%d]->[%dx%d f=%d]",
                       dst_buffer_Info_.mBufferInfo_.iWidth_, dst_buffer_Info_.mBufferInfo_.iHeight_,
-                      dst_buffer_Info_.mBufferInfo_.iFormat_, mHwPqDstInfo_.mBufferInfo_.iWidth_,
-                      mHwPqDstInfo_.mBufferInfo_.iHeight_, mHwPqDstInfo_.mBufferInfo_.iFormat_);
+                      dst_buffer_Info_.mBufferInfo_.iFormat_, pq_dst_info.mBufferInfo_.iWidth_,
+                      pq_dst_info.mBufferInfo_.iHeight_, pq_dst_info.mBufferInfo_.iFormat_);
             if (dst_buffer) {
                 mBufferQueue_->QueueBuffer(dst_buffer);
                 dst_buffer = NULL;
             }
             HWC2_LOGD_IF("hwpq use new vdpp buffer mode, alloc Buffer!");
             dst_buffer = mBufferQueue_->DequeueDrmBuffer(
-                    mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
-                    mHwPqDstInfo_.mBufferInfo_.iFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
+                    pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_,
+                    pq_dst_info.mBufferInfo_.iFormat_, RK_GRALLOC_USAGE_STRIDE_ALIGN_16 | MALI_GRALLOC_USAGE_NO_AFBC,
                     "PQ-Video-target");
 
             if (dst_buffer == NULL) {
@@ -790,32 +800,32 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
         }
 
         // 4.1 Set dst buffer Info
-        mHwPqDstInfo_.mBufferInfo_.iFd_ = dst_buffer->GetFd();
-        mHwPqDstInfo_.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
-        mHwPqDstInfo_.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
-        mHwPqDstInfo_.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
-        mHwPqDstInfo_.mBufferInfo_.iStride_ = dst_buffer->GetStride();
-        mHwPqDstInfo_.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
-        mHwPqDstInfo_.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
+        pq_dst_info.mBufferInfo_.iFd_ = dst_buffer->GetFd();
+        pq_dst_info.mBufferInfo_.iWidth_ = dst_buffer->GetWidth();
+        pq_dst_info.mBufferInfo_.iHeight_ = dst_buffer->GetHeight();
+        pq_dst_info.mBufferInfo_.iFormat_ = dst_buffer->GetFormat();
+        pq_dst_info.mBufferInfo_.iStride_ = dst_buffer->GetStride();
+        pq_dst_info.mBufferInfo_.iHeightStride_ = dst_buffer->GetHeightStride();
+        pq_dst_info.mBufferInfo_.uBufferId_ = dst_buffer->GetBufferId();
     } else {
         //If New buffer is not need anymore
         if (dst_buffer) {
             mBufferQueue_->QueueBuffer(dst_buffer);
             dst_buffer = NULL;
         }
-        mHwPqDstInfo_.mBufferInfo_ = src.mBufferInfo_;
+        pq_dst_info.mBufferInfo_ = src.mBufferInfo_;
     }
 
-    HWC2_LOGD_IF("dst: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, mHwPqDstInfo_.mBufferInfo_.iFd_,
-                 mHwPqDstInfo_.mBufferInfo_.iWidth_, mHwPqDstInfo_.mBufferInfo_.iHeight_,
-                 mHwPqDstInfo_.mBufferInfo_.iFormat_, mHwPqDstInfo_.mBufferInfo_.iStride_,
-                 mHwPqDstInfo_.mBufferInfo_.iHeightStride_, mHwPqDstInfo_.mBufferInfo_.uBufferId_);
+    HWC2_LOGD_IF("dst: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, pq_dst_info.mBufferInfo_.iFd_,
+                 pq_dst_info.mBufferInfo_.iWidth_, pq_dst_info.mBufferInfo_.iHeight_, pq_dst_info.mBufferInfo_.iFormat_,
+                 pq_dst_info.mBufferInfo_.iStride_, pq_dst_info.mBufferInfo_.iHeightStride_,
+                 pq_dst_info.mBufferInfo_.uBufferId_);
 
     //Alloc rk_hwpq_reg变量
     if (dst_buffer == NULL)
-        mHwPqDstInfo_.mRkHwpqReg_ = src_buffer->GetHwPqRegs().get();
+        pq_dst_info.mRkHwpqReg_ = src_buffer->GetHwPqRegs().get();
     else
-        mHwPqDstInfo_.mRkHwpqReg_ = dst_buffer->GetHwPqRegs().get();
+        pq_dst_info.mRkHwpqReg_ = dst_buffer->GetHwPqRegs().get();
 
     // SR 使能需要关闭HWPQ 锐化
     if (src_buffer->GetBufferType() == DRM_BUFFER_TYPE_SR) {
@@ -825,7 +835,7 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
     }
 
     //设置目标属性
-    ret = mPq_->SetHwPqDstImage(mHwPqDstInfo_);
+    ret = mPq_->SetHwPqDstImage(pq_dst_info);
     if (ret) {
         HWC2_LOGE("buffer_id=0x%" PRIx64 " Pq SetHwPqDstImage fail, ret = %d", src_buffer->GetExternalId(), ret);
         return NULL;
@@ -847,8 +857,8 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
             dst_buffer->DumpData(0, 0, "S");
         }
         //Update Crop form Query Result
-        dst_buffer->SetCrop(mHwPqDstInfo_.mCrop_.iLeft_, mHwPqDstInfo_.mCrop_.iTop_, mHwPqDstInfo_.mCrop_.iRight_,
-                            mHwPqDstInfo_.mCrop_.iBottom_);
+        dst_buffer->SetCrop(pq_dst_info.mCrop_.iLeft_, pq_dst_info.mCrop_.iTop_, pq_dst_info.mCrop_.iRight_,
+                            pq_dst_info.mCrop_.iBottom_);
         mBufferQueue_->QueueBuffer(dst_buffer);
         return dst_buffer;
     }
@@ -856,6 +866,7 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
 }
 
 int DrmPq::CheckHwPqDstScale(DrmHwcLayer* drmLayer) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (bInit_ == false) {
         HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
         return -1;
@@ -917,15 +928,16 @@ int DrmPq::CheckHwPqDstScale(DrmHwcLayer* drmLayer) {
     }
 
     // 3. Set buffer Info
-    mHwPqDstInfo_.mBufferInfo_.iFd_ = -1;
-    mHwPqDstInfo_.mRkHwpqReg_ = drmLayer->hwPqReg_.get();
+    HwPqImageInfo pq_dst_info;
+    pq_dst_info.mBufferInfo_.iFd_ = -1;
+    pq_dst_info.mRkHwpqReg_ = drmLayer->hwPqReg_.get();
 
     bool needAllocNewBuffer = false;
     HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
                  src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
                  src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
 
-    ret = mPq_->Query(src, mHwPqDstInfo_, &needAllocNewBuffer);
+    ret = mPq_->Query(src, pq_dst_info, &needAllocNewBuffer);
     if (ret) {
         if (ret == PqUnInit)
             HWC2_LOGW("Pq SetHwPqSrcImage fail, Pq may still initializing, ret = %d", ret);
@@ -937,8 +949,8 @@ int DrmPq::CheckHwPqDstScale(DrmHwcLayer* drmLayer) {
     }
     int dst_w = static_cast<int>(drmLayer->display_frame.right - drmLayer->display_frame.left);
     int dst_h = static_cast<int>(drmLayer->display_frame.bottom - drmLayer->display_frame.top);
-    int src_w = mHwPqDstInfo_.mCrop_.Width();
-    int src_h = mHwPqDstInfo_.mCrop_.Height();
+    int src_w = pq_dst_info.mCrop_.Width();
+    int src_h = pq_dst_info.mCrop_.Height();
     drmLayer->bCheckPqScale = true;
     drmLayer->fPqHScale = (float)src_w / (float)dst_w;
     drmLayer->fPqVScale = (float)src_h / (float)dst_h;

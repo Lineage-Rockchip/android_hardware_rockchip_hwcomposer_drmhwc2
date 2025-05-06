@@ -112,10 +112,10 @@ VpTransformContext::VpTransformContext(int tunnel_id, uint32_t transform, androi
     : mTunnelId_(tunnel_id),
       mTransform_(transform),
       mBufferQueue_(std::make_shared<DrmBufferQueue>(4)),
-      mEnableOnelineMode_(false),
+      mSrEnableOnelineMode_(false),
       mSrAuthTimeline_(0),
-      mLastFrameNoCnt_(0),
-      mLastTimestampUs_(0),
+      mLastFpsFrameNo_(0),
+      mLastFpsTimestampUs_(0),
       mFps_(0.0),
       bNeedRelease_(false),
       mDataspace_(dataspace) {
@@ -155,9 +155,9 @@ std::string VpTransformContext::TransformToString(uint32_t transform) const {
             break;
     }
 
-    if (transform & DRM_MODE_POST_PROCESS_SR) {
+    if (transform & DRM_MODE_RK_POST_PROCESS_SR) {
         result += "_SR";
-    } else if (transform & DRM_MODE_POST_PROCESS_MEMC) {
+    } else if (transform & DRM_MODE_RK_POST_PROCESS_MEMC) {
         result += "_MM";
     }
     return result;
@@ -298,7 +298,7 @@ int VpTransformContext::Handle(std::shared_ptr<VpComposition> input) {
         }
 
 #ifdef USE_LIBSR
-    } else if (mTransform_ & DRM_MODE_POST_PROCESS_SR) {
+    } else if (mTransform_ & DRM_MODE_RK_POST_PROCESS_SR) {
         int ret = DoTransformBySvepSr(input);
         if (ret) {
             HWC2_LOGE("DoTransformBySvepSr Name=%s fail, ret=%d", input->Name().c_str(), ret);
@@ -321,14 +321,15 @@ int VpTransformContext::Handle(std::shared_ptr<VpComposition> input) {
 }
 
 void VpTransformContext::CalculateFPS() {
-    if (mLastTimestampUs_ == 0) {
-        mLastTimestampUs_ = SidebandGetTimestampUs();
+    //每10帧计算一次FPS
+    if (mLastFpsTimestampUs_ == 0) {
+        mLastFpsTimestampUs_ = SidebandGetTimestampUs();
     }
-    if ((uFrameNo_ - mLastFrameNoCnt_) > 10) {
+    if ((uFrameNo_ - mLastFpsFrameNo_) > 10) {
         int64_t current_time_us = SidebandGetTimestampUs();
-        mFps_ = (uFrameNo_ - mLastFrameNoCnt_) / (((current_time_us - mLastTimestampUs_) / (1000.0 * 1000)));
-        mLastFrameNoCnt_ = uFrameNo_;
-        mLastTimestampUs_ = current_time_us;
+        mFps_ = (uFrameNo_ - mLastFpsFrameNo_) / (((current_time_us - mLastFpsTimestampUs_) / (1000.0 * 1000)));
+        mLastFpsFrameNo_ = uFrameNo_;
+        mLastFpsTimestampUs_ = current_time_us;
     }
     return;
 }
@@ -445,6 +446,12 @@ int VpTransformContext::DoTransformByRga(std::shared_ptr<VpComposition> input) {
     //检查当前平台RGA是否支持4G以上内存，如果不支持，则申请4G以内内存
     if (!ResourceManager::getInstance()->GetRgaSupportAbove4GB()) {
         dst_buf_usage |= RK_GRALLOC_USAGE_WITHIN_4G;
+    }
+
+    // RK_GRALLOC_USAGE_STRIDE_ALIGN_64 with BGR buffer in byte-stride do not guarantee 16 pixel alignment in pixel
+    // Use RGBX format to ensure that
+    if (dst_buf_format == HAL_PIXEL_FORMAT_BGR_888 || dst_buf_format == HAL_PIXEL_FORMAT_RGB_888) {
+        dst_buf_format = HAL_PIXEL_FORMAT_RGBA_8888;
     }
 
     std::shared_ptr<DrmBuffer> dst_buffer = mBufferQueue_->DequeueDrmBuffer(

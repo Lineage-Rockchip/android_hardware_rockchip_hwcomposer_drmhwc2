@@ -26,8 +26,8 @@
 #include <drmbufferqueue.h>
 #include "drmbuffer.h"
 #include "rockchip/drmgralloc.h"
-#include "rockchip/producer/videotunnel/video_tunnel.h"
 #include "rockchip/producer/VpTransformContext.h"
+#include "rockchip/producer/videotunnel/video_tunnel.h"
 #include "utils/drmfence.h"
 
 namespace android {

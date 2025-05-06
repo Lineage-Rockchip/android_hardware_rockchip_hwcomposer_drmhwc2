@@ -92,8 +92,8 @@ class VpComposition {
     #define DRM_MODE_REFLECT_Y      (1<<5)
  */
 
-#define DRM_MODE_POST_PROCESS_SR (1 << 6)
-#define DRM_MODE_POST_PROCESS_MEMC (1 << 7)
+#define DRM_MODE_RK_POST_PROCESS_SR (1 << 6)
+#define DRM_MODE_RK_POST_PROCESS_MEMC (1 << 7)
 class VpTransformContext {
   public:
     VpTransformContext(int tunnel_id, uint32_t transform, android_dataspace_t dataspace);
@@ -136,11 +136,11 @@ class VpTransformContext {
     std::list<std::shared_ptr<VpComposition>> mListVpCompositions_;
     std::shared_ptr<DrmBufferQueue> mBufferQueue_;
     std::map<int /*display-id*/, vt_rect_t> mMapDisplayFrame_;
-    bool mEnableOnelineMode_ = false;
+    bool mSrEnableOnelineMode_ = false;
     int mSrAuthTimeline_ = 0;
     // 用于计算帧率
-    uint64_t mLastFrameNoCnt_;
-    int64_t mLastTimestampUs_;
+    uint64_t mLastFpsFrameNo_;
+    int64_t mLastFpsTimestampUs_;
     float mFps_;
     bool bNeedRelease_;
     int64_t mCommitLatencyCnt_;
