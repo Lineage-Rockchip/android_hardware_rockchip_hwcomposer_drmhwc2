@@ -1571,15 +1571,19 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
             }
         }
 
-        // 非afbc 10bit 片源 x_offset 需要8对齐
         if (yuv10bit && !afbcd) {
-            src_l = ALIGN_DOWN(src_l, 8);
             if (gIsRK3576()) {
-                // RK3576平台 非afbc 10bit 片源 act_w 需要2对齐
+                // RK3576 要求 NV15 x-offset 4对齐
+                src_l = ALIGN_DOWN(src_l, 4);
+                // RK3576平台 非afbc 10bit 片源 act_w / act_h 需要2对齐
                 src_w = ALIGN_DOWN(src_w, 2);
+                src_h = ALIGN_DOWN(src_h, 2);
             } else {
-                // RK356X/RK3588/RK3562/RK3528平台 非afbc 10bit 片源 act_w 需要4对齐
+                // RK3588 要求 NV15 x-offset 8对齐，其他平台暂时按8对齐处理
+                src_l = ALIGN_DOWN(src_l, 8);
+                // RK356X/RK3588/RK3562/RK3528平台 非afbc 10bit 片源 act_w 需要4对齐, src_h 需要2对齐
                 src_w = ALIGN_DOWN(src_w, 4);
+                src_h = ALIGN_DOWN(src_h, 2);
             }
         }
 
