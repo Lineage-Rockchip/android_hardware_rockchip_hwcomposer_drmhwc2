@@ -4251,9 +4251,17 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
 int DrmHwcTwo::HwcDisplay::EnableHdrMode(DrmHwcLayer& hdrLayer) {
     HWC2_LOGI_IF("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
     if (connector_->is_hdmi_support_hdr()) {
-        if (ctx_.hdr_mode != DRM_HWC_HDR10) {
+        //Default to HDR10
+        DrmHdrType hdr_mode = DRM_HWC_HDR10;
+        if ((hdrLayer.eDataSpace_ & HAL_DATASPACE_TRANSFER_ST2084) == HAL_DATASPACE_TRANSFER_ST2084) {
+            hdr_mode = DRM_HWC_HDR10;
+        } else if ((hdrLayer.eDataSpace_ & HAL_DATASPACE_TRANSFER_HLG) == HAL_DATASPACE_TRANSFER_HLG) {
+            hdr_mode = DRM_HWC_HLG;
+        }
+
+        if (ctx_.hdr_mode != hdr_mode) {
             ALOGD_IF(LogLevel(DBG_DEBUG), "Enable HDR mode success");
-            ctx_.hdr_mode = DRM_HWC_HDR10;
+            ctx_.hdr_mode = hdr_mode;
             ctx_.dataspace = hdrLayer.eDataSpace_;
             property_set("vendor.hwc.hdr_state", "HDR");
         }

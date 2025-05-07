@@ -972,7 +972,8 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
         }
 
         if (display_comp->hdr_mode() != current_mode_set_.hdr_.mode_ ||
-            display_comp->has_10bit_Yuv() != current_mode_set_.hdr_.bHasYuv10bit_) {
+            display_comp->has_10bit_Yuv() != current_mode_set_.hdr_.bHasYuv10bit_||
+            display_comp->dataspace() != current_mode_set_.hdr_.datespace_) {
             // 进入HDR10/SDR的处理逻辑
             ret = connector->switch_hdmi_hdr_mode(pset, display_comp->dataspace(), display_comp->has_10bit_Yuv());
             if (ret) {
