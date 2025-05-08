@@ -107,7 +107,6 @@ class RkHwcProxyClient {
         while (client_count == 0) {
             status = client_cv.wait_until(lock, now + std::chrono::seconds(20));
             if (status == std::cv_status::timeout) {
-                HWC2_LOGE("wait callback timeout");
                 return status;
             }
         }
