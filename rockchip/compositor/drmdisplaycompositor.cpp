@@ -703,15 +703,6 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
         DrmPlane* plane = comp_plane.plane();
         std::vector<size_t>& source_layers = comp_plane.source_layers();
 
-        if (!(plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0)) {
-            continue;
-        }
-
-        if (!(plane->dci_data().id())) {
-            HWC2_LOGD_IF("Cluster0-Win0 Do not have dci_data, do not support hwpq");
-            return 0;
-        }
-
         if (comp_plane.type() == DrmCompositionPlane::Type::kDisable) {
             continue;
         }
@@ -2912,9 +2903,9 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
 
                 std::shared_ptr<DrmBuffer> output_buffer = vp_composition->GetBuffer();
 #ifdef USE_LIBPQ_HWPQ
-                if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0) {
-                    int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
-                    if (iPqMode == PqUtils::HWPQ_HDMIRX_MODE) {
+                int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
+                if (iPqMode == PqUtils::HWPQ_HDMIRX_MODE || iPqMode == PqUtils::HWPQ_VIDEO_MODE) {
+                    if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0) {
                         // 准备当前屏幕的分辨率信息
                         int display_w = conn->active_mode().h_display();
                         int display_h = conn->active_mode().v_display();
@@ -2928,6 +2919,8 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                             vp_composition->SetPqBuffer(hwpq_buffer);
                             output_buffer = hwpq_buffer;
                         }
+                    }else{
+                        ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(output_buffer);
                     }
                 }
 #endif

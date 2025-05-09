@@ -1909,8 +1909,10 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
                         char value[PROPERTY_VALUE_MAX];
                         property_get("persist.vendor.tvinput.rkpq.mode", value, "0");
                         if (atoi(value) == 1) {
+                            ctx_.use_pq_fb = true;
                             ResourceManager::getInstance()->GetDrmPq()->RunHwPqUiMode(drm_hwc_layers_);
                         } else {
+                            ctx_.use_pq_fb = false;
                             // 如果关闭了HWPQ，则清除缓存
                             if (atoi(value) == 0) {
                                 ResourceManager::getInstance()->GetDrmPq()->ClearCache();

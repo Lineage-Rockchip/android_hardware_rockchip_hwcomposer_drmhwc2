@@ -311,8 +311,10 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
 
                 drmLayer.Init();
                 if (gIsDrmVerison6_1()) {
-                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_encoding_ = DRM_COLOR_YCBCR_BT601;
-                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_range_ = DRM_COLOR_YCBCR_FULL_RANGE;
+                    if (dst_buffer != NULL) {
+                        drmLayer.uColorSpace.colorspace_kernel_6_1_.color_encoding_ = DRM_COLOR_YCBCR_BT601;
+                        drmLayer.uColorSpace.colorspace_kernel_6_1_.color_range_ = DRM_COLOR_YCBCR_FULL_RANGE;
+                    }
                 } else {
                     drmLayer.uColorSpace.colorspace_kernel_510_ = V4L2_COLORSPACE_JPEG;
                 }
@@ -353,8 +355,10 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                 drmLayer.hwPqReg_ = mLastHwPqReg_;
                 drmLayer.Init();
                 if (gIsDrmVerison6_1()) {
-                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_encoding_ = DRM_COLOR_YCBCR_BT601;
-                    drmLayer.uColorSpace.colorspace_kernel_6_1_.color_range_ = DRM_COLOR_YCBCR_FULL_RANGE;
+                    if (dst_buffer != NULL) {
+                        drmLayer.uColorSpace.colorspace_kernel_6_1_.color_encoding_ = DRM_COLOR_YCBCR_BT601;
+                        drmLayer.uColorSpace.colorspace_kernel_6_1_.color_range_ = DRM_COLOR_YCBCR_FULL_RANGE;
+                    }
                 } else {
                     drmLayer.uColorSpace.colorspace_kernel_510_ = V4L2_COLORSPACE_JPEG;
                 }
@@ -959,8 +963,12 @@ int DrmPq::CheckHwPqDstScale(DrmHwcLayer* drmLayer) {
     return 0;
 }
 
-
 int DrmPq::RunHwPqGetReg(DrmHwcLayer* drmLayer) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (bInit_ == false) {
+        HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
+        return 0;
+    }
     int ret = 0;
 
     // 1. Alloc dst HWPQ regs
@@ -978,6 +986,25 @@ int DrmPq::RunHwPqGetReg(DrmHwcLayer* drmLayer) {
     if (ret) {
         HWC2_LOGD_IF("HWPQ: Failed to get reg config! ret = %d", ret);
         drmLayer->hwPqReg_ = NULL;
+    }
+
+    return ret;
+}
+
+int DrmPq::RunHwPqGetReg(std::shared_ptr<DrmBuffer> src_buffer) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (bInit_ == false) {
+        HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
+        return 0;
+    }
+    int ret = 0;
+
+    // 2. Get HWPQ regs
+    ret = mPq_->getHwPqRegConfig(src_buffer->GetHwPqRegs().get());
+
+    if (ret) {
+        HWC2_LOGD_IF("HWPQ: Failed to get reg config! ret = %d", ret);
+        src_buffer->RemoveHwPqRegs();
     }
 
     return ret;

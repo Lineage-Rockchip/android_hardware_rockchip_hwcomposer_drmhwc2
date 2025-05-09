@@ -94,6 +94,7 @@ class DrmPq {
     std::shared_ptr<DrmBuffer> RunHwPqSidebandMode(std::shared_ptr<DrmBuffer> src_buffer,
                                                    std::shared_ptr<android::HwpqDisplayStatus> display_state);
     int RunHwPqGetReg(DrmHwcLayer* drmLayer);
+    int RunHwPqGetReg(std::shared_ptr<DrmBuffer> src_buffer);
     void ClearCache() { mLastHwPqBufInfo_.clear(); }
 
   private:
