@@ -42,6 +42,10 @@
 #include "SvepSr.h"
 #endif
 
+#ifdef USE_LIBSVEP_MEMC
+#include "SvepMemc.h"
+#endif
+
 #ifdef USE_LIBPQ_HWPQ
 #include "rockchip/pq/DrmPq.h"
 #endif
@@ -137,6 +141,11 @@ class ResourceManager {
     std::shared_ptr<SvepSr> ResetAndGetSvepSr();
 #endif
 
+#ifdef USE_LIBSVEP_MEMC
+    std::shared_ptr<SvepMemc> GetSvepMemc();
+    std::shared_ptr<SvepMemc> ResetAndGetSvepMemc();
+#endif
+
 #ifdef USE_LIBPQ_HWPQ
     std::shared_ptr<DrmPq> GetDrmPq();
     std::shared_ptr<DrmPq> ResetAndGetDrmPq();
@@ -218,6 +227,10 @@ class ResourceManager {
 #ifdef USE_LIBSR
     // SVEP SR
     std::shared_ptr<SvepSr> mSvepSr_ = nullptr;
+#endif
+
+#ifdef USE_LIBSVEP_MEMC
+    std::shared_ptr<SvepMemc> mSvepMemc_ = nullptr;
 #endif
 
 #ifdef USE_LIBPQ_HWPQ

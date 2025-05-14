@@ -2567,7 +2567,7 @@ int Vop3588::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
         }
     } else {
         if (last_memc_mode) {
-            svep_memc_ = std::make_shared<SvepMemc>();
+            svep_memc_ = ResourceManager::getInstance()->ResetAndGetSvepMemc();
         }
         last_memc_mode = false;
     }

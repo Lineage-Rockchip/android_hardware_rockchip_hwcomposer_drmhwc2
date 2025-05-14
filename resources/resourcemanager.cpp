@@ -279,6 +279,25 @@ std::shared_ptr<SvepSr> ResourceManager::ResetAndGetSvepSr() {
 
 #endif
 
+#ifdef USE_LIBSVEP_MEMC
+std::shared_ptr<SvepMemc> ResourceManager::GetSvepMemc() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mSvepMemc_ == nullptr) {
+        mSvepMemc_ = std::make_shared<SvepMemc>();
+    }
+    return mSvepMemc_;
+};
+
+// 主要目的是为了释放旧SvepMemc内存
+std::shared_ptr<SvepMemc> ResourceManager::ResetAndGetSvepMemc() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mSvepMemc_ != nullptr) {
+        mSvepMemc_ = nullptr;
+    }
+    return GetSvepMemc();
+};
+#endif
+
 #ifdef USE_LIBPQ_HWPQ
 std::shared_ptr<DrmPq> ResourceManager::GetDrmPq() {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);

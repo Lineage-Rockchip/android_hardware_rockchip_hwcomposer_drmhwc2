@@ -215,7 +215,7 @@ class Vop3588 : public Planner::PlanStage {
 
 #ifdef USE_LIBSVEP_MEMC
           ,
-          svep_memc_(std::make_shared<SvepMemc>())
+          svep_memc_(ResourceManager::getInstance()->GetSvepMemc())
 #endif
     {
         Init();
