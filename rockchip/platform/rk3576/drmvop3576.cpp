@@ -1457,7 +1457,10 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
                     if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE) {
                         hwpq_run_ret = ResourceManager::getInstance()->GetDrmPq()->RunHwPqVideoMode(layer);
                         if (hwpq_run_ret) {
-                            HWC2_LOGE("HWPQ: RunHwPqVideoMode fail! ret=%d", hwpq_run_ret);
+                            HWC2_LOGE("HWPQ: RunHwPqVideoMode fail! ret=%d, LayerName=%s", hwpq_run_ret,
+                                      layer->sLayerName_.c_str());
+                        } else {
+                            HWC2_LOGD_IF("HWPQ-Video enable on LayerName=%s", layer->sLayerName_.c_str());
                         }
                         break;
                     }
@@ -1467,7 +1470,9 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
             for (auto& layer : layers) {
                 if (layer->bMatch_) {
                     if (int ret = ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(layer)) {
-                        HWC2_LOGE("HWPQ: RunHwPqGetReg fail! ret=%d", ret);
+                        HWC2_LOGE("HWPQ: RunHwPqGetReg fail! ret=%d, LayerName=%s", ret, layer->sLayerName_.c_str());
+                    } else {
+                        HWC2_LOGD_IF("HWPQ-Overlay enable on LayerName=%s", layer->sLayerName_.c_str());
                     }
                     break;
                 }

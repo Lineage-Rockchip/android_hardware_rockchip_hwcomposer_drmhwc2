@@ -128,7 +128,10 @@ class DrmDisplayCompositor {
     struct ModeSetState {
         HdrState hdr_;
 #ifdef USE_LIBPQ_HWPQ
+        // HWPQ 寄存器配置
         std::shared_ptr<rk_hwpq_reg> hwpq_regs_;
+        // 使能 HWPQ图层的指针，可能是Cluster0,也可能是其他图层
+        DrmPlane* hwpq_plane_ = NULL;
 #endif
     };
 
@@ -263,8 +266,6 @@ class DrmDisplayCompositor {
     uint32_t hwpq_csc_id_ = 0;
     uint32_t hwpq_acm_id_ = 0;
     uint32_t hwpq_dci_id_ = 0;
-    DrmPlane* hwpq_plane = NULL;
-    DrmCrtc* hwpq_crtc = NULL;
 #endif
 };
 }  // namespace android

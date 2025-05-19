@@ -289,7 +289,7 @@ struct DrmHwcLayer {
 
 #ifdef USE_LIBPQ_HWPQ
     bool bUseHwpqScale_;
-    std::shared_ptr<rk_hwpq_reg> hwPqReg_;
+    std::shared_ptr<rk_hwpq_reg> hwPqReg_ = NULL;
     //用于存放VDPP放大后的缩放倍率，bCheckPqScale=true时生效
     bool bCheckPqScale = false;
     float fPqHScale = 0;

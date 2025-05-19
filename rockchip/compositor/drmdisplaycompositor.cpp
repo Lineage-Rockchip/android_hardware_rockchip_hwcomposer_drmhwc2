@@ -697,11 +697,17 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
 
     int zpos = -1;
     request_mode_set_.hwpq_regs_ = NULL;
-    bool use_dci = true;
+    request_mode_set_.hwpq_plane_ = NULL;
+    DrmPlane* cluster0_plane = NULL;
 
+    // 收集当前提交帧的HWPQ信息
     for (DrmCompositionPlane& comp_plane : comp_planes) {
         DrmPlane* plane = comp_plane.plane();
         std::vector<size_t>& source_layers = comp_plane.source_layers();
+
+        if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0) {
+            cluster0_plane = plane;
+        }
 
         if (comp_plane.type() == DrmCompositionPlane::Type::kDisable) {
             continue;
@@ -731,44 +737,54 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                 current_sideband2_.composition_->GetPqBuffer() != NULL &&
                 current_sideband2_.composition_->GetPqBuffer()->HasHwPqRegs()) {
                 request_mode_set_.hwpq_regs_ = current_sideband2_.composition_->GetPqBuffer()->GetHwPqRegs();
+                request_mode_set_.hwpq_plane_ = plane;
             }
         } else {
-            if (layer.hwPqRegAcquireFence_->wait(100) == 0) {
-                request_mode_set_.hwpq_regs_ = layer.hwPqReg_;
-            } else {
-                HWC2_LOGE("Wait Hwpq AcquireFence 100ms Failed");
+            if (layer.hwPqReg_ != NULL) {
+                if (layer.hwPqRegAcquireFence_->wait(100) == 0) {
+                    request_mode_set_.hwpq_regs_ = layer.hwPqReg_;
+                    request_mode_set_.hwpq_plane_ = plane;
+                } else {
+                    HWC2_LOGE("LayerName=%s Wait Hwpq AcquireFence 100ms Failed", layer.sLayerName_.c_str());
+                }
             }
-        }
-
-        if (request_mode_set_.hwpq_regs_) {
-            if (!(plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0)) {
-                use_dci = false;
-            }
-
-            if (!(plane->dci_data().id())) {
-                HWC2_LOGD_IF("Not Cluster0-Win0 or do not have dci_data, do not support DCI");
-                use_dci = false;
-            }
-
-            if (use_dci) {
-                hwpq_plane = plane;
-            }
-
-            hwpq_crtc = crtc;
-            break;
         }
     }
 
+    // 根据当前收集的HWPQ信息，判断后续需要执行的
+    // 1. 目前只有RK3576 Cluster0 支持 DCI 功能，故如果需要使能DCI需要在Cluster图层
+    bool can_enable_dci = true;
+    if (request_mode_set_.hwpq_regs_ != NULL && request_mode_set_.hwpq_plane_ != NULL) {
+        if (request_mode_set_.hwpq_plane_->win_type() != PLANE_RK3576_CLUSTER0_WIN0) {
+            can_enable_dci = false;
+        }
+
+        if (request_mode_set_.hwpq_plane_->dci_data().id() <= 0) {
+            can_enable_dci = false;
+        }
+
+        if (can_enable_dci) {
+            HWC2_LOGD_IF("%s support enable DCI", request_mode_set_.hwpq_plane_->name());
+        } else {
+            HWC2_LOGD_IF("%s unsupport enable DCI", request_mode_set_.hwpq_plane_->name());
+        }
+    } else {
+        can_enable_dci = false;
+        HWC2_LOGD_IF("hwpq_regs=%p hwpq_plane_name=%s ", request_mode_set_.hwpq_regs_.get(),
+                     request_mode_set_.hwpq_plane_ != NULL ? request_mode_set_.hwpq_plane_->name() : "UnKnowPlane");
+    }
+
+    // 配置 HWPQ
     std::shared_ptr<rk_hwpq_reg> hwpq_regs = request_mode_set_.hwpq_regs_;
     if (current_mode_set_.hwpq_regs_ != hwpq_regs) {
         if (hwpq_regs != NULL) {
             //下发HWPQ相关寄存器
-            if (use_dci && hwpq_plane == NULL) {
+            if (can_enable_dci && request_mode_set_.hwpq_plane_ == NULL) {
                 HWC2_LOGE("Could not found HWPQ Plane, skip setting, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
                           drm->getSocId(), crtc->id());
                 return -1;
             }
-            if (hwpq_crtc == NULL) {
+            if (crtc == NULL) {
                 HWC2_LOGE("Could not found HWPQ Crtc, skip setting, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
                           drm->getSocId(), crtc->id());
                 return -1;
@@ -839,41 +855,57 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                 }
             }
             //CRTC
-            ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
+            ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->post_csc_data().id(), hwpq_csc_id_);
             if (ret < 0) {
                 HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                          hwpq_crtc->post_csc_data().name().c_str(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
+                          crtc->post_csc_data().name().c_str(), crtc->post_csc_data().id(), hwpq_csc_id_);
             }
-            ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
+            ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->acm_lut_data().id(), hwpq_acm_id_);
             if (ret < 0) {
                 HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                          hwpq_crtc->acm_lut_data().name().c_str(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
+                          crtc->acm_lut_data().name().c_str(), crtc->acm_lut_data().id(), hwpq_acm_id_);
             }
-            ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_sharp_data().id(), hwpq_shp_id_);
+            ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->post_sharp_data().id(), hwpq_shp_id_);
             if (ret < 0) {
                 HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                          hwpq_crtc->post_sharp_data().name().c_str(), hwpq_crtc->post_sharp_data().id(), hwpq_shp_id_);
+                          crtc->post_sharp_data().name().c_str(), crtc->post_sharp_data().id(), hwpq_shp_id_);
             }
-            //PLANE
-            if (use_dci) {
-                ret = drmModeAtomicAddProperty(pset_, hwpq_plane->id(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
+
+            // 如果不支持使能 DCI
+            if (can_enable_dci) {
+                ret = drmModeAtomicAddProperty(pset_, request_mode_set_.hwpq_plane_->id(),
+                                               request_mode_set_.hwpq_plane_->dci_data().id(), hwpq_dci_id_);
                 if (ret < 0) {
                     HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                              hwpq_plane->dci_data().name().c_str(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
+                              request_mode_set_.hwpq_plane_->dci_data().name().c_str(),
+                              request_mode_set_.hwpq_plane_->dci_data().id(), hwpq_dci_id_);
+                }
+            } else {
+                // 关闭 Cluster0 DCI属性
+                if (cluster0_plane != NULL && cluster0_plane->dci_data().id() > 0) {
+                    ret = drmModeAtomicAddProperty(pset_, cluster0_plane->id(), cluster0_plane->dci_data().id(), 0);
+                    if (ret < 0) {
+                        HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                                  cluster0_plane->dci_data().name().c_str(), cluster0_plane->dci_data().id(), 0);
+                    } else {
+                        HWC2_LOGD_IF("Disable DCI Crtc-id=%d PlaneName=%s Success.", crtc->id(),
+                                     cluster0_plane->name());
+                    }
                 }
             }
 
-            HWC2_LOGD_IF("Enable HWPQ Crtc-id=%d PlaneName=%s Success : sharp(%" PRIu32 ") csc(%" PRIu32
-                         ") acm(%" PRIu32 ") dci(%" PRIu32 ")(%d)",
-                         hwpq_crtc->id(), hwpq_plane != NULL ? hwpq_plane->name() : "NULL",
-                         hwpq_regs->rk_hwpq_shp_reg.prop_length, hwpq_regs->rk_hwpq_csc_reg.prop_length,
-                         hwpq_regs->rk_hwpq_acm_reg.prop_length, hwpq_regs->rk_hwpq_dci_reg.prop_length, use_dci);
+            HWC2_LOGD_IF(
+                    "Enable HWPQ Crtc-id=%d PlaneName=%s Success : sharp(%" PRIu32 ") csc(%" PRIu32 ") acm(%" PRIu32
+                    ") dci(%" PRIu32 ")(%d)",
+                    crtc->id(), request_mode_set_.hwpq_plane_ != NULL ? request_mode_set_.hwpq_plane_->name() : "NULL",
+                    hwpq_regs->rk_hwpq_shp_reg.prop_length, hwpq_regs->rk_hwpq_csc_reg.prop_length,
+                    hwpq_regs->rk_hwpq_acm_reg.prop_length, hwpq_regs->rk_hwpq_dci_reg.prop_length, can_enable_dci);
         } else {
             //如果reg为空，删除HWPQ下发的寄存器参数
             //先检查记录中HWPQ所在的crtc和plane是否有效
 
             // HWC2_LOGD_IF("crtc_id = %" PRIu32 " disable hwpq", crtc->id());
-            if (hwpq_crtc == NULL) {
+            if (crtc == NULL) {
                 HWC2_LOGD_IF("Could not found HWPQ Crtc, skip disable, soc_id=0x%" PRIx32 " crtc_id=%" PRIu32,
                              drm->getSocId(), crtc->id());
                 return 0;
@@ -887,11 +919,10 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                     HWC2_LOGE("Failed to destory SHARP blob. blob_id:[%" PRIu32 "]", hwpq_shp_id_);
                 }
                 hwpq_shp_id_ = 0;
-                ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_sharp_data().id(), hwpq_shp_id_);
+                ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->post_sharp_data().id(), hwpq_shp_id_);
                 if (ret < 0) {
                     HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                              hwpq_crtc->post_sharp_data().name().c_str(), hwpq_crtc->post_sharp_data().id(),
-                              hwpq_shp_id_);
+                              crtc->post_sharp_data().name().c_str(), crtc->post_sharp_data().id(), hwpq_shp_id_);
                 }
             }
             if (hwpq_csc_id_) {
@@ -900,10 +931,10 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                     HWC2_LOGE("Failed to destory CSC blob. blob_id:[%" PRIu32 "]", hwpq_csc_id_);
                 }
                 hwpq_csc_id_ = 0;
-                ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
+                ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->post_csc_data().id(), hwpq_csc_id_);
                 if (ret < 0) {
                     HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                              hwpq_crtc->post_csc_data().name().c_str(), hwpq_crtc->post_csc_data().id(), hwpq_csc_id_);
+                              crtc->post_csc_data().name().c_str(), crtc->post_csc_data().id(), hwpq_csc_id_);
                 }
             }
             if (hwpq_acm_id_) {
@@ -912,32 +943,36 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
                     HWC2_LOGE("Failed to destory ACM blob. blob_id:[%" PRIu32 "]", hwpq_acm_id_);
                 }
                 hwpq_acm_id_ = 0;
-                ret = drmModeAtomicAddProperty(pset_, hwpq_crtc->id(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
+                ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->acm_lut_data().id(), hwpq_acm_id_);
                 if (ret < 0) {
                     HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                              hwpq_crtc->acm_lut_data().name().c_str(), hwpq_crtc->acm_lut_data().id(), hwpq_acm_id_);
+                              crtc->acm_lut_data().name().c_str(), crtc->acm_lut_data().id(), hwpq_acm_id_);
                 }
             }
 
             //设置挂在 PLANE 下的属性 DCI
-
             if (hwpq_dci_id_) {
                 ret = drm->DestroyPropertyBlob(hwpq_dci_id_);
                 if (ret < 0) {
                     HWC2_LOGE("Failed to destory DCI blob. blob_id:[%" PRIu32 "]", hwpq_dci_id_);
                 }
                 hwpq_dci_id_ = 0;
-                if (hwpq_plane) {
-                    ret = drmModeAtomicAddProperty(pset_, hwpq_plane->id(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
+                if (cluster0_plane) {
+                    ret = drmModeAtomicAddProperty(pset_, cluster0_plane->id(), cluster0_plane->dci_data().id(),
+                                                   hwpq_dci_id_);
                     if (ret < 0) {
                         HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
-                                  hwpq_plane->dci_data().name().c_str(), hwpq_plane->dci_data().id(), hwpq_dci_id_);
+                                  cluster0_plane->dci_data().name().c_str(), cluster0_plane->dci_data().id(),
+                                  hwpq_dci_id_);
+                    } else {
+                        HWC2_LOGD_IF("Disable DCI Crtc-id=%d PlaneName=%s Success.", crtc->id(),
+                                     cluster0_plane->name());
                     }
                 }
             }
 
-            HWC2_LOGD_IF("Disable HWPQ Crtc-id=%d PlaneName=%s Success.", hwpq_crtc->id(),
-                         hwpq_plane != NULL ? hwpq_plane->name() : "NULL");
+            HWC2_LOGD_IF("Disable HWPQ Crtc-id=%d PlaneName=%s Success.", crtc->id(),
+                         request_mode_set_.hwpq_plane_ != NULL ? request_mode_set_.hwpq_plane_->name() : "NULL");
         }
     }
     return ret < 0 ? -1 : 0;
@@ -1089,7 +1124,7 @@ int DrmDisplayCompositor::UpdateHwPqState() {
     if (lock.Lock()) return -1;
 
     current_mode_set_.hwpq_regs_ = request_mode_set_.hwpq_regs_;
-
+    current_mode_set_.hwpq_plane_ = request_mode_set_.hwpq_plane_;
     return 0;
 }
 #endif
@@ -2919,7 +2954,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                             vp_composition->SetPqBuffer(hwpq_buffer);
                             output_buffer = hwpq_buffer;
                         }
-                    }else{
+                    } else {
                         ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(output_buffer);
                     }
                 }
