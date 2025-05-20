@@ -1380,6 +1380,10 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
         bool afbcd = false, yuv = false, yuv10bit = false, sideband = false;
         bool is_metadata_hdr = false;
 
+#ifdef USE_LIBPQ_HWPQ
+        std::shared_ptr<rk_hwpq_reg> hwpq_reg = NULL;
+#endif
+
         crtc = comp_plane.crtc();
 
         // 来源于BYD Coverty 分析，分析后续处理可能存在空指针问题
@@ -1514,6 +1518,9 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
 
             rotation = layer.transform;
             is_metadata_hdr = layer.IsMetadataHdr_;
+#ifdef USE_LIBPQ_HWPQ
+            hwpq_reg = layer.hwPqReg_;
+#endif
 
             if (layer.bBackgraoundLayer_) {
                 background = layer.uArgbValue_;
@@ -1575,6 +1582,17 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                 src_w = ALIGN_DOWN(src_w, 2);
             }
         }
+#ifdef USE_LIBPQ_HWPQ
+        else {
+            // RGB 图层使能DCI后，要求 act_w 2对齐
+            if (gIsRK3576()) {
+                if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0 && hwpq_reg != NULL &&
+                    hwpq_reg->rk_hwpq_dci_reg.prop_length > 0) {
+                    src_w = ALIGN_DOWN(src_w, 2);
+                }
+            }
+        }
+#endif
 
         if (yuv10bit && !afbcd) {
             if (gIsRK3576()) {
