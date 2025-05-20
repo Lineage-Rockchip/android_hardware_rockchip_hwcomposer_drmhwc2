@@ -1025,4 +1025,36 @@ bool DrmPlane::is_support_background() const {
 const DrmProperty& DrmPlane::background_property() const {
     return background_property_;
 }
+
+int DrmPlane::disable_plane(drmModeAtomicReqPtr pset, const char* tag_str) {
+    if (pset == NULL) {
+        HWC2_LOGE("pset is nullptr, skip disable plane,  tag=%s", tag_str);
+        return -1;
+    }
+
+    int ret = drmModeAtomicAddProperty(pset, id(), crtc_property().id(), 0);
+    if (ret < 0) {
+        HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "], tag=%s", crtc_property().name().c_str(),
+                  crtc_property().id(), 0, tag_str);
+        return -1;
+    }
+
+    ret = drmModeAtomicAddProperty(pset, id(), fb_property().id(), 0);
+    if (ret < 0) {
+        HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "], tag=%s", fb_property().name().c_str(),
+                  fb_property().id(), 0, tag_str);
+        return -1;
+    }
+
+    if (dci_data().id() > 0) {
+        ret = drmModeAtomicAddProperty(pset, id(), dci_data().id(), 0);
+        if (ret < 0) {
+            HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "], tag=%s", dci_data().name().c_str(),
+                      dci_data().id(), 0, tag_str);
+        }
+    }
+
+    return 0;
+}
+
 }  // namespace android

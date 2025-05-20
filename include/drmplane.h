@@ -490,6 +490,8 @@ class DrmPlane {
     bool is_support_scale_8k(float scale_rate);
     bool is_support_background() const;
 
+    int disable_plane(drmModeAtomicReqPtr pset, const char* tag_str);
+
   private:
     DrmDevice* drm_;
     uint32_t id_;

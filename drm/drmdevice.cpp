@@ -1436,8 +1436,7 @@ int DrmDevice::UpdateDisplayModeNormal(int display_id) {
             if (!plane_group->acquire(crtc_mask)) continue;
             for (auto& plane : plane_group->planes) {
                 if (!plane) continue;
-                ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-                      drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+                ret = plane->disable_plane(pset, __FUNCTION__);
                 if (ret) {
                     ALOGE("Failed to add plane %d disable to pset", plane->id());
                     drmModeAtomicFree(pset);
@@ -2280,8 +2279,7 @@ int DrmDevice::DisableAllPlaneForCrtc(int display_id, DrmCrtc* crtc, bool commit
         if (!plane_group->acquire(crtc_mask)) continue;
         for (auto& plane : plane_group->planes) {
             if (!plane) continue;
-            ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-                  drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+            ret = plane->disable_plane(pset, __FUNCTION__);
             if (ret) {
                 drmModeAtomicFree(pset);
                 pset = NULL;

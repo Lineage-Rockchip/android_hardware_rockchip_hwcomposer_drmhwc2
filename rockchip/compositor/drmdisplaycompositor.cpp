@@ -275,8 +275,8 @@ int DrmDisplayCompositor::DisablePlanes(DrmDisplayComposition* display_comp) {
     for (DrmCompositionPlane& comp_plane : comp_planes) {
         DrmPlane* plane = comp_plane.plane();
         if (!plane) continue;
-        ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-              drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+
+        ret = plane->disable_plane(pset, __FUNCTION__);
         if (ret) {
             ALOGE("Failed to add plane %d disable to pset", plane->id());
             drmModeAtomicFree(pset);
@@ -1451,8 +1451,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
                 // 如果填黑图层已准备好，则将填黑图层送显
                 if (layer.bUseBlackBuffer_ == false) {
                     // Prescale 图层若无法满足送显示条件，需要将图层关闭.
-                    ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-                          drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+                    ret = plane->disable_plane(pset, __FUNCTION__);
                     if (ret) {
                         ALOGE("Failed to prescale_layer add plane %d disable to pset", plane->id());
                         continue;
@@ -1530,8 +1529,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
 
         // Disable the plane if there's no framebuffer
         if (fb_id < 0) {
-            ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-                  drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+            ret = plane->disable_plane(pset, __FUNCTION__);
             if (ret) {
                 ALOGE("Failed to add plane %d disable to pset", plane->id());
                 continue;
@@ -1850,8 +1848,7 @@ int DrmDisplayCompositor::CollectForceDisablePlane() {
     for (auto& plane_group : all_plane_groups) {
         if (plane_group->current_crtc_ == 0) {
             for (auto& plane : plane_group->planes) {
-                ret |= drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0;
-                ret |= drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+                ret = plane->disable_plane(pset, __FUNCTION__);
                 HWC2_LOGD_IF("Disable plane %s", plane->name());
             }
         }
@@ -2180,8 +2177,7 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition* display_comp, bool 
 
         // Disable the plane if there's no framebuffer
         if (fb_id < 0) {
-            ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-                  drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+            ret = plane->disable_plane(pset, __FUNCTION__);
             if (ret) {
                 ALOGE("Failed to add plane %d disable to pset", plane->id());
                 break;
@@ -3068,8 +3064,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
 
         // Disable the plane if there's no framebuffer
         if (fb_id < 0) {
-            ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-                  drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+            ret = plane->disable_plane(pset, __FUNCTION__);
             if (ret) {
                 ALOGE("Failed to add plane %d disable to pset", plane->id());
                 continue;
@@ -3497,8 +3492,7 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
         }
         // Disable the plane if there's no framebuffer
         if (fb_id < 0) {
-            ret = drmModeAtomicAddProperty(pset, plane->id(), plane->crtc_property().id(), 0) < 0 ||
-                  drmModeAtomicAddProperty(pset, plane->id(), plane->fb_property().id(), 0) < 0;
+            ret = plane->disable_plane(pset, __FUNCTION__);
             if (ret) {
                 ALOGE("Failed to add plane %d disable to pset", plane->id());
                 continue;
