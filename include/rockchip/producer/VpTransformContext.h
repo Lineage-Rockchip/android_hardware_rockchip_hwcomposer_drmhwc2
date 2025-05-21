@@ -32,6 +32,9 @@
 #include "SvepSr.h"
 #endif
 
+#ifdef USE_LIBSVEP_MEMC
+#include "SvepMemc.h"
+#endif
 namespace android {
 // 用于外部获取 vp composition 结构
 class VpComposition {
@@ -124,6 +127,10 @@ class VpTransformContext {
 #ifdef USE_LIBSR
     SrDatapace ConvertToSrDataspace(android_dataspace_t dataspace);
     int DoTransformBySvepSr(std::shared_ptr<VpComposition> input);
+#endif
+
+#ifdef USE_LIBSVEP_MEMC
+    int DoTransformBySvepMemc(std::shared_ptr<VpComposition> input);
 #endif
     std::string TransformToString(uint32_t transform) const;
     void CalculateFPS();

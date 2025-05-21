@@ -2913,6 +2913,10 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     transform |= DRM_MODE_RK_POST_PROCESS_SR;
                 }
 
+                if (layer.bUseMemc_) {
+                    transform |= DRM_MODE_RK_POST_PROCESS_MEMC;
+                }
+
                 ret = dvp->CreateConnection(display_, layer.iTunnelId_, layer.eDataSpace_, transform);
                 if (ret < 0) {
                     HWC2_LOGI("SidebandStream: display-id=%d CreateConnection fail, iTunnelId = %d", display_,
@@ -2941,13 +2945,17 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     (transform & DRM_MODE_RK_POST_PROCESS_SR) == DRM_MODE_RK_POST_PROCESS_SR) {
                     need_wait_fence = true;
                 }
-                //HWC2_LOGD_IF("DVP AcquireBuffer with acquire_fence_en:%d,display_refresh:%f,ProducerFps:%f",acquire_fence_en,display_refresh,producer_fps);
-                std::shared_ptr<VpComposition> vp_composition =
-                        dvp->AcquireVpCompositon(display_, layer.iTunnelId_, &dis_rect, 0, need_wait_fence);
-                if (vp_composition == NULL) {
-                    HWC2_LOGW_IF("SidebandStream: display-id=%d AcquireBuffer fail, iTunnelId = %d", display_,
-                                 layer.iTunnelId_);
-                    continue;
+
+                std::shared_ptr<VpComposition> vp_composition = NULL;
+                if (layer.bUseMemc_) {
+                    continue; // Memc输出由CollectMEMCInfo()获取
+                } else {
+                    vp_composition = dvp->AcquireVpCompositon(display_, layer.iTunnelId_, &dis_rect, 0, need_wait_fence);
+                    if (vp_composition == NULL) {
+                        HWC2_LOGW_IF("SidebandStream: display-id=%d AcquireBuffer fail, iTunnelId = %d", display_,
+                                    layer.iTunnelId_);
+                        continue;
+                    }
                 }
 
                 std::shared_ptr<DrmBuffer> output_buffer = vp_composition->GetBuffer();

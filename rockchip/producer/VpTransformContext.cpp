@@ -305,6 +305,14 @@ int VpTransformContext::Handle(std::shared_ptr<VpComposition> input) {
             return ret;
         }
 #endif
+#ifdef USE_LIBSVEP_MEMC
+    } else if (mTransform_ & DRM_MODE_RK_POST_PROCESS_MEMC) {
+        int ret = DoTransformBySvepMemc(input);
+        if (ret) {
+            HWC2_LOGE("DoTransformBySvepMemc Name=%s fail, ret=%d", input->Name().c_str(), ret);
+            return ret;
+        }
+#endif
     } else {
         int ret = DoTransformByRga(input);
         if (ret) {
@@ -917,6 +925,131 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
     return 0;
 }
 #endif
+
+#ifdef USE_LIBSVEP_MEMC
+int VpTransformContext::DoTransformBySvepMemc(std::shared_ptr<VpComposition> input){
+    ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d", __FUNCTION__, __LINE__);
+    // memc初始化
+    std::shared_ptr<SvepMemc> svep_memc = ResourceManager::getInstance()->GetSvepMemc();
+    if (svep_memc.get() != NULL) {
+        if (svep_memc->Init(MEMC_VERSION, true)) {
+            HWC2_LOGE("Memc init failed.");
+            return -1;
+        }
+    }
+
+    bool enableSr = (hwc_get_int_property(MEMC_ENABLR_SR_NAME, "0") > 0);
+    bool enableMemcComparation = (hwc_get_int_property(MEMC_CONTRAST_MODE_NAME, "0") > 0);
+    bool enableMemcOsd = (hwc_get_int_property(MEMC_OSD_DISABLE_MODE, "0") == 0);
+    bool enableMemcOsdOneline = (hwc_get_int_property(MEMC_OSD_VIDEO_ONELINE_MODE, "0") > 0);
+    int osd_oneline_wait_second = hwc_get_int_property(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, "12");
+
+    // 处理旋转
+    MemcRotateMode rotate = MEMC_ROTATE_0;
+    switch (mTransform_ & (DRM_MODE_ROTATE_MASK | DRM_MODE_REFLECT_MASK)) {
+        case DRM_MODE_ROTATE_0:
+            rotate = MEMC_ROTATE_0;
+            break;
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X:
+            rotate = MEMC_REFLECT_X;
+            break;
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_Y:
+            rotate = MEMC_REFLECT_Y;
+            break;
+        case DRM_MODE_ROTATE_90:
+            rotate = MEMC_ROTATE_90;
+            break;
+        case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y:
+            rotate = MEMC_ROTATE_180;
+            break;
+        case DRM_MODE_ROTATE_270:
+            rotate = MEMC_ROTATE_270;
+            break;
+        // case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_X | DRM_MODE_ROTATE_90 :
+        //   usage = IM_HAL_TRANSFORM_FLIP_H | IM_HAL_TRANSFORM_ROT_90;
+        //   break;
+        // case DRM_MODE_ROTATE_0 | DRM_MODE_REFLECT_Y | DRM_MODE_ROTATE_90:
+        //   usage = IM_HAL_TRANSFORM_FLIP_V | IM_HAL_TRANSFORM_ROT_90;
+        //   break;
+        default:
+            rotate = MEMC_ROTATE_0;
+            ALOGE_IF(LogLevel(DBG_DEBUG), "Unknow sf transform %s", TransformToString(mTransform_).c_str());
+    }
+
+    // 设置 rotate 模式
+    MemcError error = svep_memc->SetRotateMode(rotate);
+    if (error != MemcError::MEMC_NO_ERROR) {
+        HWC2_LOGE("Memc SetRotateMode fail.\n");
+        return -1;
+    }
+
+    svep_memc->SetContrastMode(enableMemcComparation);
+    if (error != MemcError::MEMC_NO_ERROR) {
+        HWC2_LOGE("Memc SetContrastMode fail.\n");
+        return -1;
+    }
+
+    MemcOsdMode osd_mode = MEMC_OSD_ENABLE_VIDEO;
+    const wchar_t* osd_str = MEMC_OSD_VIDEO_STR;
+    if (enableMemcOsd) {
+        if (enableMemcOsdOneline) {
+            osd_mode = MEMC_OSD_ENABLE_VIDEO_ONELINE;
+            osd_str = MEMC_OSD_VIDEO_ONELINE_STR;
+        }
+    } else {
+        osd_mode = MEMC_OSD_DISABLE;
+        osd_str = NULL;
+    }
+
+    svep_memc->SetOsdMode(osd_mode, osd_str);
+    if (error != MemcError::MEMC_NO_ERROR) {
+        HWC2_LOGE("Memc SetRotateMode fail.\n");
+        return -1;
+    }
+
+    error = svep_memc->EnableSvepSr(enableSr);
+    if (error != MemcError::MEMC_NO_ERROR) {
+        HWC2_LOGE("Memc EnableSvepSr fail.\n");
+        return -1;
+    }
+
+    // Set buffer Info
+    std::shared_ptr<DrmBuffer> src_buffer = input->GetBuffer();
+    MemcImageInfo memc_src;
+    memc_src.mBufferInfo_.iFd_ = src_buffer->GetFd();
+    memc_src.mBufferInfo_.iWidth_ = src_buffer->GetWidth();
+    memc_src.mBufferInfo_.iHeight_ = src_buffer->GetHeight();
+    memc_src.mBufferInfo_.iFormat_ = src_buffer->GetFourccFormat();
+    memc_src.mBufferInfo_.iStride_ = src_buffer->GetStride();
+    memc_src.mBufferInfo_.iHeightStride_ = src_buffer->GetHeightStride();
+    memc_src.mBufferInfo_.iSize_ = src_buffer->GetSize();
+    memc_src.mBufferInfo_.uBufferId_ = src_buffer->GetBufferId();
+    memc_src.mBufferInfo_.uColorSpace_ = MEMC_DATASPACE_UNKNOWN;
+    int left = 0, top = 0, right = 0, bottom = 0;
+    src_buffer->GetCrop(&left, &top, &right, &bottom);
+
+    memc_src.mCrop_.iLeft_ = left;
+    memc_src.mCrop_.iTop_ = top;
+    memc_src.mCrop_.iRight_ = right;
+    memc_src.mCrop_.iBottom_ = bottom;
+
+    MemcMode memc_mode = MemcMode::MEMC_UNSUPPORT;
+    error = svep_memc->MatchMemcMode(&memc_src, &memc_mode);
+    if (error) {
+        HWC2_LOGE("MatchMemcMode fail\n");
+        return -1;
+    }
+
+    error = svep_memc->SetSrcImage(&memc_src);
+    if (error != MemcError::MEMC_NO_ERROR) {
+        HWC2_LOGE("SetSrcImage fail!, skip this policy. ret=%d", error);
+        return -1;
+    }
+
+    return 0;
+}
+#endif
+
 std::shared_ptr<VpComposition> VpTransformContext::GetVpComposition(bool wait_finish) {
     std::unique_lock<std::mutex> lock(mMutex_);
     std::shared_ptr<VpComposition> output_composition = nullptr;
