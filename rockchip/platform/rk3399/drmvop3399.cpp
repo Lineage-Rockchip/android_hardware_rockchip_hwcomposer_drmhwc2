@@ -1989,7 +1989,13 @@ void Vop3399::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
     ALOGI_IF(LogLevel(DBG_DEBUG), "%s,line=%d bMultiAreaEnable=%d, bRgaPolicyEnable=%d", __FUNCTION__, __LINE__,
              ctx.state.bMultiAreaEnable, ctx.state.bRgaPolicyEnable);
 
-    ctx.state.bHDRVideoForceOverlay = hwc_get_int_property("vendor.hwc.hdr_video_force_overlay", "1") > 0;
+    //if sys.hwc.hdr_video_force_overlay is set, ignore vendor.hwc.hdr_video_force_overlay
+    int sys_hdr_force_overlay = hwc_get_int_property("sys.hwc.hdr_video_force_overlay", "-1");
+    if (sys_hdr_force_overlay < 0)
+        ctx.state.bHDRVideoForceOverlay = hwc_get_int_property("vendor.hwc.hdr_video_force_overlay", "1") > 0;
+    else
+        ctx.state.bHDRVideoForceOverlay = sys_hdr_force_overlay > 0;
+
     // FB-target need disable AFBCD?
     ctx.state.bDisableFBAfbcd = false;
     for (auto& layer : layers) {

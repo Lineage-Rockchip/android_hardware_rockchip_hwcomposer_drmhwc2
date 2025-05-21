@@ -4071,7 +4071,14 @@ void Vop3576::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
 
     ctx.state.iVopMaxOverlay4KPlane = hwc_get_int_property("vendor.hwc.vop_max_overlay_4k_plane", "0");
     ctx.state.bRgaPolicyEnable = hwc_get_int_property("vendor.hwc.enable_rga_policy", "1") > 0;
-    ctx.state.bHDRVideoForceOverlay = hwc_get_int_property("vendor.hwc.hdr_video_force_overlay", "1") > 0;
+
+    //if sys.hwc.hdr_video_force_overlay is set, ignore vendor.hwc.hdr_video_force_overlay
+    int sys_hdr_force_overlay = hwc_get_int_property("sys.hwc.hdr_video_force_overlay", "-1");
+    if (sys_hdr_force_overlay < 0)
+        ctx.state.bHDRVideoForceOverlay = hwc_get_int_property("vendor.hwc.hdr_video_force_overlay", "1") > 0;
+    else
+        ctx.state.bHDRVideoForceOverlay = sys_hdr_force_overlay > 0;
+
     ctx.state.iVopPerformanceFactor = hwc_get_int_property("vendor.hwc.vop_performance_factor", "100");
     if (ctx.state.iVopPerformanceFactor < 50) {
         HWC2_LOGE("vendor.hwc.vop_performance_limit_rate should heigher than 50");
