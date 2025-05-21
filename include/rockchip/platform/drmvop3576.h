@@ -40,6 +40,7 @@
 #include "drmdevice.h"
 #include "platform.h"
 #include "resources/resourcemanager.h"
+#include "rockchip/platform/drmvoputils.h"
 #include "rockchip/utils/pqutils.h"
 
 #ifdef USE_LIBPQ_HWPQ
@@ -136,23 +137,7 @@ class Vop3576 : public Planner::PlanStage {
 
     typedef struct StateContext {
         // Cluster 0/1 two win mode
-        bool bClu0TwoWinMode = false;
-        bool bClu1TwoWinMode = false;
-
-        bool bClu0Used = false;
-        bool bClu1Used = false;
-
-        int iClu0UsedZ = -1;
-        int iClu1UsedZ = -1;
-
-        int iClu0UsedDstXOffset = 0;
-        int iClu1UsedDstXOffset = 0;
-
-        int iClu0UsedFormat = 0;
-        int iClu1UsedFormat = 0;
-
-        int iClu0UsedAfbc = 0;
-        int iClu1UsedAfbc = 0;
+        TwoWinCheckCtx mTwoWinCtx[2];
 
         // Multi area
         bool bMultiAreaEnable = false;

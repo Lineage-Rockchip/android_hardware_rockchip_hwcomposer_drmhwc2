@@ -40,6 +40,7 @@
 #include "drmdevice.h"
 #include "platform.h"
 #include "resources/resourcemanager.h"
+#include "rockchip/platform/drmvoputils.h"
 
 #ifdef USE_LIBSVEP_MEMC
 #include "SvepMemc.h"
@@ -139,35 +140,7 @@ class Vop3588 : public Planner::PlanStage {
 
     typedef struct StateContext {
         // Cluster 0/1/2/3 two win mode
-        bool bClu0TwoWinMode = false;
-        bool bClu1TwoWinMode = false;
-        bool bClu2TwoWinMode = false;
-        bool bClu3TwoWinMode = false;
-
-        bool bClu0Used = false;
-        bool bClu1Used = false;
-        bool bClu2Used = false;
-        bool bClu3Used = false;
-
-        int iClu0UsedZ = -1;
-        int iClu1UsedZ = -1;
-        int iClu2UsedZ = -1;
-        int iClu3UsedZ = -1;
-
-        int iClu0UsedDstXOffset = 0;
-        int iClu1UsedDstXOffset = 0;
-        int iClu2UsedDstXOffset = 0;
-        int iClu3UsedDstXOffset = 0;
-
-        int iClu0UsedFormat = 0;
-        int iClu1UsedFormat = 0;
-        int iClu2UsedFormat = 0;
-        int iClu3UsedFormat = 0;
-
-        int iClu0UsedAfbc = 0;
-        int iClu1UsedAfbc = 0;
-        int iClu2UsedAfbc = 0;
-        int iClu3UsedAfbc = 0;
+        TwoWinCheckCtx mTwoWinCtx[4];
 
         // Multi area
         bool bMultiAreaEnable = false;

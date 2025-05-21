@@ -39,6 +39,7 @@
 #include "drmbufferqueue.h"
 #include "drmdevice.h"
 #include "platform.h"
+#include "rockchip/platform/drmvoputils.h"
 
 #include <cutils/properties.h>
 
@@ -129,17 +130,7 @@ class Vop3528 : public Planner::PlanStage {
 
     typedef struct StateContext {
         // Cluster 0 two win mode
-        bool bClu0TwoWinMode = false;
-
-        bool bClu0Used = false;
-
-        int iClu0UsedZ = -1;
-
-        int iClu0UsedDstXOffset = 0;
-
-        int iClu0UsedFormat = 0;
-
-        int iClu0UsedAfbc = 0;
+        TwoWinCheckCtx mTwoWinCtx;
 
         // Multi area
         bool bMultiAreaEnable = false;

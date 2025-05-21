@@ -678,6 +678,28 @@ void DrmPlane::AddLocalPlaneInfo() {
             HWC2_LOGD_IF("VOP_LIT,not support afbc");
         }
     }
+    //Two win mode can output 4K
+    if (isRK3588(soc_id_)) {
+        if (win_type_ & (PLANE_RK3588_CLUSTER0_WIN1 | PLANE_RK3588_CLUSTER1_WIN1 | PLANE_RK3588_CLUSTER2_WIN1 |
+                         PLANE_RK3588_CLUSTER3_WIN1)) {
+            output_w_max_ = 4096;
+        }
+    }
+    if (isRK356x(soc_id_)) {
+        if (win_type_ & (DRM_PLANE_TYPE_CLUSTER0_WIN1 | DRM_PLANE_TYPE_CLUSTER1_WIN1)) {
+            output_w_max_ = 4096;
+        }
+    }
+    if (isRK3576(soc_id_)) {
+        if (win_type_ & (PLANE_RK3576_CLUSTER0_WIN1 | PLANE_RK3576_CLUSTER1_WIN1)) {
+            output_w_max_ = 4096;
+        }
+    }
+    if (isRK3528(soc_id_)) {
+        if (win_type_ & (PLANE_RK3528_CLUSTER0_WIN1)) {
+            output_w_max_ = 4096;
+        }
+    }
 }
 
 uint64_t DrmPlane::win_type() const {

@@ -374,6 +374,7 @@ struct DrmHwcLayer {
     std::string BlendingToString(DrmHwcBlending blending) const;
     int DumpInfo(String8& out);
     int DumpData(const char* tag);
+    int GetWidthWithOffsetBlockAligned();
 };
 
 struct DrmHwcDisplayContents {

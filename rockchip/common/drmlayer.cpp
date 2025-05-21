@@ -1208,4 +1208,36 @@ int DrmHwcLayer::DumpData(const char* tag) {
     return 0;
 }
 
+int DrmHwcLayer::GetWidthWithOffsetBlockAligned() {
+    int block_width = 1;
+    if (bAfbcd_) {
+        if (bFbTarget_) {
+            //FbTarget根据平台判断BlockW
+            if (gIsRK3576()) {
+                block_width = 32;
+            } else {
+                block_width = 16;
+            }
+        } else {
+            //普通图层使用Modifier得出BlockW
+            switch (uModifier_ & AFBC_FORMAT_MOD_BLOCK_SIZE_MASK) {
+                case AFBC_FORMAT_MOD_BLOCK_SIZE_32x8:
+                    block_width = 32;
+                    break;
+                case AFBC_FORMAT_MOD_BLOCK_SIZE_64x4:
+                    block_width = 64;
+                    break;
+                case AFBC_FORMAT_MOD_BLOCK_SIZE_16x16:
+                default:
+                    block_width = 16;
+                    break;
+            }
+        }
+    } else if (bRfbcd_) {
+        //RFBC only have one block size 64x4
+        block_width = 64;
+    }
+    return (int)(source_crop.right - source_crop.left) + ((int)source_crop.left % block_width);
+}
+
 }  // namespace android

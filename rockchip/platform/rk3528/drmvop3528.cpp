@@ -468,46 +468,14 @@ int Vop3528::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                         if (!(*iter_plane)->is_use() && (*iter_plane)->GetCrtcSupported(*crtc)) {
                             bool bNeed = false;
 
-                            // Cluster 0, 初始化 Cluster 图层匹配参数
+                            // 初始化 Cluster 图层匹配参数
                             if ((*iter_plane)->win_type() & PLANE_RK3528_CLUSTER0_WIN0) {
-                                ctx.state.bClu0Used = false;
-                                ctx.state.iClu0UsedZ = -1;
-                                ctx.state.bClu0TwoWinMode = true;
-                                ctx.state.iClu0UsedDstXOffset = 0;
+                                ctx.state.mTwoWinCtx.Reset();
                             }
 
-                            // 保证Cluster two-win-mode zpos 连续，否则关闭two-win模式
-                            if (ctx.state.bClu0Used && ((*iter_plane)->win_type() & PLANE_RK3528_CLUSTER0_WIN1) > 0) {
-                                if (((zpos - ctx.state.iClu0UsedZ) != 1 && !(zpos == ctx.state.iClu0UsedZ)) ||
-                                    (ctx.state.iClu0UsedFormat != (*iter_layer)->uFourccFormat_) ||
-                                    (ctx.state.iClu0UsedAfbc != (*iter_layer)->bAfbcd_)) {
-                                    ctx.state.bClu0TwoWinMode = false;
-                                }
-                            }
-
-                            // 其他的Cluster限制条件
+                            // 检查 Cluster Two-Win模式条件
                             if (((*iter_plane)->win_type() & PLANE_RK3528_CLUSTER0_WIN1) > 0) {
-                                if (!ctx.state.bClu0TwoWinMode) {
-                                    ALOGD_IF(LogLevel(DBG_DEBUG), "%s disable Cluster two win mode",
-                                             (*iter_plane)->name());
-                                    continue;
-                                }
-                                // Two-Win 模式offset需要奇偶对齐
-                                int dst_x_offset = (*iter_layer)->display_frame.left;
-                                if ((ctx.state.iClu0UsedDstXOffset % 2) != (dst_x_offset % 2)) {
-                                    ctx.state.bClu0TwoWinMode = false;
-                                    ALOGD_IF(LogLevel(DBG_DEBUG), "%s can't overlay win0-dst-x=%d,win1-dst-x=%d",
-                                             (*iter_plane)->name(), ctx.state.iClu0UsedDstXOffset, dst_x_offset);
-                                    continue;
-                                }
-                                // 输入输出分辨率要求小于2048
-                                // win1使能模式 支持 2k -> 2k
-                                int src_w = (*iter_layer)->source_crop.right - (*iter_layer)->source_crop.left;
-                                int dst_w = (*iter_layer)->display_frame.right - (*iter_layer)->display_frame.left;
-                                if (src_w > 2048 || dst_w > 2048) {
-                                    ctx.state.bClu0TwoWinMode = false;
-                                    ALOGD_IF(LogLevel(DBG_DEBUG), "%s can't overlay src_w=%d", (*iter_plane)->name(),
-                                             src_w);
+                                if (ctx.state.mTwoWinCtx.CheckWin1((*iter_layer), zpos) == false) {
                                     continue;
                                 }
                             }
@@ -716,18 +684,7 @@ int Vop3528::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
 
                             // Cluster disable two win mode?
                             if ((*iter_plane)->win_type() & PLANE_RK3528_CLUSTER0_WIN0) {
-                                ctx.state.bClu0Used = true;
-                                ctx.state.iClu0UsedZ = zpos;
-                                ctx.state.iClu0UsedDstXOffset = (*iter_layer)->display_frame.left;
-                                ctx.state.iClu0UsedFormat = (*iter_layer)->uFourccFormat_;
-                                ctx.state.iClu0UsedAfbc = (*iter_layer)->bAfbcd_;
-                                if (input_w > 2048 || output_w > 2048 || eotf != TRADITIONAL_GAMMA_SDR ||
-                                    ((*iter_layer)->transform & (DRM_MODE_ROTATE_90 | DRM_MODE_ROTATE_270)) != 0 ||
-                                    b8kMode) {
-                                    ctx.state.bClu0TwoWinMode = false;
-                                } else {
-                                    ctx.state.bClu0TwoWinMode = true;
-                                }
+                                ctx.state.mTwoWinCtx.CheckWin0((*iter_layer), zpos, b8kMode);
                             }
                             break;
                         }
