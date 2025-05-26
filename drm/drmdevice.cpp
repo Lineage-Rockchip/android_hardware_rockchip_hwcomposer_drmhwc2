@@ -797,7 +797,8 @@ std::tuple<int, int> DrmDevice::Init(int num_displays) {
         }
 
         for (uint32_t j = 0; j < p->count_formats; j++) {
-            if (p->formats[j] == DRM_FORMAT_NV12 || p->formats[j] == DRM_FORMAT_NV21) {
+            if (p->formats[j] == DRM_FORMAT_NV12 || p->formats[j] == DRM_FORMAT_NV21 ||
+                p->formats[j] == DRM_FORMAT_YUV420_8BIT || p->formats[j] == DRM_FORMAT_YUV420_10BIT) {
                 plane->set_yuv(true);
             }
         }
