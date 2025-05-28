@@ -3829,17 +3829,31 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
     for (auto& drmHwcLayer : drm_hwc_layers_) {
         if (drmHwcLayer.bHdr_) {
             exist_hdr_layer = true;
-            int src_w = (int)(drmHwcLayer.source_crop.right - drmHwcLayer.source_crop.left);
-            int src_h = (int)(drmHwcLayer.source_crop.bottom - drmHwcLayer.source_crop.top);
+            int src_w, src_h, dis_w, dis_h;
+            // 如果使用RGA策略，则使用原大小进行计算
+            if (drmHwcLayer.bUseRga_) {
+                src_w = (int)(drmHwcLayer.storeLayerInfo_.source_crop.right -
+                              drmHwcLayer.storeLayerInfo_.source_crop.left);
+                src_h = (int)(drmHwcLayer.storeLayerInfo_.source_crop.bottom -
+                              drmHwcLayer.storeLayerInfo_.source_crop.top);
+                dis_w = drmHwcLayer.storeLayerInfo_.display_frame.right -
+                        drmHwcLayer.storeLayerInfo_.display_frame.left;
+                dis_h = drmHwcLayer.storeLayerInfo_.display_frame.bottom -
+                        drmHwcLayer.storeLayerInfo_.display_frame.top;
+            } else {
+                src_w = (int)(drmHwcLayer.source_crop.right - drmHwcLayer.source_crop.left);
+                src_h = (int)(drmHwcLayer.source_crop.bottom - drmHwcLayer.source_crop.top);
+                dis_w = drmHwcLayer.display_frame.right - drmHwcLayer.display_frame.left;
+                dis_h = drmHwcLayer.display_frame.bottom - drmHwcLayer.display_frame.top;
+            }
             int src_area_size = src_w * src_h;
-            int dis_w = drmHwcLayer.display_frame.right - drmHwcLayer.display_frame.left;
-            int dis_h = drmHwcLayer.display_frame.bottom - drmHwcLayer.display_frame.top;
             int dis_area_size = dis_w * dis_h;
             // 视频缩小倍数*10，*10的原因是 vendor.hwc.hdr_video_area 为整型，不支持浮点数
             hdr_area_ratio = dis_area_size * 10 / src_area_size;
             int screen_size = ctx_.rel_xres * ctx_.rel_yres;
             // 视频占屏幕面积*10，取缩小倍数与视频占用屏幕面积较大值，实现与操作
             // 即需要同时满足视频缩小60%，屏占60%才关闭HDR模式
+            // 缩放值判断可避免将如21：9比例的存在大黑边全屏视频播放场景误判屏占比不足而关闭HDR
             if (hdr_area_ratio < (dis_area_size * 10 / screen_size)) hdr_area_ratio = dis_area_size * 10 / screen_size;
         }
     }
