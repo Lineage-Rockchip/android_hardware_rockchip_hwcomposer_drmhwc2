@@ -108,6 +108,11 @@ class DrmBuffer {
     void SetBufferType(DrmBufferType type) { mType_ = type; };
     DrmBufferType GetBufferType() { return mType_; };
 
+    bool IsHdrMetadata() { return bHasHdrMetadata_; };
+    int64_t GetHdrMetadataOffset() { return iHdrMetadataOffset_; }
+    void* GetHdrMetadataVir() { return pHdrMetadataVir_; }
+    int GetHdrMetadataMapSize() { return iHdrMetadataMapSize_; }
+
   private:
     uint64_t uId = 0;
     int iParentId_ = -1;
@@ -147,6 +152,13 @@ class DrmBuffer {
     uint32_t uPreScaleFbId_ = 0;
     int ResetPreScaleBuffer();
 #endif
+
+    // HDR metadata 信息
+    bool bHasHdrMetadata_ = false;
+    int64_t iHdrMetadataOffset_ = -1;
+    void* pHdrMetadataVir_ = nullptr;
+    int iHdrMetadataMapSize_ = -1;
+
     // Init flags
     bool bInit_ = false;
     std::string sName_;

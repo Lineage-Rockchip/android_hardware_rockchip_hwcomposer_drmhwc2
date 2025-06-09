@@ -85,8 +85,8 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
         HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
     } else {
         for (auto& layer : layers) {
-            if (layer.bYuv_ && layer.bHasMetadata_) {
-                int64_t iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(layer.sf_handle);
+            if (layer.bYuv_ && layer.bHasPqMetadata_) {
+                int64_t iMetaDataOffset_ = layer.iPqMetadataOffset_;
                 if (iMetaDataOffset_ > 0) {
                     hwpq_meta_fd = layer.iFd_;
                     hwpq_meta_offset = iMetaDataOffset_;
@@ -431,8 +431,8 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
             DrmGralloc* gralloc = DrmGralloc::getInstance();
             if (gralloc == NULL) {
                 HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
-            } else if (drmLayer->bHasMetadata_) {
-                src.iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(drmLayer->sf_handle);
+            } else if (drmLayer->bHasPqMetadata_) {
+                src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
                 if (src.iMetaDataOffset_ > 0) {
                     src.iMetaDataFd_ = drmLayer->iFd_;
                     src.iMetaDataSize_ = drmLayer->iSize_;
@@ -907,8 +907,8 @@ int DrmPq::CheckHwPqDstScale(DrmHwcLayer* drmLayer) {
     DrmGralloc* gralloc = DrmGralloc::getInstance();
     if (gralloc == NULL) {
         HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
-    } else if (drmLayer->bHasMetadata_) {
-        src.iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(drmLayer->sf_handle);
+    } else if (drmLayer->bHasPqMetadata_) {
+        src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
         if (src.iMetaDataOffset_ > 0) {
             src.iMetaDataFd_ = drmLayer->iFd_;
             src.iMetaDataSize_ = drmLayer->iSize_;

@@ -1655,7 +1655,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::InitDrmHwcLayer() {
                 if (hwc2layer.second.CanSkipSolidColorLayer(have_skip_layer_zpos)) {
                     have_skip_layer_zpos++;
                     drm_hwc_layer.bBackgroundSkip_ = true;
-                    if(hwc2layer.second.sf_type()!= HWC2::Composition::SolidColor){
+                    if (hwc2layer.second.sf_type() != HWC2::Composition::SolidColor) {
                         hwc2layer.second.set_validated_type(HWC2::Composition::SolidColor);
                     }
                     break;
@@ -3234,18 +3234,17 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetProperty(hwc_client_target_pro
         auto pixelFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 #ifdef USE_LIBPQ_HWPQ
         // If HWPQ is enabled, use RGB_888 instead of RGBA_8888 for better quality.
-        if (gIsRK3576()){
-            if(crtc_->get_port_id() == 0){
-                if (ctx_.use_pq_fb)
-                    pixelFormat = HAL_PIXEL_FORMAT_RGB_888;
+        if (gIsRK3576()) {
+            if (crtc_->get_port_id() == 0) {
+                if (ctx_.use_pq_fb) pixelFormat = HAL_PIXEL_FORMAT_RGB_888;
             }
         }
 #endif
         outClientTargetProperty->pixelFormat = pixelFormat;
         outClientTargetProperty->dataspace = HAL_DATASPACE_SRGB;
         HWC2_LOGV_IF("display-id=%" PRIu64 "pixel format = %d dataspace =%" PRIx32, handle_,
-                              outClientTargetProperty->pixelFormat, outClientTargetProperty->dataspace);
-    }else{
+                     outClientTargetProperty->pixelFormat, outClientTargetProperty->dataspace);
+    } else {
         HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     }
     return HWC2::Error::None;
@@ -3906,7 +3905,6 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
 
 int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
     HWC2_LOGI_IF("Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
-
     if (ctx_.display_type == DRM_MODE_CONNECTOR_TV) {
         HWC2_LOGI_IF("RK3528 TV unsupport HDR2SDR, Id=%d Name=%s eDataSpace_=0x%x eotf=%d", hdrLayer.uId_,
                      hdrLayer.sLayerName_.c_str(), hdrLayer.eDataSpace_, hdrLayer.uEOTF);
@@ -4001,8 +3999,9 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
         hdr_width = hdrLayer.iWidth_;
         hdr_height = hdrLayer.iHeight_;
     }
+
     // 获取存储 metadata 信息的offset
-    int64_t offset = hdrLayer.bHasMetadata_ ? gralloc->hwc_get_offset_of_dynamic_hdr_metadata(hdr_handle) : 0;
+    int64_t offset = hdrLayer.bHasHdrMetadata_ ? hdrLayer.iHdrMetadataOffset_ : 0;
     if (offset < 0) {
         HWC2_LOGE_IF("Fail to get hdr metadata offset, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
     }
@@ -4052,23 +4051,21 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
     }
 
     bool usemmap = false;
-    int64_t mmap_size = 0;
-    int mmap_fd = -1;
+    int fd = -1;
     void* cpu_addr = NULL;
     if (codec_meta_exist) {
-        // 获取Medata地址，优先使用mmap
-        int64_t lock_size = gralloc->hwc_get_handle_size(hdr_handle) - offset;
-        int fd = gralloc->hwc_get_handle_primefd(hdr_handle);
-        if (lock_size > 0 && fd > 0) {
-            cpu_addr = DrmGralloc::hwc_buf_mmap_flushcache_readonly(fd, lock_size, offset);
-            if (cpu_addr) {
-                mmap_size = lock_size;
-                mmap_fd = fd;
-                usemmap = true;
+        // 获取Metadata地址，优先使用mmap
+        if (hdrLayer.pBufferInfo_ != NULL) {
+            fd = hdrLayer.pBufferInfo_->uniqueFd_.get();
+            cpu_addr = hdrLayer.pBufferInfo_->pHdrMetadataVir_;
+            int ret = gralloc->hwc_buf_flush_read_cache_start(fd);
+            if (ret) {
+                HWC2_LOGE("hwc_buf_flush_read_cache_start fail ret=%d. name=%s", ret,
+                          hdrLayer.sLayerName_.c_str());
             }
-        }
-        // 若mmap失败，则使用gralloc
-        if (cpu_addr == NULL) {
+            usemmap = true;
+        } else {
+            fd = gralloc->hwc_get_handle_primefd(hdr_handle);
             cpu_addr = gralloc->hwc_get_handle_lock(hdr_handle, hdr_width, hdr_height);
         }
         if (cpu_addr == NULL) {
@@ -4235,19 +4232,22 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
         HWC2_LOGE_IF("Fail to call MetadataHdrParser ret=%d Id=%d Name=%s ", ret, hdrLayer.uId_,
                      hdrLayer.sLayerName_.c_str());
         if (cpu_addr != NULL) {
-            if (usemmap)
-                DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
-            else
+            if (usemmap) {
+                gralloc->hwc_buf_flush_read_cache_end(fd);
+            } else {
                 gralloc->hwc_get_handle_unlock(hdr_handle);
+            }
         }
         return ret;
     }
 
     if (cpu_addr != NULL) {
-        if (usemmap)
-            DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
-        else
+        if (usemmap) {
+            gralloc->hwc_buf_flush_read_cache_end(fd);
+
+        } else {
             gralloc->hwc_get_handle_unlock(hdr_handle);
+        }
     }
     hdrLayer.IsMetadataHdr_ = true;
     ctx_.hdr_mode = DRM_HWC_METADATA_HDR;
@@ -5047,7 +5047,14 @@ void DrmHwcTwo::HwcLayer::PopulateNormalLayer(DrmHwcLayer* drmHwcLayer, hwc2_drm
         drmHwcLayer->uModifier_ = pBufferInfo_->uModifier_;
         drmHwcLayer->sLayerName_ = pBufferInfo_->sLayerName_;
         drmHwcLayer->uByteStridePlanes_ = pBufferInfo_->uByteStridePlanes_;
-        drmHwcLayer->bHasMetadata_ = pBufferInfo_->bHasMetadata_;
+        // 同步 PQ metadata 与 offset
+        drmHwcLayer->bHasPqMetadata_ = pBufferInfo_->bHasPqMetadata_;
+        drmHwcLayer->iPqMetadataOffset_ = pBufferInfo_->iPqMetadataOffset_;
+
+        // 同步 HDR metadata 与 offset
+        drmHwcLayer->bHasHdrMetadata_ = pBufferInfo_->bHasHdrMetadata_;
+        drmHwcLayer->iHdrMetadataOffset_ = pBufferInfo_->iHdrMetadataOffset_;
+
         drmHwcLayer->fVideoFps_ = pBufferInfo_->fVideoFps_;
         drmHwcLayer->pBufferInfo_ = pBufferInfo_;
     } else {
@@ -5113,7 +5120,8 @@ void DrmHwcTwo::HwcLayer::PopulateSolidColorLayer(DrmHwcLayer* drmHwcLayer, hwc2
         drmHwcLayer->sLayerName_ = solid_buffer->GetName();
         drmHwcLayer->uByteStridePlanes_ = solid_buffer->GetByteStridePlanes();
         drmHwcLayer->uGemHandle_ = solid_buffer->GetGemHandle();
-        drmHwcLayer->bHasMetadata_ = false;
+        drmHwcLayer->bHasPqMetadata_ = false;
+        drmHwcLayer->bHasHdrMetadata_ = false;
         drmHwcLayer->pBufferInfo_ = NULL;
         mCurrentState.source_crop_.left = 0;
         mCurrentState.source_crop_.top = 0;

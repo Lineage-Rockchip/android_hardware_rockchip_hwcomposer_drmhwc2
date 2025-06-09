@@ -1183,13 +1183,13 @@ int DrmGralloc::hwc_fbid_dec_layer_ref_count(uint64_t buffer_id) {
     return 0;
 }
 
-void* DrmGralloc::hwc_buf_mmap_flushcache_readonly(int fd, int size, int offset) {
+int DrmGralloc::hwc_buf_flush_read_cache_start(int fd) {
     /* Either DMA_BUF_SYNC_START or DMA_BUF_SYNC_END. */
     dma_buf_sync sync_args = {0};
 
     sync_args.flags = DMA_BUF_SYNC_READ | DMA_BUF_SYNC_START;
 
-    int ret, retry = 5;
+    int ret = 0, retry = 5;
     do {
         ret = ioctl(fd, DMA_BUF_IOCTL_SYNC, &sync_args);
         retry--;
@@ -1199,18 +1199,10 @@ void* DrmGralloc::hwc_buf_mmap_flushcache_readonly(int fd, int size, int offset)
         HWC2_LOGE("dma-buffer cpu sync ioctl: %#" PRIx64 ", flags: %#" PRIx64 "failed with code %d: %s",
                   (uint64_t)DMA_BUF_IOCTL_SYNC, (uint64_t)sync_args.flags, ret, strerror(errno));
     }
-
-    void* vaddr = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, offset);
-    if (vaddr == MAP_FAILED) {
-        HWC2_LOGE("dma-buffer map fd=%d size=%d offset=%d failed with code %d: %s", fd, size, offset, errno,
-                  strerror(errno));
-        return NULL;
-    }
-
-    return vaddr;
+    return ret;
 }
 
-int DrmGralloc::hwc_buf_unmap_flushcache_readonly(int fd, void* vaddr, int size) {
+int DrmGralloc::hwc_buf_flush_read_cache_end(int fd) {
     /* Either DMA_BUF_SYNC_START or DMA_BUF_SYNC_END. */
     dma_buf_sync sync_args = {0};
 
@@ -1226,11 +1218,24 @@ int DrmGralloc::hwc_buf_unmap_flushcache_readonly(int fd, void* vaddr, int size)
         HWC2_LOGE("dma-buffer cpu sync ioctl: %#" PRIx64 ", flags: %#" PRIx64 "failed with code %d: %s",
                   (uint64_t)DMA_BUF_IOCTL_SYNC, (uint64_t)sync_args.flags, ret, strerror(errno));
     }
+    return ret;
+}
 
-    ret = munmap(vaddr, size);
+void* DrmGralloc::hwc_buf_mmap_readonly(int fd, int size, int offset) {
+    void* vaddr = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, offset);
+    if (vaddr == MAP_FAILED) {
+        HWC2_LOGE("dma-buffer map fd=%d size=%d offset=%d failed with code %d: %s", fd, size, offset, errno,
+                  strerror(errno));
+        return NULL;
+    }
 
+    return vaddr;
+}
+
+int DrmGralloc::hwc_buf_unmap(void* vaddr, int size) {
+    int ret = munmap(vaddr, size);
     if (ret != 0) {
-        HWC2_LOGE("dma-buffer unmap fd=%d vaddr=%p size=%d failed with code %d: %s", fd, vaddr, size, errno,
+        HWC2_LOGE("dma-buffer unmap vaddr=%p size=%d failed with code %d: %s",vaddr, size, errno,
                   strerror(errno));
     }
 

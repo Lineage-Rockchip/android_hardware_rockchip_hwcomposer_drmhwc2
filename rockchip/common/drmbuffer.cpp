@@ -132,11 +132,29 @@ DrmBuffer::DrmBuffer(native_handle_t* in_handle)
         return;
     }
 
+    // hdr metadata
+    bHasHdrMetadata_ = false;
+    iHdrMetadataOffset_ = -1;
+    int64_t hdr_meta_offset = ptrDrmGralloc_->hwc_get_offset_of_dynamic_hdr_metadata(buffer_);
+    if (hdr_meta_offset > 0) {
+        // 存在 hdr metadata
+        bHasHdrMetadata_ = true;
+        iHdrMetadataOffset_ = hdr_meta_offset;
+        int size = static_cast<int>(iSize_ - iHdrMetadataOffset_);
+        int offset = static_cast<int>(iHdrMetadataOffset_);
+        void* addr = ptrDrmGralloc_->hwc_buf_mmap_readonly(iFd_, size, offset);
+        if (addr != NULL) {
+            pHdrMetadataVir_ = addr;
+            iHdrMetadataMapSize_ = size;
+        }
+        HWC2_LOGI("iHdrMetadataOffset_=%" PRIi64, iHdrMetadataOffset_);
+    }
+
     HWC2_LOGV_IF("Import buffer fd=%d w=%d h=%d s=%d hs=%d bs=%d f=%d fcc=%c%c%c%c mdf=0x%" PRIx64
-                 " BufferId=0x%" PRIx64 " name=%s ",
+                 " BufferId=0x%" PRIx64 " bHdrHasMetadata=%d offset=%" PRIi64 " name=%s ",
                  iFd_, iWidth_, iHeight_, iStride_, iHeightStride_, iByteStride_, iFormat_, uFourccFormat_,
                  uFourccFormat_ >> 8, uFourccFormat_ >> 16, uFourccFormat_ >> 24, uModifier_, uBufferId_,
-                 sName_.c_str());
+                 bHasHdrMetadata_, iHdrMetadataOffset_, sName_.c_str());
 
     uFbId_ = 0;
 #ifdef RK3528
@@ -212,6 +230,11 @@ DrmBuffer::~DrmBuffer() {
         uPreScaleFbId_ = 0;
     }
 #endif
+
+    if (pHdrMetadataVir_ != NULL) {
+        DrmGralloc::getInstance()->hwc_buf_unmap(pHdrMetadataVir_, iHdrMetadataMapSize_);
+        pHdrMetadataVir_ = NULL;
+    }
 
     if (uRgaHandle_ > 0) {
         int ret = releasebuffer_handle(uRgaHandle_);
@@ -562,8 +585,8 @@ int DrmBuffer::WaitFinishFence(int timeout_ms) {
     if (iFinishFence_.get() > 0) {
         int fence_fd = dup(iFinishFence_.get());
         if (fence_fd < 0) {
-            HWC2_LOGE("Failed to dup fence fd BufferId=0x%" PRIx64 " for Finish fence %d/%d %dms", uBufferId_,
-                      fence_fd, ret, timeout_ms);
+            HWC2_LOGE("Failed to dup fence fd BufferId=0x%" PRIx64 " for Finish fence %d/%d %dms", uBufferId_, fence_fd,
+                      ret, timeout_ms);
             return -1;
         }
         lk.unlock();

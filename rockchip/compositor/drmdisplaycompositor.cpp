@@ -2948,12 +2948,13 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
 
                 std::shared_ptr<VpComposition> vp_composition = NULL;
                 if (layer.bUseMemc_) {
-                    continue; // Memc输出由CollectMEMCInfo()获取
+                    continue;  // Memc输出由CollectMEMCInfo()获取
                 } else {
-                    vp_composition = dvp->AcquireVpCompositon(display_, layer.iTunnelId_, &dis_rect, 0, need_wait_fence);
+                    vp_composition =
+                            dvp->AcquireVpCompositon(display_, layer.iTunnelId_, &dis_rect, 0, need_wait_fence);
                     if (vp_composition == NULL) {
                         HWC2_LOGW_IF("SidebandStream: display-id=%d AcquireBuffer fail, iTunnelId = %d", display_,
-                                    layer.iTunnelId_);
+                                     layer.iTunnelId_);
                         continue;
                     }
                 }
@@ -3024,6 +3025,13 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     layer.sf_handle = output_buffer->GetHandle();
                     eotf = layer.uEOTF;
                     colorspace = layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
+                }
+
+                // HDR metadata 信息
+                if (output_buffer->IsHdrMetadata()) {
+                    layer.bHasHdrMetadata_ = output_buffer->IsHdrMetadata();
+                    layer.iHdrMetadataOffset_ = output_buffer->GetHdrMetadataOffset();
+                    layer.pSidebandBuffer_ = output_buffer;
                 }
 
                 // 更新Sideband请求状态状态
@@ -3784,7 +3792,7 @@ int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
     // 用于判断是否存在 metadata 信息
     bool codec_meta_exist = false;
     // 获取存储 metadata 信息的 offset
-    int64_t offset = gralloc->hwc_get_offset_of_dynamic_hdr_metadata(hdrLayer.sf_handle);
+    int64_t offset = hdrLayer.bHasHdrMetadata_ ? hdrLayer.iHdrMetadataOffset_ : 0;
     if (offset < 0) {
         HWC2_LOGE_IF("Fail to get hdr metadata offset, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
     }
@@ -3834,25 +3842,23 @@ int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
     }
 
     bool usemmap = false;
-    int64_t mmap_size = 0;
-    int mmap_fd = -1;
+    int fd = -1;
     void* cpu_addr = NULL;
     if (codec_meta_exist) {
         // 获取Medata地址，优先使用mmap
-        int64_t lock_size = gralloc->hwc_get_handle_size(hdrLayer.sf_handle) - offset;
-        int fd = gralloc->hwc_get_handle_primefd(hdrLayer.sf_handle);
-        if (lock_size > 0 && fd > 0) {
-            cpu_addr = DrmGralloc::hwc_buf_mmap_flushcache_readonly(fd, lock_size, offset);
-            if (cpu_addr) {
-                mmap_size = lock_size;
-                mmap_fd = fd;
-                usemmap = true;
+        if (hdrLayer.pSidebandBuffer_ != NULL) {
+            fd = hdrLayer.pSidebandBuffer_->GetFd();
+            cpu_addr = hdrLayer.pSidebandBuffer_->GetHdrMetadataVir();
+            int ret = gralloc->hwc_buf_flush_read_cache_start(fd);
+            if (ret) {
+                HWC2_LOGE("hwc_buf_flush_read_cache_start fail ret=%d. name=%s", ret, hdrLayer.sLayerName_.c_str());
             }
-        }
-        // 若mmap失败，则使用gralloc
-        if (cpu_addr == NULL) {
+            usemmap = true;
+        } else {
+            fd = gralloc->hwc_get_handle_primefd(hdrLayer.sf_handle);
             cpu_addr = gralloc->hwc_get_handle_lock(hdrLayer.sf_handle, hdrLayer.iWidth_, hdrLayer.iHeight_);
         }
+
         if (cpu_addr == NULL) {
             HWC2_LOGE_IF("Fail to lock dma buffer, Id=%d Name=%s ", hdrLayer.uId_, hdrLayer.sLayerName_.c_str());
             hdrLayer.metadataHdrParam_.codec_meta_exist = false;
@@ -4011,19 +4017,22 @@ int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
         HWC2_LOGE_IF("Fail to call MetadataHdrParser ret=%d Id=%d Name=%s ", ret, hdrLayer.uId_,
                      hdrLayer.sLayerName_.c_str());
         if (cpu_addr != NULL) {
-            if (usemmap)
-                DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
-            else
+            if (usemmap) {
+                gralloc->hwc_buf_flush_read_cache_end(fd);
+            } else {
                 gralloc->hwc_get_handle_unlock(hdrLayer.sf_handle);
+            }
         }
         return ret;
     }
 
     if (cpu_addr != NULL) {
-        if (usemmap)
-            DrmGralloc::hwc_buf_unmap_flushcache_readonly(mmap_fd, cpu_addr, mmap_size);
-        else
+        if (usemmap) {
+            gralloc->hwc_buf_flush_read_cache_end(fd);
+
+        } else {
             gralloc->hwc_get_handle_unlock(hdrLayer.sf_handle);
+        }
     }
 
     hdrLayer.IsMetadataHdr_ = true;

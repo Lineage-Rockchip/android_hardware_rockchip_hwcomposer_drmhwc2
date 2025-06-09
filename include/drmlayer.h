@@ -219,7 +219,12 @@ struct DrmHwcLayer {
     // Only RK3528 Support
     bool bMetadataHdr_;
     bool bYuv10bit_;
-    bool bHasMetadata_ = false;
+    // PQ metadata 信息
+    bool bHasPqMetadata_ = false;
+    int64_t iPqMetadataOffset_ = -1;
+    // HDR metadata 信息
+    bool bHasHdrMetadata_ = false;
+    int64_t iHdrMetadataOffset_ = -1;
 
     bool bSkipLayer_;
     float fHScaleMul_;
@@ -266,6 +271,7 @@ struct DrmHwcLayer {
     int iTunnelId_ = 0;
     bool bSideband2_ = false;
     bool bSidebandStreamLayer_;
+    std::shared_ptr<DrmBuffer> pSidebandBuffer_;
 
     // 手写加速图层
     bool bAccelerateLayer_;

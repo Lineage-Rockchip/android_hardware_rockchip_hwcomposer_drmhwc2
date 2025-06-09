@@ -254,6 +254,24 @@ class DrmHwcTwo : public hwc2_device_t {
                 layer_name_ = pBufferInfo_->sLayerName_;
                 pBufferInfo_->bFbIdCached_ = true;
                 drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
+                // hdr metadata 需要 cache 地址范围 base+offset -> size 区域，缓存该区域的 map 地址，达到降低CPU负载的目的
+                if (pBufferInfo_->bHasHdrMetadata_) {
+                    int fd = pBufferInfo_->uniqueFd_.get();
+                    int size = pBufferInfo_->iSize_ - pBufferInfo_->iHdrMetadataOffset_;
+                    int offset = static_cast<int>(pBufferInfo_->iHdrMetadataOffset_);
+                    void* addr = drmGralloc_->hwc_buf_mmap_readonly(fd, size, offset);
+                    if (addr != NULL) {
+                        if (pBufferInfo_->pHdrMetadataVir_ != NULL && pBufferInfo_->iHdrMetadataMapSize_ > 0) {
+                            int ret = drmGralloc_->hwc_buf_unmap(pBufferInfo_->pHdrMetadataVir_,
+                                                                 pBufferInfo_->iHdrMetadataMapSize_);
+                            if (ret) {
+                                HWC2_LOGE("hwc_buf_unmap fail ret=%d, name=%s", ret, layer_name_.c_str());
+                            }
+                        }
+                        pBufferInfo_->pHdrMetadataVir_ = addr;
+                        pBufferInfo_->iHdrMetadataMapSize_ = size;
+                    }
+                }
                 HWC2_LOGD_IF("bufferInfoMap_ size = %zu insert success! slot=%" PRIu64
                              " w=%d h=%d format=%d fourcc=%c%c%c%c fVideoFps=%f Name=%s",
                              bufferInfoMap_.size(), local_cache_slot, pBufferInfo_->iWidth_, pBufferInfo_->iHeight_,
@@ -327,6 +345,24 @@ class DrmHwcTwo : public hwc2_device_t {
                     layer_name_ = pBufferInfo_->sLayerName_;
                     pBufferInfo_->bFbIdCached_ = true;
                     drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
+                    // hdr metadata 需要 cache 地址范围 base+offset -> size 区域，缓存该区域的 map 地址，达到降低CPU负载的目的
+                    if (pBufferInfo_->bHasHdrMetadata_) {
+                        int fd = pBufferInfo_->uniqueFd_.get();
+                        int size = pBufferInfo_->iSize_ - pBufferInfo_->iHdrMetadataOffset_;
+                        int offset = static_cast<int>(pBufferInfo_->iHdrMetadataOffset_);
+                        void* addr = drmGralloc_->hwc_buf_mmap_readonly(fd, size, offset);
+                        if (addr != NULL) {
+                            if (pBufferInfo_->pHdrMetadataVir_ != NULL && pBufferInfo_->iHdrMetadataMapSize_ > 0) {
+                                int ret = drmGralloc_->hwc_buf_unmap(pBufferInfo_->pHdrMetadataVir_,
+                                                                     pBufferInfo_->iHdrMetadataMapSize_);
+                                if (ret) {
+                                    HWC2_LOGE("hwc_buf_unmap fail ret=%d, name=%s", ret, layer_name_.c_str());
+                                }
+                            }
+                            pBufferInfo_->pHdrMetadataVir_ = addr;
+                            pBufferInfo_->iHdrMetadataMapSize_ = size;
+                        }
+                    }
                     HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
                                  " w=%d h=%d format=%d fourcc=%c%c%c%c fVideoFps=%f Name=%s",
                                  bufferInfoMap_.size(), buffer_id, pBufferInfo_->iWidth_, pBufferInfo_->iHeight_,
@@ -385,6 +421,24 @@ class DrmHwcTwo : public hwc2_device_t {
             layer_name_ = pBufferInfo_->sLayerName_;
             pBufferInfo_->bFbIdCached_ = true;
             drmGralloc_->hwc_fbid_add_layer_ref_count(buffer_id);
+            // hdr metadata 需要 cache 地址范围 base+offset -> size 区域，缓存该区域的 map 地址，达到降低CPU负载的目的
+            if (pBufferInfo_->bHasHdrMetadata_) {
+                int fd = pBufferInfo_->uniqueFd_.get();
+                int size = pBufferInfo_->iSize_ - pBufferInfo_->iHdrMetadataOffset_;
+                int offset = static_cast<int>(pBufferInfo_->iHdrMetadataOffset_);
+                void* addr = drmGralloc_->hwc_buf_mmap_readonly(fd, size, offset);
+                if (addr != NULL) {
+                    if (pBufferInfo_->pHdrMetadataVir_ != NULL && pBufferInfo_->iHdrMetadataMapSize_ > 0) {
+                        int ret = drmGralloc_->hwc_buf_unmap(pBufferInfo_->pHdrMetadataVir_,
+                                                             pBufferInfo_->iHdrMetadataMapSize_);
+                        if (ret) {
+                            HWC2_LOGE("hwc_buf_unmap fail ret=%d, name=%s", ret, layer_name_.c_str());
+                        }
+                    }
+                    pBufferInfo_->pHdrMetadataVir_ = addr;
+                    pBufferInfo_->iHdrMetadataMapSize_ = size;
+                }
+            }
             HWC2_LOGV_IF("bufferInfoMap_ size = %zu insert success! BufferId=%" PRIx64
                          " fd=%d w=%d h=%d format=%d fourcc=%c%c%c%c fVideoFps=%f usage=%" PRIx64 " modifier=%" PRIx64
                          " Name=%s",

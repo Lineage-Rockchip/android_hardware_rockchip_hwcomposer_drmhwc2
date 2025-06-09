@@ -102,6 +102,13 @@ LayerInfoCache::~LayerInfoCache() {
         bFbIdCached_ = false;
         DrmGralloc::getInstance()->hwc_fbid_dec_layer_ref_count(uBufferId_);
     }
+
+    if (pHdrMetadataVir_ != NULL && iHdrMetadataMapSize_ > 0) {
+        DrmGralloc::getInstance()->hwc_buf_unmap(pHdrMetadataVir_, iHdrMetadataMapSize_);
+        pHdrMetadataVir_ = NULL;
+        iHdrMetadataMapSize_ = -1;
+    }
+
     if (buffer_) {
         DrmGralloc::getInstance()->freeBuffer(buffer_);
         buffer_ = NULL;
@@ -109,18 +116,27 @@ LayerInfoCache::~LayerInfoCache() {
 }
 
 bool LayerInfoCache::NeedCacheBufferHandle(buffer_handle_t handle) {
+    bool need_cached = false;
+    bHasPqMetadata_ = false;
+    iPqMetadataOffset_ = -1;
     // pq metadata
-    if (DrmGralloc::getInstance()->hwc_get_offset_of_pq_metadata(handle) > 0) {
+    int64_t pq_meta_offset = DrmGralloc::getInstance()->hwc_get_offset_of_pq_metadata(handle);
+    if (pq_meta_offset > 0) {
         // 存在 pq metadata
-        bHasMetadata_ = true;
-        return true;
+        bHasPqMetadata_ = true;
+        iPqMetadataOffset_ = pq_meta_offset;
+        need_cached = true;
     }
 
     // hdr metadata
-    if (DrmGralloc::getInstance()->hwc_get_offset_of_dynamic_hdr_metadata(handle) > 0) {
+    bHasHdrMetadata_ = false;
+    iHdrMetadataOffset_ = -1;
+    int64_t hdr_meta_offset = DrmGralloc::getInstance()->hwc_get_offset_of_dynamic_hdr_metadata(handle);
+    if (hdr_meta_offset > 0) {
         // 存在 hdr metadata
-        bHasMetadata_ = true;
-        return true;
+        bHasHdrMetadata_ = true;
+        iHdrMetadataOffset_ = hdr_meta_offset;
+        need_cached = true;
     }
 
 #ifdef RK3528
@@ -128,11 +144,11 @@ bool LayerInfoCache::NeedCacheBufferHandle(buffer_handle_t handle) {
     DrmGralloc::getInstance()->lock_rkvdec_scaling_metadata(handle, &metadata);
     if (metadata != NULL) {
         DrmGralloc::getInstance()->unlock_rkvdec_scaling_metadata(handle);
-        return true;
+        need_cached = true;
     }
 #endif
 
-    return false;
+    return need_cached;
 }
 
 int LayerInfoCache::CacheBufferHandle(buffer_handle_t handle) {

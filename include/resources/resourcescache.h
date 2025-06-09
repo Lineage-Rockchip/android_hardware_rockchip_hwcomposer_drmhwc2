@@ -93,7 +93,14 @@ class LayerInfoCache {
     GemHandle gemHandle_;
     std::string sLayerName_;
     bool bFbIdCached_ = false;
-    bool bHasMetadata_ = false;
+    // PQ metadata 信息
+    bool bHasPqMetadata_ = false;
+    int64_t iPqMetadataOffset_ = -1;
+    // HDR metadata 信息
+    bool bHasHdrMetadata_ = false;
+    int64_t iHdrMetadataOffset_ = -1;
+    void* pHdrMetadataVir_ = nullptr;
+    int iHdrMetadataMapSize_ = -1;
     // RGA handle cache
     RgaHandle rgaHandle_;
 };
