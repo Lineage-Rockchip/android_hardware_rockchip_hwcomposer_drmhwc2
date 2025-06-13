@@ -195,6 +195,9 @@ class DrmDisplayComposition {
 
     bool update_drmplane_assign() { return update_drmplane_assign_; }
 
+    void SetOverscan(int left, int top, int right, int bottom);
+    void GetOverscan(int* left, int* top, int* right, int* bottom);
+
   private:
     bool validate_composition_type(DrmCompositionType desired);
 
@@ -227,6 +230,12 @@ class DrmDisplayComposition {
     // sideband
     bool has_sideband2_layer_ = false;
     uint64_t sideband_tunnel_id_ = 0;
+
+    // overscan
+    int overscan_left_ = 100;
+    int overscan_top_ = 100;
+    int overscan_right_ = 100;
+    int overscan_bottom_ = 100;
 
     std::vector<DrmHwcLayer> layers_;
     std::vector<DrmCompositionPlane> composition_planes_;

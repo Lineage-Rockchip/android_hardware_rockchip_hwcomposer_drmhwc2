@@ -283,8 +283,10 @@ void DrmHwcLayer::SetDisplayFrame(hwc_rect_t const& frame, hwc2_drm_display_t* c
 #define OVERSCAN_MIN_VALUE (60)
 #define OVERSCAN_MAX_VALUE (100)
 void DrmHwcLayer::ModifyDisplayFrameForOverscan(hwc2_drm_display_t* ctx) {
-    int left_margin = 100, right_margin = 100, top_margin = 100, bottom_margin = 100;
-    sscanf(ctx->overscan_value, "overscan %d,%d,%d,%d", &left_margin, &top_margin, &right_margin, &bottom_margin);
+    int left_margin = ctx->left_margin;
+    int top_margin = ctx->top_margin;
+    int right_margin = ctx->right_margin;
+    int bottom_margin = ctx->bottom_margin;
 
     float left_margin_f, right_margin_f, top_margin_f, bottom_margin_f;
     float lscale = 0, tscale = 0, rscale = 0, bscale = 0;
@@ -627,10 +629,7 @@ void DrmHwcLayer::ModifyDisplayFrame() {
         if (!bYuv_) {
             return;
         }
-        char value_yuv[PROPERTY_VALUE_MAX];
-        int scaleMode = 0;
-        property_get("persist.vendor.video.cvrs", value_yuv, "0");
-        scaleMode = atoi(value_yuv);
+        int scaleMode = HwcAProperty::getInstance().getIntWithInterval("persist.vendor.video.cvrs", 100, 0);
         if (scaleMode > 0) {
             float s_letf, s_top, s_right, s_bottom;
             float s_width, s_height;
@@ -765,7 +764,8 @@ bool DrmHwcLayer::IsHdr(uint64_t usage, android_dataspace_t dataspace) {
 }
 bool DrmHwcLayer::IsAfbcModifier(uint64_t modifier) {
     if (bFbTarget_) {
-        return hwc_get_int_property("vendor.gralloc.no_afbc_for_fb_target_layer", "0") == 0;
+        return HwcAProperty::getInstance().getIntWithInterval("vendor.gralloc.no_afbc_for_fb_target_layer", 1000, 0) ==
+               0;
     } else {
         if (gIsRK3576()) {
             if (fourcc_mod_is_vendor(modifier, ARM)) {
@@ -807,7 +807,8 @@ int DrmHwcLayer::GetSkipLine() {
                 skip_line = 3;
             }
         }
-        int video_skipline = property_get_int32("vendor.video.skipline", 0);
+
+        int video_skipline = HwcAProperty::getInstance().getIntWithInterval("vendor.video.skipline", 1000, 0);
         if (video_skipline == 2) {
             skip_line = 2;
         } else if (video_skipline == 3) {

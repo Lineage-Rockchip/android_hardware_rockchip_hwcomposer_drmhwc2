@@ -91,7 +91,8 @@ int Vop3562::InitSvep() {
         mSrSupportScale_ = true;
     }
 
-    mAutoRleaseSrMem_ = hwc_get_int_property("vendor.hwc.enable_auto_release_sr_mem", "0") > 0;
+    mAutoRleaseSrMem_ =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.enable_auto_release_sr_mem", 1000, 0) > 0;
 
     HWC2_LOGI("Init SVEP verison=%s SupportScale=%d RleaseSrMemAfterDisable=%d", SR_VERSION SVEPSR_VERSION_SUFFIX,
               mSrSupportScale_, mAutoRleaseSrMem_);
@@ -292,15 +293,13 @@ bool Vop3562::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     }
 
     // 开机动画不使用超分
-    char value[PROPERTY_VALUE_MAX];
-    property_get("service.bootanim.exit", value, "0");
-    if (atoi(value) == 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval("service.bootanim.exit", 0) == 0) {
         HWC2_LOGD_IF("disable-sr: during bootanim disable SR, name=%s", layer->sLayerName_.c_str());
         return false;
     }
 
-    // // 视频屏幕占比60%以下不使用SR
-    uint64_t allow_rate = hwc_get_int_property("vendor.hwc.disable_svep_dis_area_rate", "60");
+    // 视频屏幕占比60%以下不使用SR
+    uint64_t allow_rate = HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_svep_dis_area_rate", 60);
     uint64_t dis_w = layer->display_frame.right - layer->display_frame.left;
     uint64_t dis_h = layer->display_frame.bottom - layer->display_frame.top;
     uint64_t dis_area_size = dis_w * dis_h;
@@ -1186,7 +1185,7 @@ int Vop3562::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     }
 
     int ret = -1;
-    if (hwc_get_int_property(SR_MODE_NAME, "0") > 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval(SR_MODE_NAME, 500, 0) > 0) {
         ret = TrySrPolicy(composition, layers, crtc, plane_groups);
         if (ret) {
             HWC2_LOGD_IF("TrySrPolicy match fail.");
@@ -1222,7 +1221,7 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     char value[PROPERTY_VALUE_MAX];
     // SR_RUNTIME_DISABLE_NAME 主要适用于前端系统服务判断当前场景无法使用SR模式才设置为 1
     // 例如 30帧以上片源 或 低延迟场景
-    int svep_runtime_disable = hwc_get_int_property(SR_RUNTIME_DISABLE_NAME, "0");
+    int svep_runtime_disable = HwcAProperty::getInstance().getIntWithInterval(SR_RUNTIME_DISABLE_NAME, 500, 0);
     bool sr_mode = false;
     // 只有主屏可以享受视频 SR 效果
     if (svep_runtime_disable == 0) {
@@ -1240,7 +1239,7 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     if (svep_sr_.get() != NULL) {
         SrError error = svep_sr_->Init(SR_VERSION, true);
         if (error != SrError::None) {
-            int auth_timeline = hwc_get_int_property("sys.svep.auth_timeline", "0");
+            int auth_timeline = HwcAProperty::getInstance().getIntWithInterval("sys.svep.auth_timeline", 500, 0);
             if (mSrAuthTimeline_ != auth_timeline) {
                 mSrAuthTimeline_ = auth_timeline;
                 svep_sr_ = ResourceManager::getInstance()->ResetAndGetSvepSr();
@@ -1268,18 +1267,12 @@ int Vop3562::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     SrImageInfo sr_dst_;
 
     // 以下参数更新后需要强制触发svep处理更新图像数据
-    property_get(SR_ENHANCEMENT_RATE_NAME, value, "0");
-    int enhancement_rate = atoi(value);
-    property_get(SR_CONTRAST_MODE_NAME, value, "0");
-    int contrast_mode = atoi(value);
-    property_get(SR_CONTRAST_MODE_OFFSET, value, "0");
-    int contrast_offset = atoi(value);
-    property_get(SR_OSD_DISABLE_MODE, value, "0");
-    int diable_osd_mode = atoi(value);
-    property_get(SR_OSD_VIDEO_ONELINE_MODE, value, "0");
-    int osd_oneline_mode = atoi(value);
-    property_get(SR_OSD_VIDEO_ONELINE_WATI_SEC, value, "12");
-    int osd_oneline_wait_second = atoi(value);
+    int enhancement_rate = HwcAProperty::getInstance().getIntWithInterval(SR_ENHANCEMENT_RATE_NAME, 0);
+    int contrast_mode = HwcAProperty::getInstance().getIntWithInterval(SR_CONTRAST_MODE_NAME, 0);
+    int contrast_offset = HwcAProperty::getInstance().getIntWithInterval(SR_CONTRAST_MODE_OFFSET, 0);
+    int diable_osd_mode = HwcAProperty::getInstance().getIntWithInterval(SR_OSD_DISABLE_MODE, 0);
+    int osd_oneline_mode = HwcAProperty::getInstance().getIntWithInterval(SR_OSD_VIDEO_ONELINE_MODE, 0);
+    int osd_oneline_wait_second = HwcAProperty::getInstance().getIntWithInterval(SR_OSD_VIDEO_ONELINE_WATI_SEC, 12);
 
     for (auto& drmLayer : layers) {
         if (SvepSrAllowedByLocalPolicy(drmLayer) && SvepSrAllowedByBlacklist(drmLayer)) {
@@ -2506,18 +2499,19 @@ int Vop3562::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
 void Vop3562::UpdateResevedPlane(DrmCrtc* crtc) {
     // Reserved DrmPlane
-    char reserved_plane_name[PROPERTY_VALUE_MAX] = {0};
-    hwc_get_string_property("vendor.hwc.reserved_plane_name", "NULL", reserved_plane_name);
+    std::string reserved_plane_name =
+            HwcAProperty::getInstance().getStringWithInterval("vendor.hwc.reserved_plane_name", 1000, "NULL");
 
     if (strlen(ctx.support.arrayReservedPlaneName) == 0 ||
-        strcmp(reserved_plane_name, ctx.support.arrayReservedPlaneName)) {
-        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name, strlen(reserved_plane_name) + 1);
+        strcmp(reserved_plane_name.c_str(), ctx.support.arrayReservedPlaneName)) {
+        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name.c_str(),
+                strlen(reserved_plane_name.c_str()) + 1);
         DrmDevice* drm = crtc->getDrmDevice();
         std::vector<PlaneGroup*> all_plane_groups = drm->GetPlaneGroups();
 
-        if (strcmp(reserved_plane_name, "NULL")) {
+        if (strcmp(reserved_plane_name.c_str(), "NULL")) {
             std::string reserved_name;
-            std::stringstream ss(reserved_plane_name);
+            std::stringstream ss(reserved_plane_name.c_str());
             while (getline(ss, reserved_name, ',')) {
                 for (auto& plane_group : all_plane_groups) {
                     for (auto& p : plane_group->planes) {
@@ -2525,7 +2519,7 @@ void Vop3562::UpdateResevedPlane(DrmCrtc* crtc) {
                             int reserved_plane_win_type = 0;
                             plane_group->bReserved = true;
                             reserved_plane_win_type = plane_group->win_type;
-                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name,
+                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name.c_str(),
                                       reserved_plane_win_type);
                             break;
                         } else {
@@ -2726,7 +2720,8 @@ void Vop3562::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
     ALOGI_IF(LogLevel(DBG_DEBUG), "%s,line=%d bMultiAreaEnable=%d, bMultiAreaScaleEnable=%d", __FUNCTION__, __LINE__,
              ctx.state.bMultiAreaEnable, ctx.state.bMultiAreaScaleEnable);
 
-    ctx.state.iVopMaxOverlay4KPlane = hwc_get_int_property("vendor.hwc.vop_max_overlay_4k_plane", "0");
+    ctx.state.iVopMaxOverlay4KPlane =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.vop_max_overlay_4k_plane", 1000, 0);
 
     // Check dispaly Mode : 8K Mode or 4K 120 Mode
     DrmDevice* drm = crtc->getDrmDevice();
@@ -2791,7 +2786,7 @@ int Vop3562::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
     InitStateContext(layers, plane_groups, crtc);
 
     //force go into GPU
-    int iMode = hwc_get_int_property("vendor.hwc.compose_policy", "0");
+    int iMode = HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.compose_policy", 500, 0);
 
     if ((iMode != 1 || gles_policy) && iMode != 2) {
         ctx.state.setHwcPolicy.insert(HWC_GLES_POLICY);
@@ -2822,7 +2817,7 @@ int Vop3562::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
         if (svep_sr_.get() != NULL) {
             SrError error = svep_sr_->Init(SR_VERSION, true);
             if (error != SrError::None) {
-                int auth_timeline = hwc_get_int_property("sys.svep.auth_timeline", "0");
+                int auth_timeline = HwcAProperty::getInstance().getIntWithInterval("sys.svep.auth_timeline", 500, 0);
                 if (mSrAuthTimeline_ != auth_timeline) {
                     mSrAuthTimeline_ = auth_timeline;
                     svep_sr_ = std::make_shared<SvepSr>();

@@ -1278,7 +1278,8 @@ int Vop3326::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             ctx.state.bDisableFBAfbcd = false;
 
             // Check FB target property
-            ctx.state.bDisableFBAfbcd = hwc_get_int_property("vendor.gralloc.no_afbc_for_fb_target_layer", "0") > 0;
+            ctx.state.bDisableFBAfbcd = HwcAProperty::getInstance().getIntWithInterval(
+                                                "vendor.gralloc.no_afbc_for_fb_target_layer", 1000, 0) > 0;
 
             // If FB-target unable to meet the scaling requirements, AFBC must be disable.
             if ((fb_layer->fHScaleMul_ > 8.0 || fb_layer->fHScaleMul_ < 0.125) ||
@@ -1308,13 +1309,14 @@ int Vop3326::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
 void Vop3326::UpdateResevedPlane(DrmCrtc* crtc) {
     // Reserved DrmPlane
-    char reserved_plane_name[PROPERTY_VALUE_MAX] = {0};
-    hwc_get_string_property("vendor.hwc.reserved_plane_name", "NULL", reserved_plane_name);
+    std::string reserved_plane_name =
+            HwcAProperty::getInstance().getStringWithInterval("vendor.hwc.reserved_plane_name", 1000, "NULL");
 
     if (strlen(ctx.support.arrayReservedPlaneName) == 0 ||
-        strcmp(reserved_plane_name, ctx.support.arrayReservedPlaneName)) {
+        strcmp(reserved_plane_name.c_str(), ctx.support.arrayReservedPlaneName)) {
         int reserved_plane_win_type = 0;
-        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name, strlen(reserved_plane_name) + 1);
+        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name.c_str(),
+                strlen(reserved_plane_name.c_str()) + 1);
         DrmDevice* drm = crtc->getDrmDevice();
         std::vector<PlaneGroup*> all_plane_groups = drm->GetPlaneGroups();
         for (auto& plane_group : all_plane_groups) {
@@ -1618,7 +1620,7 @@ int Vop3326::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
     InitStateContext(layers, plane_groups, crtc);
 
     //force go into GPU
-    int iMode = hwc_get_int_property("vendor.hwc.compose_policy", "0");
+    int iMode = HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.compose_policy", 500, 0);
 
     if (((iMode != 1 && iMode != 6) || gles_policy) && iMode != 2) {
         ctx.state.setHwcPolicy.insert(HWC_GLES_POLICY);

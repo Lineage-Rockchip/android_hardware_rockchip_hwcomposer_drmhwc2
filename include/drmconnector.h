@@ -88,7 +88,7 @@ class DrmConnector {
     int GetSuitableMode(int display_id, uint64_t max_width, uint64_t dlck);
     int UpdateBCSH(int display_id, int update_base_timeline);
     int UpdateOutputFormat(int display_id, int update_base_timeline);
-    int UpdateOverscan(int display_id, char* overscan_value);
+    int UpdateOverscan(int display_id, int* left, int* top, int* right, int* bottom);
     int SetDisplayModeInfo(int display_id);
     bool ParseHdmiOutputFormat(char* strprop, int* format, int* depth);
     void ResetModesReady() { bModeReady_ = false; };
@@ -337,6 +337,11 @@ class DrmConnector {
     int32_t mKernelCrtcId_;
 
     uint64_t mPowerState_ = DRM_MODE_DPMS_OFF;
+
+    char overscan_property_[PROPERTY_VALUE_MAX] = {0};
+    char output_format_pro_[PROPERTY_VALUE_MAX] = {0};
+    char resolution_property_[PROPERTY_VALUE_MAX] = {0};
+    char framebuffer_property_[PROPERTY_VALUE_MAX] = {0};
 
     mutable std::recursive_mutex mRecursiveMutex;
     int UpdateOutputFormat(drmModeAtomicReqPtr pset);

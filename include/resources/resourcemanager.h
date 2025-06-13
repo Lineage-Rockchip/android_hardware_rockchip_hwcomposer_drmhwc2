@@ -133,6 +133,8 @@ class ResourceManager {
     bool GetRgaSupportAbove4GB() const;
     bool IsSingleDisplayMode() const;
     bool IsSupportSolidColor() const;
+    bool IsGsiSDK() const;
+
     std::shared_ptr<SolidColorBuffer> GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h);
     bool GetBlockHotplugInPowerOff() const;
 
@@ -223,6 +225,8 @@ class ResourceManager {
     bool mEnableSolidColorSupport_ = false;
     // Block hotplug if primary display is powered off
     bool mBlockHotplugInPowerOff_ = false;
+    // 检查是否是 GSI SDK
+    bool mIsGsiSDK_ = false;
 
 #ifdef USE_LIBSR
     // SVEP SR

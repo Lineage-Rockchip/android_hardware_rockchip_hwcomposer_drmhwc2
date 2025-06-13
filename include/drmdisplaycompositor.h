@@ -141,7 +141,8 @@ class DrmDisplayCompositor {
     // kAcquireWaitTries times, logging a warning in between.
     static const int kAcquireWaitTries = 5;
     static const int kAcquireWaitTimeoutMs = 100;
-    int CheckOverscan(drmModeAtomicReqPtr pset, DrmCrtc* crtc, int display, const char* UniqueName);
+    int CheckOverscan(drmModeAtomicReqPtr pset, DrmCrtc* crtc, int display_id, DrmConnector* conn);
+    int CheckOverscan(drmModeAtomicReqPtr pset, DrmCrtc* crtc, DrmDisplayComposition* display_comp);
     // Multi Thread function.
     int GetTimestamp();
     int64_t GetPhasedVSync(int64_t frame_ns, int64_t current);

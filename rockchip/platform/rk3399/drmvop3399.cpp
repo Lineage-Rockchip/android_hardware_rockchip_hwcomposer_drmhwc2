@@ -1688,7 +1688,8 @@ int Vop3399::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             ctx.state.bDisableFBAfbcd = false;
 
             // Check FB target property
-            ctx.state.bDisableFBAfbcd = hwc_get_int_property("vendor.gralloc.no_afbc_for_fb_target_layer", "0") > 0;
+            ctx.state.bDisableFBAfbcd = HwcAProperty::getInstance().getIntWithInterval(
+                                                "vendor.gralloc.no_afbc_for_fb_target_layer", 1000, 0) > 0;
 
             // afbc mast 16x16 align, and do not support offset
             if (!(fb_layer->source_crop.left == 0 && fb_layer->source_crop.top == 0 &&
@@ -1725,13 +1726,14 @@ int Vop3399::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
 void Vop3399::UpdateResevedPlane(DrmCrtc* crtc) {
     // Reserved DrmPlane
-    char reserved_plane_name[PROPERTY_VALUE_MAX] = {0};
-    hwc_get_string_property("vendor.hwc.reserved_plane_name", "NULL", reserved_plane_name);
+    std::string reserved_plane_name =
+            HwcAProperty::getInstance().getStringWithInterval("vendor.hwc.reserved_plane_name", 1000, "NULL");
 
     if (strlen(ctx.support.arrayReservedPlaneName) == 0 ||
-        strcmp(reserved_plane_name, ctx.support.arrayReservedPlaneName)) {
+        strcmp(reserved_plane_name.c_str(), ctx.support.arrayReservedPlaneName)) {
         int reserved_plane_win_type = 0;
-        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name, strlen(reserved_plane_name) + 1);
+        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name.c_str(),
+                strlen(reserved_plane_name.c_str()) + 1);
         DrmDevice* drm = crtc->getDrmDevice();
         std::vector<PlaneGroup*> all_plane_groups = drm->GetPlaneGroups();
         for (auto& plane_group : all_plane_groups) {
@@ -1990,9 +1992,11 @@ void Vop3399::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
              ctx.state.bMultiAreaEnable, ctx.state.bRgaPolicyEnable);
 
     //if sys.hwc.hdr_video_force_overlay is set, ignore vendor.hwc.hdr_video_force_overlay
-    int sys_hdr_force_overlay = hwc_get_int_property("sys.hwc.hdr_video_force_overlay", "-1");
+    int sys_hdr_force_overlay =
+            HwcAProperty::getInstance().getIntWithInterval("sys.hwc.hdr_video_force_overlay", 1000, -1);
     if (sys_hdr_force_overlay < 0)
-        ctx.state.bHDRVideoForceOverlay = hwc_get_int_property("vendor.hwc.hdr_video_force_overlay", "1") > 0;
+        ctx.state.bHDRVideoForceOverlay =
+                HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.hdr_video_force_overlay", 1000, 1) > 0;
     else
         ctx.state.bHDRVideoForceOverlay = sys_hdr_force_overlay > 0;
 
@@ -2091,7 +2095,7 @@ int Vop3399::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
     }
 
     //force go into GPU
-    int iMode = hwc_get_int_property("vendor.hwc.compose_policy", "0");
+    int iMode = HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.compose_policy", 500, 0);
 
     if (((iMode != 1 && iMode != 6) || gles_policy) && iMode != 2) {
         ctx.state.setHwcPolicy.insert(HWC_GLES_POLICY);

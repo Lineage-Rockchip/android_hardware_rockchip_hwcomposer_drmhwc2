@@ -299,9 +299,7 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                             dst_buffer->GetByteStridePlanes(), dst_buffer->GetName(), source_crop,
                             dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(), drmLayer.transform);
                     //dump HwPq layer if needed
-                    char value[PROPERTY_VALUE_MAX];
-                    property_get("vendor.dump", value, "false");
-                    if (!strcmp(value, "true")) {
+                    if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
                         dst_buffer->WaitFinishFence();
                         dst_buffer->DumpData(drmLayer.uFrameNo_, drmLayer.iZpos_, "M");
                     }
@@ -618,9 +616,7 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
                         dst_buffer->GetName(), source_crop, dst_buffer->GetBufferId(), dst_buffer->GetGemHandle(),
                         drmLayer->transform);
                 //dump HwPq layer if needed
-                char value[PROPERTY_VALUE_MAX];
-                property_get("vendor.dump", value, "false");
-                if (!strcmp(value, "true")) {
+                if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
                     dst_buffer->WaitFinishFence();
                     dst_buffer->DumpData(0, drmLayer->iZpos_, "M");
                 }
@@ -855,9 +851,7 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
     }
 
     if (dst_buffer) {
-        char value[PROPERTY_VALUE_MAX];
-        property_get("vendor.dump", value, "false");
-        if (!strcmp(value, "true")) {
+        if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
             dst_buffer->DumpData(0, 0, "S");
         }
         //Update Crop form Query Result

@@ -361,7 +361,11 @@ typedef struct hwc2_drm_display {
     int hotplug_timeline = 0;
     DrmHdrType hdr_mode = DRM_HWC_SDR;
     android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
-    char overscan_value[PROPERTY_VALUE_MAX] = {0};
+    int left_margin = 100;
+    int top_margin = 100;
+    int right_margin = 100;
+    int bottom_margin = 100;
+
     const struct disp_info* baseparameter_info;
 #ifdef USE_LIBPQ_HWPQ
     int hwpq_meta_fd;

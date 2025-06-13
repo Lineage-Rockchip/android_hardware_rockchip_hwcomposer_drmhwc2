@@ -1378,12 +1378,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayConfigs(uint32_t* num_configs, hwc2
                               ctx_.framebuffer_width, ctx_.framebuffer_height);
                 }
             }
-            if (hwc_get_int_property("ro.vendor.rk_sdk", "0") == 0) {
+            if (ResourceManager::getInstance()->IsGsiSDK()) {
                 disable_afbdc = true;
                 HWC2_LOGI("Maybe GSI SDK, to disable AFBC\n");
             }
             if (disable_afbdc) {
-                property_set("vendor.gralloc.no_afbc_for_fb_target_layer", "1");
+                HwcAProperty::getInstance().setProperty("vendor.gralloc.no_afbc_for_fb_target_layer", "1");
             }
         }
 
@@ -1432,7 +1432,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayRequests(int32_t* display_requests,
     HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
 
     uint32_t num_request = 0;
-    if (hwc_get_int_property("ro.vendor.rk_sdk", "0") == 0) {
+    if (ResourceManager::getInstance()->IsGsiSDK()) {
         HWC2_LOGI_IF("Maybe GSI SDK, to disable AFBC\n");
         if (!layers || !layer_requests) {
             *num_elements = num_request;
@@ -1906,15 +1906,15 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
 #ifdef USE_LIBPQ_HWPQ
                 if (gIsRK3576()) {
                     if (drm_hwc_layer.uWinType_ == PLANE_RK3576_CLUSTER0_WIN0 && crtc_->get_port_id() == 0) {
-                        char value[PROPERTY_VALUE_MAX];
-                        property_get("persist.vendor.tvinput.rkpq.mode", value, "0");
-                        if (atoi(value) == 1) {
+                        int pq_mode = HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode",
+                                                                                     500, 0);
+                        if (pq_mode == 1) {
                             ctx_.use_pq_fb = true;
                             ResourceManager::getInstance()->GetDrmPq()->RunHwPqUiMode(drm_hwc_layers_);
                         } else {
                             ctx_.use_pq_fb = false;
                             // 如果关闭了HWPQ，则清除缓存
-                            if (atoi(value) == 0) {
+                            if (pq_mode == 0) {
                                 ResourceManager::getInstance()->GetDrmPq()->ClearCache();
                             }
                             drm_hwc_layer.hwPqReg_ = NULL;
@@ -1998,9 +1998,11 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
     }
 
     // 利用 vendor.hwc.disable_releaseFence 属性强制关闭ReleaseFence，主要用于调试
-    char value[PROPERTY_VALUE_MAX];
-    property_get("vendor.hwc.disable_releaseFence", value, "0");
-    if (atoi(value) == 0) {
+
+    int disable_releaseFence =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_releaseFence", 1000, 0);
+
+    if (disable_releaseFence == 0) {
         ret = composition->CreateAndAssignReleaseFences(sync_timeline_);
         for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
             if (l.second.validated_type() == HWC2::Composition::Device) {
@@ -2025,6 +2027,9 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
 
     // 配置丢帧模式
     composition->SetDropMode(resource_manager_->IsCompositionDropMode());
+
+    // 配置Overscan信息
+    composition->SetOverscan(ctx_.left_margin, ctx_.top_margin, ctx_.right_margin, ctx_.bottom_margin);
 
     ret = compositor_->QueueComposition(std::move(composition));
     return HWC2::Error::None;
@@ -2249,9 +2254,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentVirtualDisplay(int32_t* retire_fence) 
             }
 
             // 添加调试接口，抓打印传递给SurfaceFlinger的 Buffer
-            char value[PROPERTY_VALUE_MAX];
-            property_get("vendor.dump", value, "0");
-            if (!strcmp(value, "true")) {
+            if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
                 output_layer_.DumpData(frame_no_, "W");
             }
         }
@@ -2330,7 +2333,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentEBookDisplay(int32_t* retire_fence) {
 #endif
 
 void DrmHwcTwo::HwcDisplay::CheckForSplitModeTimeline() {
-    int pipeline_timeline = property_get_int32(DRM_XML_SYS_UPDATE, -1);
+    int pipeline_timeline = HwcAProperty::getInstance().getIntWithInterval(DRM_XML_SYS_UPDATE, 1000, -1);
     //Only Primary display check for cropsplit mode update
     if (handle_ == 0 && pipeline_timeline > 0 && drm_->IsCheckDisplayPipeline(pipeline_timeline)) {
         DrmEvent event;
@@ -2339,7 +2342,7 @@ void DrmHwcTwo::HwcDisplay::CheckForSplitModeTimeline() {
         return;
     }
 
-    pipeline_timeline = property_get_int32(DRM_XML_VENDOR_UPDATE, -1);
+    pipeline_timeline = HwcAProperty::getInstance().getIntWithInterval(DRM_XML_VENDOR_UPDATE, 1000, -1);
     //Only Primary display check for cropsplit mode update
     if (handle_ == 0 && pipeline_timeline > 0 && drm_->IsCheckDisplayPipeline(pipeline_timeline)) {
         DrmEvent event;
@@ -2828,9 +2831,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
     bUseWriteBack_ = true;
 
     // 提供仅 Sideband 模式下开启 hw Virtual Display 功能接口
-    char value[PROPERTY_VALUE_MAX];
-    property_get("vendor.hwc.only_sideband_use_wb", value, "0");
-    if (atoi(value) > 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.only_sideband_use_wb", 1000, 0) > 0) {
         bUseWriteBack_ = false;
         bool exist_sideband_stream = false;
         // 只有存在 SidebandStream 的录屏才会使用 WriteBack;
@@ -3537,10 +3538,8 @@ int DrmHwcTwo::HwcDisplay::DumpDisplayLayersInfo() {
     return 0;
 }
 int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
-    char pro_value[PROPERTY_VALUE_MAX];
-    property_get("vendor.dump", pro_value, 0);
-
-    if (!strcmp(pro_value, "true")) {
+    bool need_dump = HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false);
+    if (need_dump) {
         bool use_client_layer = false;
         for (auto& map_layer : layers_) {
             HwcLayer& layer = map_layer.second;
@@ -3570,7 +3569,7 @@ int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
         }
 
         if (iDumpCnt <= 0) {
-            int framecnt = hwc_get_int_property("vendor.dump.cnt", "-1");
+            int framecnt = HwcAProperty::getInstance().getInt("vendor.dump.cnt", -1);
             if (framecnt > 0) {
                 iDumpCnt = framecnt;
             }
@@ -3579,7 +3578,7 @@ int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
         if (iDumpCnt > 0) {
             iDumpCnt--;
             if (iDumpCnt == 0) {
-                property_set("vendor.dump", "false");
+                HwcAProperty::getInstance().setPropertyAsync("vendor.dump", "false");
             }
         }
     } else {
@@ -3596,9 +3595,8 @@ int DrmHwcTwo::HwcDisplay::HoplugEventTmeline() {
 
 int DrmHwcTwo::HwcDisplay::GetCurrentDisplayMode() {
     if (!ctx_.bStandardSwitchResolution) {
-        int timeline;
         int display_id = static_cast<int>(handle_);
-        timeline = property_get_int32("vendor.display.timeline", -1);
+        int timeline = HwcAProperty::getInstance().getIntWithInterval("vendor.display.timeline", 100, -1);
         if (timeline && timeline == ctx_.display_timeline && ctx_.hotplug_timeline == drm_->timeline()) return 0;
         ctx_.display_timeline = timeline;
         ctx_.hotplug_timeline = drm_->timeline();
@@ -3736,14 +3734,12 @@ int DrmHwcTwo::HwcDisplay::UpdateDisplayInfo() {
 }
 
 int DrmHwcTwo::HwcDisplay::UpdateOverscan() {
-    connector_->UpdateOverscan(handle_, ctx_.overscan_value);
+    connector_->UpdateOverscan(handle_, &ctx_.left_margin, &ctx_.top_margin, &ctx_.right_margin, &ctx_.bottom_margin);
     return 0;
 }
 
 int DrmHwcTwo::HwcDisplay::UpdateHdmiOutputFormat() {
-    int timeline = 0;
-
-    timeline = property_get_int32("vendor.display.timeline", -1);
+    int timeline = HwcAProperty::getInstance().getIntWithInterval("vendor.display.timeline", 100, -1);
     /*
      * force update propetry when timeline is zero or not exist.
      */
@@ -3769,7 +3765,7 @@ int DrmHwcTwo::HwcDisplay::UpdateHdmiOutputFormat() {
 }
 
 int DrmHwcTwo::HwcDisplay::UpdateBCSH() {
-    int timeline = property_get_int32("vendor.display.timeline", -1);
+    int timeline = HwcAProperty::getInstance().getIntWithInterval("vendor.display.timeline", 100, -1);
     /*
      * force update propetry when timeline is zero or not exist.
      */
@@ -3859,9 +3855,7 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
 
     if (exist_hdr_layer) {
         // 存在 HDR图层，判断是否存在强制关闭HDR属性，若存在则关闭HDR模式
-        char value[PROPERTY_VALUE_MAX];
-        property_get("persist.vendor.hwc.hdr_force_disable", value, "0");
-        if (atoi(value) > 0) {
+        if (HwcAProperty::getInstance().getIntWithInterval("persist.vendor.hwc.hdr_force_disable", 500, 0) > 0) {
             if (ctx_.hdr_mode != DRM_HWC_SDR) {
                 HWC2_LOGD_IF("Exit HDR mode success");
                 property_set("vendor.hwc.hdr_state", "FORCE-NORMAL");
@@ -3871,8 +3865,8 @@ bool DrmHwcTwo::HwcDisplay::DisableHdrMode() {
         }
 
         // 存在 HDR图层，判断HDR视频的屏幕占比与缩放倍率，满足条件则关闭HDR模式
-        property_get("persist.vendor.hwc.hdr_video_area", value, "6");
-        if (atoi(value) > hdr_area_ratio) {
+        if (HwcAProperty::getInstance().getIntWithInterval("persist.vendor.hwc.hdr_video_area", 500, 6) >
+            hdr_area_ratio) {
             if (ctx_.hdr_mode != DRM_HWC_SDR) {
                 HWC2_LOGD_IF("Exit HDR mode success");
                 property_set("vendor.hwc.hdr_state", "FORCE-NORMAL");
@@ -3957,7 +3951,7 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
     // 2:自动模式: 电视支持 HDR模式播放HDR视频则切换HDR模式，否则使用SDR模式
     // 1:HDR模式: 等同自动模式
     // 0:SDR模式: 电视强制使用SDR模式，HDR片源也采用SDR显示
-    int user_hdr_mode = hwc_get_int_property("persist.sys.vivid.hdr_mode", "2");
+    int user_hdr_mode = HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.hdr_mode", 100, 2);
     // 可能存在模式：SDR2SDR,HDR2SDR,SDR2HDR,HDR2HDR
     bool is_output_hdr = false;
     // 2:自动模式: 电视支持 HDR模式播放HDR视频则切换HDR模式，否则使用SDR模式
@@ -4041,13 +4035,13 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
         // hdr10 最小亮度应该是0.05,算法提供接口是要求外部数值 0.05*100=5
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_min = 5;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_max =
-                hwc_get_int_property("persist.sys.vivid.max_brightness", "1000") * 100;
+                HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.max_brightness", 100, 1000) * 100;
     } else {
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.color_prim = COLOR_PRIM_BT709;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_GAMMA_SDR;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_min = 10;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_max =
-                hwc_get_int_property("persist.sys.vivid.max_brightness", "100") * 100;
+                HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.max_brightness", 100, 100) * 100;
     }
 
     bool usemmap = false;
@@ -4060,8 +4054,7 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
             cpu_addr = hdrLayer.pBufferInfo_->pHdrMetadataVir_;
             int ret = gralloc->hwc_buf_flush_read_cache_start(fd);
             if (ret) {
-                HWC2_LOGE("hwc_buf_flush_read_cache_start fail ret=%d. name=%s", ret,
-                          hdrLayer.sLayerName_.c_str());
+                HWC2_LOGE("hwc_buf_flush_read_cache_start fail ret=%d. name=%s", ret, hdrLayer.sLayerName_.c_str());
             }
             usemmap = true;
         } else {
@@ -4161,7 +4154,7 @@ int DrmHwcTwo::HwcDisplay::EnableMetadataHdrMode(DrmHwcLayer& hdrLayer) {
     if (isRK356x(ctx_.soc_id)) hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_prop_set[0] = HDR_PLAT_RK356x;
     if (isRK3576(ctx_.soc_id)) hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_prop_set[0] = HDR_PLAT_RK3576;
 
-    if (hwc_get_int_property("vendor.hwc.vivid_hdr_debug", "0") > 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.vivid_hdr_debug", 1000, 0) > 0) {
         hdrLayer.uEOTF = hwc_get_int_property("vendor.hwc.vivid_layer_eotf", "0");
         hdrLayer.metadataHdrParam_.codec_meta_exist =
                 hwc_get_bool_property("vendor.hwc.vivid_codec_meta_exist", "true");
@@ -4476,7 +4469,8 @@ int DrmHwcTwo::HwcDisplay::UpdateTimerState(bool gles_comp) {
     struct itimerval tv = {{0, 0}, {0, 0}};
 
     if (static_screen_timer_enable_ && gles_comp) {
-        int interval_value = hwc_get_int_property("vendor.hwc.static_screen_opt_time", "2500");
+        int interval_value =
+                HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.static_screen_opt_time", 1000, 2500);
         interval_value = interval_value > 5000 ? 5000 : interval_value;
         interval_value = interval_value < 250 ? 250 : interval_value;
         tv.it_value.tv_sec = interval_value / 1000;
@@ -5079,9 +5073,7 @@ void DrmHwcTwo::HwcLayer::PopulateNormalLayer(DrmHwcLayer* drmHwcLayer, hwc2_drm
 
 bool DrmHwcTwo::HwcLayer::CanSkipSolidColorLayer(int have_skip_layer_zpos) {
     if (mCurrentState.is_solid_color_) {
-        char value[PROPERTY_VALUE_MAX];
-        property_get("vendor.hwc.disable_background_opt", value, "0");
-        if (atoi(value) > 0) {
+        if (HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_background_opt", 1000, 0)) {
             return false;
         }
 
@@ -5291,9 +5283,8 @@ void DrmHwcTwo::HwcLayer::PopulateFB(hwc2_layer_t layer_id, DrmHwcLayer* drmHwcL
 
 #ifdef USE_LIBPQ
 int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_drm_display_t* ctx) {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("persist.vendor.tvinput.rkpq.mode", value, "0");
-    bool pq_mode_enable = atoi(value) > 0;
+    bool pq_mode_enable =
+            HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0) > 0;
 
     if (pq_mode_enable == 1) {
         if (validate) {
@@ -5453,8 +5444,7 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 dst_buffer->SetFinishFence(dup(output_fence));
                 drmHwcLayer->acquire_fence = sp<AcquireFence>(new AcquireFence(output_fence));
 
-                property_get("vendor.dump", value, "false");
-                if (!strcmp(value, "true")) {
+                if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
                     drmHwcLayer->acquire_fence->wait();
                     dst_buffer->DumpData(drmHwcLayer->uFrameNo_, drmHwcLayer->iZpos_, "M");
                 }

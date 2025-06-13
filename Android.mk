@@ -148,7 +148,8 @@ LOCAL_SRC_FILES := \
   rockchip/common/hdr/drmhdrparser.cpp \
   rockchip/producer/drmvideoproducer.cpp \
   rockchip/producer/vpcontext.cpp \
-  rockchip/producer/VpTransformContext.cpp
+  rockchip/producer/VpTransformContext.cpp \
+  rockchip/utils/HwcAProperty.cpp
 
 LOCAL_CPPFLAGS += \
   -DHWC2_USE_CPP11 \

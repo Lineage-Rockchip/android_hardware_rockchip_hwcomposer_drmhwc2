@@ -55,23 +55,22 @@ void InitDebugModule() {
 void InitHwcVersion() {
     char acVersion[100] = {0};
     snprintf(acVersion, sizeof(acVersion), "%s%s", GHWC_VERSION, GHWC_VERSION_NOTES);
-    property_set("vendor.ghwc.version", acVersion);
+    HwcAProperty::getInstance().setPropertyAsync("vendor.ghwc.version", acVersion);
     ALOGI("DrmHwcTwo version : %s", acVersion);
     return;
 }
 int UpdateLogLevel() {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("vendor.hwc.log", value, "0");
-    if (!strcmp(value, "info"))
+    std::string str_log_level = HwcAProperty::getInstance().getStringWithInterval("vendor.hwc.log", 500, "0");
+    if (str_log_level.compare("info") == 0)
         g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO;
-    else if (!strcmp(value, "debug"))
+    else if (str_log_level.compare("debug") == 0)
         g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO | DBG_DEBUG;
-    else if (!strcmp(value, "verbose"))
+    else if (str_log_level.compare("verbose") == 0)
         g_log_level = DBG_FETAL | DBG_ERROR | DBG_WARN | DBG_INFO | DBG_DEBUG | DBG_VERBOSE;
-    else if (!strcmp(value, "all"))
+    else if (str_log_level.compare("all") == 0)
         g_log_level = DBG_MARSK;
     else
-        g_log_level = atoi(value);
+        g_log_level = atoi(str_log_level.c_str());
     return 0;
 }
 bool LogLevel(LOG_LEVEL log_level) {

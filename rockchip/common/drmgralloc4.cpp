@@ -169,9 +169,9 @@ void set_drm_version(int version) {
 // vendor.hwc.disable_gralloc4_use_vir_height = true
 bool use_vir_height = true;
 void init_env_property() {
-    char value[PROPERTY_VALUE_MAX];
-    property_get("vendor.hwc.disable_gralloc4_use_vir_height", value, "0");
-    use_vir_height = (atoi(value) == 0);
+    // char value[PROPERTY_VALUE_MAX];
+    // property_get("vendor.hwc.disable_gralloc4_use_vir_height", value, "0");
+    // use_vir_height = (atoi(value) == 0);
 }
 
 /* ---------------------------------------------------------------------------------------------------------

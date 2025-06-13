@@ -25,7 +25,6 @@
 
 #include <log/log.h>
 #include <xf86drmMode.h>
-
 namespace android {
 
 #define GET_BCSH_PROPERTY_VALUE(display_id, func_str, type_str, output_value) \
@@ -146,6 +145,12 @@ int DrmConnector::Init() {
     } else {
         std::tie(ret, bSplitMode_) = split_mode_property_.value();
     }
+
+    // 初始化 overscan 属性
+    snprintf(overscan_property_, PROPERTY_VALUE_MAX, "persist.vendor.overscan.%s", cUniqueName_);
+    snprintf(output_format_pro_, PROPERTY_VALUE_MAX, "persist.vendor.color.%s", cUniqueName_);
+    snprintf(resolution_property_, PROPERTY_VALUE_MAX, "persist.vendor.resolution.%s", cUniqueName_);
+    snprintf(framebuffer_property_, PROPERTY_VALUE_MAX, "persist.vendor.framebuffer.%s", cUniqueName_);
 
     return 0;
 }
@@ -469,7 +474,6 @@ int DrmConnector::UpdateVrrModes() {
 int DrmConnector::GetBestDisplayMode(int display_id, int update_base_timeline) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     char resolution_value[PROPERTY_VALUE_MAX] = {0};
-    char resolution_property[PROPERTY_VALUE_MAX] = {0};
     uint32_t width, height, flags, clock;
     uint32_t hsync_start, hsync_end, htotal;
     uint32_t vsync_start, vsync_end, vtotal;
@@ -478,10 +482,9 @@ int DrmConnector::GetBestDisplayMode(int display_id, int update_base_timeline) {
     char val;
     uint32_t MaxResolution = 0, temp;
 
-    snprintf(resolution_property, PROPERTY_VALUE_MAX, "persist.vendor.resolution.%s", cUniqueName_);
-    property_get(resolution_property, resolution_value, "Unkonw");
+    property_get(resolution_property_, resolution_value, "Unkonw");
 
-    ALOGI("%s,line=%d, display=%d %s=%s", __FUNCTION__, __LINE__, display_id, resolution_property, resolution_value);
+    ALOGI("%s,line=%d, display=%d %s=%s", __FUNCTION__, __LINE__, display_id, resolution_property_, resolution_value);
 
     if (!strcmp(resolution_value, "Unkonw")) {
         if (display_id == HWC_DISPLAY_PRIMARY) {
@@ -709,23 +712,25 @@ int DrmConnector::SetDisplayModeInfo(int display_id) {
     return ret;
 }
 
-int DrmConnector::UpdateOverscan(int display_id, char* overscan_value) {
-    char overscan_property[PROPERTY_VALUE_MAX] = {0};
-
-    snprintf(overscan_property, PROPERTY_VALUE_MAX, "persist.vendor.overscan.%s", cUniqueName_);
-    property_get(overscan_property, overscan_value, "Unkonw");
-
+int DrmConnector::UpdateOverscan(int display_id, int* left, int* top, int* right, int* bottom) {
+    std::string overscan_value = HwcAProperty::getInstance().getStringWithInterval(overscan_property_, 100, "Unkonw");
     // ALOGI("%s,line=%d, display=%d %s=%s",__FUNCTION__,__LINE__,display_id,overscan_property,overscan_value);
 
-    if (!strcmp(overscan_value, "Unkonw")) {
+    if (!strcmp(overscan_value.c_str(), "Unkonw")) {
         if (display_id == HWC_DISPLAY_PRIMARY) {
-            property_get("persist.vendor.overscan.main", overscan_value, "Unkonw");
+            overscan_value =
+                    HwcAProperty::getInstance().getStringWithInterval("persist.vendor.overscan.main", 100, "Unkonw");
         } else {
-            property_get("persist.vendor.overscan.aux", overscan_value, "Unkonw");
+            overscan_value =
+                    HwcAProperty::getInstance().getStringWithInterval("persist.vendor.overscan.aux", 100, "Unkonw");
         }
         // ALOGI("%s,line=%d, display=%d persist.vendor.overscan.%s=%s",__FUNCTION__,__LINE__,display_id,
         //       display_id == HWC_DISPLAY_PRIMARY ? "main" : "aux", overscan_value);
     }
+
+    sscanf(overscan_value.c_str(), "overscan %d,%d,%d,%d", left, top, right, bottom);
+    // ALOGI("%s,line=%d, display=%d overscan=(%d,%d,%d,%d)", __FUNCTION__, __LINE__, display_id, *left, *top, *right,
+    //       *bottom);
     return 0;
 }
 
@@ -861,18 +866,15 @@ int DrmConnector::UpdateOutputFormat(int display_id, int update_base_timeline) {
     int color_depth = -1;
     bool need_change_format = false, need_change_depth = false;
     bool exist_suitable_property = false;
-    char output_format_pro[PROPERTY_VALUE_MAX] = {0};
     char output_format_value[PROPERTY_VALUE_MAX] = {0};
 
-    snprintf(output_format_pro, PROPERTY_VALUE_MAX, "persist.vendor.color.%s", cUniqueName_);
-    ret = property_get(output_format_pro, output_format_value, "");
+    ret = property_get(output_format_pro_, output_format_value, "");
     if (!ret) {
         if (display_id == HWC_DISPLAY_PRIMARY) {
-            snprintf(output_format_pro, PROPERTY_VALUE_MAX, "persist.vendor.color.%s", "main");
+            ret = property_get("persist.vendor.color.main", output_format_value, "");
         } else {
-            snprintf(output_format_pro, PROPERTY_VALUE_MAX, "persist.vendor.color.%s", "aux");
+            ret = property_get("persist.vendor.color.aux", output_format_value, "");
         }
-        ret = property_get(output_format_pro, output_format_value, "");
         if (ret) {
             exist_suitable_property = true;
         }
@@ -967,18 +969,15 @@ int DrmConnector::UpdateOutputFormat(drmModeAtomicReqPtr pset) {
     int color_depth = -1;
     bool need_change_format = false, need_change_depth = false;
     bool exist_suitable_property = false;
-    char output_format_pro[PROPERTY_VALUE_MAX] = {0};
     char output_format_value[PROPERTY_VALUE_MAX] = {0};
 
-    snprintf(output_format_pro, PROPERTY_VALUE_MAX, "persist.vendor.color.%s", cUniqueName_);
-    ret = property_get(output_format_pro, output_format_value, "");
+    ret = property_get(output_format_pro_, output_format_value, "");
     if (!ret) {
         if (display_ == HWC_DISPLAY_PRIMARY) {
-            snprintf(output_format_pro, PROPERTY_VALUE_MAX, "persist.vendor.color.%s", "main");
+            ret = property_get("persist.vendor.color.main", output_format_value, "");
         } else {
-            snprintf(output_format_pro, PROPERTY_VALUE_MAX, "persist.vendor.color.%s", "aux");
+            ret = property_get("persist.vendor.color.aux", output_format_value, "");
         }
-        ret = property_get(output_format_pro, output_format_value, "");
         if (ret) {
             exist_suitable_property = true;
         }
@@ -1029,13 +1028,11 @@ int DrmConnector::UpdateOutputFormat(drmModeAtomicReqPtr pset) {
 
 int DrmConnector::GetFramebufferInfo(int display_id, uint32_t* w, uint32_t* h, uint32_t* fps) {
     char framebuffer_value[PROPERTY_VALUE_MAX] = {0};
-    char framebuffer_property[PROPERTY_VALUE_MAX] = {0};
     uint32_t width = 0, height = 0, vrefresh = 0;
 
-    snprintf(framebuffer_property, PROPERTY_VALUE_MAX, "persist.vendor.framebuffer.%s", cUniqueName_);
-    property_get(framebuffer_property, framebuffer_value, "Unkonw");
+    property_get(framebuffer_property_, framebuffer_value, "Unkonw");
 
-    ALOGI("%s,line=%d, display=%d %s=%s", __FUNCTION__, __LINE__, display_id, framebuffer_property, framebuffer_value);
+    ALOGI("%s,line=%d, display=%d %s=%s", __FUNCTION__, __LINE__, display_id, framebuffer_property_, framebuffer_value);
 
     if (!strcmp(framebuffer_value, "Unkonw")) {
         if (display_id == HWC_DISPLAY_PRIMARY) {
@@ -1361,7 +1358,7 @@ int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uin
     // 2:自动模式: 电视支持 HDR模式播放HDR视频则切换HDR模式，否则使用SDR模式
     // 1:HDR模式: 等同自动模式
     // 0:SDR模式: 电视强制使用SDR模式，HDR片源也采用SDR显示
-    if (hwc_get_int_property("persist.sys.vivid.hdr_mode", "2") == 0 ||
+    if (HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.hdr_mode", 100, 2) == 0 ||
         hdmi_metadata_type.eotf == TRADITIONAL_GAMMA_SDR) {
         UpdateOutputFormat(pset);
     } else {

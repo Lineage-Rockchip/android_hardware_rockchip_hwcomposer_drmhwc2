@@ -602,9 +602,7 @@ int VpTransformContext::DoTransformByRga(std::shared_ptr<VpComposition> input) {
     dst_buffer->SetReleaseFence(dup(release_fence->getFd()));
     mBufferQueue_->QueueBuffer(dst_buffer);
 
-    char value[PROPERTY_VALUE_MAX];
-    property_get("vendor.dump", value, "false");
-    if (!strcmp(value, "true")) {
+    if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
         dst_buffer->DumpData(GetFrameNo(), 0, "S");
     }
 
@@ -690,7 +688,7 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
     if (svep_sr.get() != NULL) {
         SrError error = svep_sr->Init(SR_VERSION, true);
         if (error != SrError::None) {
-            int auth_timeline = hwc_get_int_property("sys.svep.auth_timeline", "0");
+            int auth_timeline = HwcAProperty::getInstance().getIntWithInterval("sys.svep.auth_timeline", 500, 0);
             if (mSrAuthTimeline_ != auth_timeline) {
                 mSrAuthTimeline_ = auth_timeline;
                 svep_sr = ResourceManager::getInstance()->ResetAndGetSvepSr();
@@ -715,19 +713,13 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
     SrImageInfo sr_dst;
 
     // 以下参数更新后需要强制触发svep处理更新图像数据
-    char value[PROPERTY_VALUE_MAX];
-    property_get(SR_ENHANCEMENT_RATE_NAME, value, "0");
-    int enhancement_rate = atoi(value);
-    property_get(SR_CONTRAST_MODE_NAME, value, "0");
-    int contrast_mode = atoi(value);
-    property_get(SR_CONTRAST_MODE_OFFSET, value, "0");
-    int contrast_offset = atoi(value);
-    property_get(SR_OSD_DISABLE_MODE, value, "0");
-    int diable_osd_mode = atoi(value);
-    property_get(SR_OSD_VIDEO_ONELINE_MODE, value, "0");
-    int osd_oneline_mode = atoi(value);
-    property_get(SR_OSD_VIDEO_ONELINE_WATI_SEC, value, "12");
-    int osd_oneline_wait_second = atoi(value);
+    int enhancement_rate = HwcAProperty::getInstance().getIntWithInterval(SR_ENHANCEMENT_RATE_NAME, 500, 0);
+    int contrast_mode = HwcAProperty::getInstance().getIntWithInterval(SR_CONTRAST_MODE_NAME, 500, 0);
+    int contrast_offset = HwcAProperty::getInstance().getIntWithInterval(SR_CONTRAST_MODE_OFFSET, 500, 0);
+    int diable_osd_mode = HwcAProperty::getInstance().getIntWithInterval(SR_OSD_DISABLE_MODE, 500, 0);
+    int osd_oneline_mode = HwcAProperty::getInstance().getIntWithInterval(SR_OSD_VIDEO_ONELINE_MODE, 500, 0);
+    int osd_oneline_wait_second =
+            HwcAProperty::getInstance().getIntWithInterval(SR_OSD_VIDEO_ONELINE_WATI_SEC, 500, 12);
 
     // 2. 设置SR强度
     SrError error = svep_sr->SetEnhancementRate(enhancement_rate);
@@ -908,8 +900,7 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
     dst_buffer->SetReleaseFence(dup(release_fence->getFd()));
     mBufferQueue_->QueueBuffer(dst_buffer);
 
-    property_get("vendor.dump", value, "false");
-    if (!strcmp(value, "true")) {
+    if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
         src_buffer->DumpData(GetFrameNo(), 0, "S");
         dst_buffer->DumpData(GetFrameNo(), 0, "S");
     }
@@ -927,7 +918,7 @@ int VpTransformContext::DoTransformBySvepSr(std::shared_ptr<VpComposition> input
 #endif
 
 #ifdef USE_LIBSVEP_MEMC
-int VpTransformContext::DoTransformBySvepMemc(std::shared_ptr<VpComposition> input){
+int VpTransformContext::DoTransformBySvepMemc(std::shared_ptr<VpComposition> input) {
     ALOGD_IF(LogLevel(DBG_DEBUG), "%s:line=%d", __FUNCTION__, __LINE__);
     // memc初始化
     std::shared_ptr<SvepMemc> svep_memc = ResourceManager::getInstance()->GetSvepMemc();
@@ -938,11 +929,12 @@ int VpTransformContext::DoTransformBySvepMemc(std::shared_ptr<VpComposition> inp
         }
     }
 
-    bool enableSr = (hwc_get_int_property(MEMC_ENABLR_SR_NAME, "0") > 0);
-    bool enableMemcComparation = (hwc_get_int_property(MEMC_CONTRAST_MODE_NAME, "0") > 0);
-    bool enableMemcOsd = (hwc_get_int_property(MEMC_OSD_DISABLE_MODE, "0") == 0);
-    bool enableMemcOsdOneline = (hwc_get_int_property(MEMC_OSD_VIDEO_ONELINE_MODE, "0") > 0);
-    int osd_oneline_wait_second = hwc_get_int_property(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, "12");
+    bool enableSr = HwcAProperty::getInstance().getIntWithInterval(MEMC_ENABLR_SR_NAME, 500, 0);
+    bool enableMemcComparation = HwcAProperty::getInstance().getIntWithInterval(MEMC_CONTRAST_MODE_NAME, 500, 0);
+    bool enableMemcOsd = HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_DISABLE_MODE, 500, 0);
+    bool enableMemcOsdOneline = HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0);
+    int osd_oneline_wait_second =
+            HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, 500, 12);
 
     // 处理旋转
     MemcRotateMode rotate = MEMC_ROTATE_0;

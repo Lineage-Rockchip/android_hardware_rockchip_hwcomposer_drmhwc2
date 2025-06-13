@@ -387,25 +387,49 @@ int DrmDisplayCompositor::DisableWritebackCommit(drmModeAtomicReqPtr pset, DrmCo
     return 0;
 }
 
-int DrmDisplayCompositor::CheckOverscan(drmModeAtomicReqPtr pset, DrmCrtc* crtc, int display, const char* unique_name) {
+int DrmDisplayCompositor::CheckOverscan(drmModeAtomicReqPtr pset, DrmCrtc* crtc, int display_id, DrmConnector* conn) {
     int ret = 0;
     char overscan_value[PROPERTY_VALUE_MAX] = {0};
     char overscan_pro[PROPERTY_VALUE_MAX] = {0};
     int left_margin = 100, right_margin = 100, top_margin = 100, bottom_margin = 100;
 
-    snprintf(overscan_pro, PROPERTY_VALUE_MAX, "persist.vendor.overscan.%s", unique_name);
-    ret = property_get(overscan_pro, overscan_value, "");
-    if (!ret) {
-        if (display == HWC_DISPLAY_PRIMARY) {
-            property_get("persist.vendor.overscan.main", overscan_value, "overscan 100,100,100,100");
-        } else {
-            property_get("persist.vendor.overscan.aux", overscan_value, "overscan 100,100,100,100");
-        }
+    conn->UpdateOverscan(display_id, &left_margin, &right_margin, &top_margin, &bottom_margin);
+
+    ALOGD_IF(LogLevel(DBG_DEBUG), "display=%d , overscan(%d,%d,%d,%d)", display_id, left_margin, top_margin,
+             right_margin, bottom_margin);
+
+    if (left_margin < OVERSCAN_MIN_VALUE) left_margin = OVERSCAN_MIN_VALUE;
+    if (top_margin < OVERSCAN_MIN_VALUE) top_margin = OVERSCAN_MIN_VALUE;
+    if (right_margin < OVERSCAN_MIN_VALUE) right_margin = OVERSCAN_MIN_VALUE;
+    if (bottom_margin < OVERSCAN_MIN_VALUE) bottom_margin = OVERSCAN_MIN_VALUE;
+
+    if (left_margin > OVERSCAN_MAX_VALUE) left_margin = OVERSCAN_MAX_VALUE;
+    if (top_margin > OVERSCAN_MAX_VALUE) top_margin = OVERSCAN_MAX_VALUE;
+    if (right_margin > OVERSCAN_MAX_VALUE) right_margin = OVERSCAN_MAX_VALUE;
+    if (bottom_margin > OVERSCAN_MAX_VALUE) bottom_margin = OVERSCAN_MAX_VALUE;
+
+    ret = drmModeAtomicAddProperty(pset, crtc->id(), crtc->left_margin_property().id(), left_margin) < 0 ||
+          drmModeAtomicAddProperty(pset, crtc->id(), crtc->right_margin_property().id(), right_margin) < 0 ||
+          drmModeAtomicAddProperty(pset, crtc->id(), crtc->top_margin_property().id(), top_margin) < 0 ||
+          drmModeAtomicAddProperty(pset, crtc->id(), crtc->bottom_margin_property().id(), bottom_margin) < 0;
+    if (ret) {
+        ALOGE("Failed to add overscan to pset");
+        return ret;
     }
 
-    sscanf(overscan_value, "overscan %d,%d,%d,%d", &left_margin, &top_margin, &right_margin, &bottom_margin);
-    ALOGD_IF(LogLevel(DBG_DEBUG), "display=%d , overscan(%d,%d,%d,%d)", display, left_margin, top_margin, right_margin,
-             bottom_margin);
+    return ret;
+}
+
+int DrmDisplayCompositor::CheckOverscan(drmModeAtomicReqPtr pset, DrmCrtc* crtc, DrmDisplayComposition* display_comp) {
+    if (display_comp == NULL) {
+        return -1;
+    }
+
+    int ret = 0;
+    int left_margin = 100, right_margin = 100, top_margin = 100, bottom_margin = 100;
+    display_comp->GetOverscan(&left_margin, &top_margin, &right_margin, &bottom_margin);
+    ALOGD_IF(LogLevel(DBG_DEBUG), "display=%d, overscan(%d,%d,%d,%d)", display_comp->display(), left_margin, top_margin,
+             right_margin, bottom_margin);
 
     if (left_margin < OVERSCAN_MIN_VALUE) left_margin = OVERSCAN_MIN_VALUE;
     if (top_margin < OVERSCAN_MIN_VALUE) top_margin = OVERSCAN_MIN_VALUE;
@@ -483,8 +507,9 @@ int DrmDisplayCompositor::SyntheticWaitVBlank() {
             sideband_percentage = 20;
         }
 #endif
-        property_get("vendor.hwc.siedeband_wait_vsync_percentage", property_value, "0");
-        int property_precentage = atoi(property_value);
+
+        int property_precentage =
+                HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.siedeband_wait_vsync_percentage", 1000, 0);
         //确认是否获取到了有效的percentage
         if (property_precentage > 0) {
             if (property_precentage > 80) {
@@ -1301,7 +1326,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
     if (crtc->can_overscan()) {
         // 如果当前显示分辨率为隔行扫描，则不不建议使用 overscan 功能，建议采用图层scale实现
         if (connector->current_mode().id() > 0 && connector->current_mode().interlaced() == 0) {
-            ret = CheckOverscan(pset, crtc, display_, connector->unique_name());
+            ret = CheckOverscan(pset, crtc, display_comp);
             if (ret < 0) {
                 return ret;
             }
@@ -1336,7 +1361,7 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
             } else {
                 // 如果当前显示分辨率为隔行扫描，则不不建议使用 overscan 功能，建议采用图层scale实现
                 if (mirror_connector->current_mode().id() > 0 && mirror_connector->current_mode().interlaced() == 0) {
-                    ret = CheckOverscan(pset, mirror_commit_crtc, mirror_display_id, mirror_connector->unique_name());
+                    ret = CheckOverscan(pset, mirror_commit_crtc, mirror_display_id, mirror_connector);
                     if (ret < 0) {
                         return ret;
                     }
@@ -2033,7 +2058,7 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition* display_comp, bool 
     if (crtc->can_overscan()) {
         // 如果当前显示分辨率为隔行扫描，则不不建议使用 overscan 功能，建议采用图层scale实现
         if (connector && connector->current_mode().id() > 0 && connector->current_mode().interlaced() == 0) {
-            ret = CheckOverscan(pset, crtc, display_, connector->unique_name());
+            ret = CheckOverscan(pset, crtc, display_comp);
             if (ret < 0) {
                 return ret;
             }
@@ -2068,7 +2093,7 @@ int DrmDisplayCompositor::CommitFrame(DrmDisplayComposition* display_comp, bool 
             } else {
                 // 如果当前显示分辨率为隔行扫描，则不不建议使用 overscan 功能，建议采用图层scale实现
                 if (mirror_connector->current_mode().id() > 0 && mirror_connector->current_mode().interlaced() == 0) {
-                    ret = CheckOverscan(pset, mirror_commit_crtc, mirror_display_id, mirror_connector->unique_name());
+                    ret = CheckOverscan(pset, mirror_commit_crtc, mirror_display_id, mirror_connector);
                     if (ret < 0) {
                         return ret;
                     }
@@ -2961,7 +2986,8 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
 
                 std::shared_ptr<DrmBuffer> output_buffer = vp_composition->GetBuffer();
 #ifdef USE_LIBPQ_HWPQ
-                int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
+                int iPqMode =
+                        HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0);
                 if (iPqMode == PqUtils::HWPQ_HDMIRX_MODE || iPqMode == PqUtils::HWPQ_VIDEO_MODE) {
                     if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0) {
                         // 准备当前屏幕的分辨率信息
@@ -3762,7 +3788,7 @@ int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
     // 2:自动模式: 电视支持 HDR模式播放HDR视频则切换HDR模式，否则使用SDR模式
     // 1:HDR模式: 等同自动模式
     // 0:SDR模式: 电视强制使用SDR模式，HDR片源也采用SDR显示
-    int user_hdr_mode = hwc_get_int_property("persist.sys.vivid.hdr_mode", "2");
+    int user_hdr_mode = HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.hdr_mode", 100, 2);
     // 可能存在模式：SDR2SDR,HDR2SDR,SDR2HDR,HDR2HDR
     bool is_output_hdr = false;
     // 2:自动模式: 电视支持 HDR模式播放HDR视频则切换HDR模式，否则使用SDR模式
@@ -3832,13 +3858,13 @@ int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
         // hdr10 最小亮度应该是0.05,算法提供接口是要求外部数值 0.05*100=5
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_min = 5;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_max =
-                hwc_get_int_property("persist.sys.vivid.max_brightness", "1000") * 100;
+                HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.max_brightness", 100, 1000) * 100;
     } else {
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.color_prim = COLOR_PRIM_BT709;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.eotf = SINK_EOTF_GAMMA_SDR;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_min = 10;
         hdrLayer.metadataHdrParam_.hdr_hdmi_meta.dst_max =
-                hwc_get_int_property("persist.sys.vivid.max_brightness", "100") * 100;
+                HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.max_brightness", 100, 100) * 100;
     }
 
     bool usemmap = false;
@@ -3947,7 +3973,7 @@ int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
     hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_debug_cfg.print_input_meta = 0;
     hdrLayer.metadataHdrParam_.hdr_user_cfg.hdr_debug_cfg.hdr_log_level = 0;
 
-    if (hwc_get_int_property("vendor.hwc.vivid_hdr_debug", "0") > 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.vivid_hdr_debug", 1000, 0) > 0) {
         hdrLayer.uEOTF = hwc_get_int_property("vendor.hwc.vivid_layer_eotf", "0");
         hdrLayer.metadataHdrParam_.codec_meta_exist =
                 hwc_get_bool_property("vendor.hwc.vivid_codec_meta_exist", "true");

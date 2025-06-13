@@ -200,6 +200,9 @@ int ResourceManager::InitProperty() {
     property_get("vendor.hwc.block_hotplug_in_poweroff", property_value, "1");
     mBlockHotplugInPowerOff_ = atoi(property_value) > 0;
 
+    // 检查是否是GSI SDK
+    mIsGsiSDK_ = hwc_get_int_property("ro.vendor.rk_sdk", "0") == 0;
+
     return 0;
 }
 
@@ -238,6 +241,7 @@ bool ResourceManager::IsSingleDisplayMode() const {
 bool ResourceManager::IsSupportSolidColor() const {
     return mEnableSolidColorSupport_;
 }
+
 std::shared_ptr<SolidColorBuffer> ResourceManager::GetSolidColorBuffer(uint32_t rgba, uint32_t w, uint32_t h) {
     // 如果输入的尺寸为0，则默认取Primary的UI渲染分辨率
     if (w == 0 || h == 0 || rgba == 0) {
@@ -257,6 +261,10 @@ std::shared_ptr<SolidColorBuffer> ResourceManager::GetSolidColorBuffer(uint32_t 
 
 bool ResourceManager::GetBlockHotplugInPowerOff() const {
     return mBlockHotplugInPowerOff_;
+}
+
+bool ResourceManager::IsGsiSDK() const {
+    return mIsGsiSDK_;
 }
 
 #ifdef USE_LIBSR
@@ -735,9 +743,7 @@ int ResourceManager::OutputWBBuffer(int display_id, rga_buffer_t& dst, im_rect& 
 
     output_buffer->WaitFinishFence();
     // 添加调试接口，抓打印WriteBack Buffer
-    char value[PROPERTY_VALUE_MAX];
-    property_get("vendor.dump", value, "0");
-    if (!strcmp(value, "true")) {
+    if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
         output_buffer->DumpData(output_frame_no, 0, "W");
     }
 

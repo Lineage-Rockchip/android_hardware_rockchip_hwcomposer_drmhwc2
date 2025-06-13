@@ -36,6 +36,8 @@
 
 #ifndef ANDROID_DRM_DEBUG_H_
 #define ANDROID_DRM_DEBUG_H_
+#include "rockchip/utils/HwcAProperty.h"
+
 #include <stdlib.h>
 #include <utils/CallStack.h>
 

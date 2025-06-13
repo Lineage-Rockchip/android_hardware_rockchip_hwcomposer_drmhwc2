@@ -145,6 +145,20 @@ int DrmDisplayComposition::SetDisplayHdrMode(DrmHdrType hdr_mode, android_datasp
     return 0;
 }
 
+void DrmDisplayComposition::SetOverscan(int left, int top, int right, int bottom) {
+    overscan_left_ = left;
+    overscan_top_ = top;
+    overscan_right_ = right;
+    overscan_bottom_ = bottom;
+};
+
+void DrmDisplayComposition::GetOverscan(int* left, int* top, int* right, int* bottom) {
+    *left = overscan_left_;
+    *top = overscan_top_;
+    *right = overscan_right_;
+    *bottom = overscan_bottom_;
+}
+
 int DrmDisplayComposition::SetDropMode(bool mode) {
     drop_mode_ = mode;
     return 0;

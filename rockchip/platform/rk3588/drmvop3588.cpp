@@ -90,7 +90,8 @@ int Vop3588::InitSvep() {
         mSrSupportScale_ = true;
     }
 
-    mAutoRleaseSrMem_ = hwc_get_int_property("vendor.hwc.enable_auto_release_sr_mem", "0") > 0;
+    mAutoRleaseSrMem_ =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.enable_auto_release_sr_mem", 1000, 0) > 0;
 
     HWC2_LOGI("Init SVEP verison=%s SupportScale=%d RleaseSrMemAfterDisable=%d", SR_VERSION SVEPSR_VERSION_SUFFIX,
               mSrSupportScale_, mAutoRleaseSrMem_);
@@ -295,15 +296,14 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     }
 
     // 开机动画不使用超分
-    char value[PROPERTY_VALUE_MAX];
-    property_get("service.bootanim.exit", value, "0");
-    if (atoi(value) == 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval("service.bootanim.exit", 500, 0) == 0) {
         HWC2_LOGD_IF("disable-sr: during bootanim disable SR, name=%s", layer->sLayerName_.c_str());
         return false;
     }
 
-    // // 视频屏幕占比60%以下不使用SR
-    uint64_t allow_rate = hwc_get_int_property("vendor.hwc.disable_svep_dis_area_rate", "60");
+    // 视频屏幕占比60%以下不使用SR
+    uint64_t allow_rate =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_svep_dis_area_rate", 500, 60);
     uint64_t dis_w = layer->display_frame.right - layer->display_frame.left;
     uint64_t dis_h = layer->display_frame.bottom - layer->display_frame.top;
     uint64_t dis_area_size = dis_w * dis_h;
@@ -969,7 +969,8 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                             } else {
                                 // FB-Target 如果匹配失败，尝试反转AFBC压缩格式再匹配
                                 if ((*iter_layer)->bFbTarget_ && ctx.state.bUseSwPq == false &&
-                                    (hwc_get_int_property("vendor.gralloc.no_afbc_for_fb_target_layer", "0") == 0) &&
+                                    (HwcAProperty::getInstance().getIntWithInterval(
+                                             "vendor.gralloc.no_afbc_for_fb_target_layer", 1000, 0) == 0) &&
                                     (*iter_plane)
                                             ->is_support_format((*iter_layer)->uFourccFormat_,
                                                                 !(*iter_layer)->bAfbcd_)) {
@@ -2534,7 +2535,7 @@ int Vop3588::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
     int ret = -1;
 #ifdef USE_LIBSR
-    if (hwc_get_int_property(SR_MODE_NAME, "0") > 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval(SR_MODE_NAME, 500, 0) > 0) {
         ret = TrySrPolicy(composition, layers, crtc, plane_groups);
         if (ret) {
             HWC2_LOGD_IF("TrySrPolicy match fail.");
@@ -2555,7 +2556,7 @@ int Vop3588::TrySvepPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 #endif
 
 #ifdef USE_LIBSVEP_MEMC
-    if (hwc_get_int_property(MEMC_MODE_NAME, "0") > 0) {
+    if (HwcAProperty::getInstance().getIntWithInterval(MEMC_MODE_NAME, 500, 0) > 0) {
         ret = TryMemcPolicy(composition, layers, crtc, plane_groups);
         if (ret) {
             HWC2_LOGD_IF("TryMemcPolicy match fail.");
@@ -2595,7 +2596,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     char value[PROPERTY_VALUE_MAX];
     // SR_RUNTIME_DISABLE_NAME 主要适用于前端系统服务判断当前场景无法使用SR模式才设置为 1
     // 例如 30帧以上片源 或 低延迟场景
-    int svep_runtime_disable = hwc_get_int_property(SR_RUNTIME_DISABLE_NAME, "0");
+    int svep_runtime_disable = HwcAProperty::getInstance().getIntWithInterval(SR_RUNTIME_DISABLE_NAME, 500, 0);
     bool sr_mode = false;
     // Match policy first
     HWC2_LOGD_IF("%s=%d bSrReady_=%d", SR_MODE_NAME, svep_mode, bSrReady_);
@@ -2615,7 +2616,7 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     if (svep_sr_.get() != NULL) {
         SrError error = svep_sr_->Init(SR_VERSION, true);
         if (error != SrError::None) {
-            int auth_timeline = hwc_get_int_property("sys.svep.auth_timeline", "0");
+            int auth_timeline = HwcAProperty::getInstance().getIntWithInterval("sys.svep.auth_timeline", 500, 0);
             if (mSrAuthTimeline_ != auth_timeline) {
                 mSrAuthTimeline_ = auth_timeline;
                 svep_sr_ = ResourceManager::getInstance()->ResetAndGetSvepSr();
@@ -2643,18 +2644,13 @@ int Vop3588::TrySrPolicy(std::vector<DrmCompositionPlane>* composition, std::vec
     SrImageInfo sr_dst_;
 
     // 以下参数更新后需要强制触发svep处理更新图像数据
-    property_get(SR_ENHANCEMENT_RATE_NAME, value, "0");
-    int enhancement_rate = atoi(value);
-    property_get(SR_CONTRAST_MODE_NAME, value, "0");
-    int contrast_mode = atoi(value);
-    property_get(SR_CONTRAST_MODE_OFFSET, value, "0");
-    int contrast_offset = atoi(value);
-    property_get(SR_OSD_DISABLE_MODE, value, "0");
-    int diable_osd_mode = atoi(value);
-    property_get(SR_OSD_VIDEO_ONELINE_MODE, value, "0");
-    int osd_oneline_mode = atoi(value);
-    property_get(SR_OSD_VIDEO_ONELINE_WATI_SEC, value, "12");
-    int osd_oneline_wait_second = atoi(value);
+    int enhancement_rate = HwcAProperty::getInstance().getIntWithInterval(SR_ENHANCEMENT_RATE_NAME, 500, 0);
+    int contrast_mode = HwcAProperty::getInstance().getIntWithInterval(SR_CONTRAST_MODE_NAME, 500, 0);
+    int contrast_offset = HwcAProperty::getInstance().getIntWithInterval(SR_CONTRAST_MODE_OFFSET, 500, 0);
+    int diable_osd_mode = HwcAProperty::getInstance().getIntWithInterval(SR_OSD_DISABLE_MODE, 500, 0);
+    int osd_oneline_mode = HwcAProperty::getInstance().getIntWithInterval(SR_OSD_VIDEO_ONELINE_MODE, 500, 0);
+    int osd_oneline_wait_second =
+            HwcAProperty::getInstance().getIntWithInterval(SR_OSD_VIDEO_ONELINE_WATI_SEC, 500, 12);
 
     for (auto& drmLayer : layers) {
         if (SvepSrAllowedByLocalPolicy(drmLayer) && SvepSrAllowedByBlacklist(drmLayer)) {
@@ -3049,7 +3045,7 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
     // MEMC_RUNTIME_DISABLE_NAME 主要适用于前端系统服务判断当前场景无法使用MEMC模式才设置为 1
     // 例如 30帧以上片源 或 低延迟场景
-    int svep_runtime_disable = hwc_get_int_property(MEMC_RUNTIME_DISABLE_NAME, "0");
+    int svep_runtime_disable = HwcAProperty::getInstance().getIntWithInterval(MEMC_RUNTIME_DISABLE_NAME, 500, 0);
     bool memc_mode = false;
     HWC2_LOGD_IF("%s=%d bMemcReady_=%d", MEMC_MODE_NAME, HWC2_SR_MEMC, bMemcReady_);
     // 只有主屏可以享受视频 MEMC 效果
@@ -3080,11 +3076,12 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     MemcImageInfo memcSrcInfo;
     MemcImageInfo memcDstInfo;
 
-    bool enableSr = (hwc_get_int_property(MEMC_ENABLR_SR_NAME, "0") > 0);
-    bool enableMemcComparation = (hwc_get_int_property(MEMC_CONTRAST_MODE_NAME, "0") > 0);
-    bool enableMemcOsd = (hwc_get_int_property(MEMC_OSD_DISABLE_MODE, "0") == 0);
-    bool enableMemcOsdOneline = (hwc_get_int_property(MEMC_OSD_VIDEO_ONELINE_MODE, "0") > 0);
-    int osd_oneline_wait_second = hwc_get_int_property(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, "12");
+    bool enableSr = HwcAProperty::getInstance().getIntWithInterval(MEMC_ENABLR_SR_NAME, 500, 0);
+    bool enableMemcComparation = HwcAProperty::getInstance().getIntWithInterval(MEMC_CONTRAST_MODE_NAME, 500, 0);
+    bool enableMemcOsd = HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_DISABLE_MODE, 500, 0);
+    bool enableMemcOsdOneline = HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0);
+    int osd_oneline_wait_second =
+            HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, 500, 12);
     static MemcMode memc_match_mode = MemcMode::MEMC_UNSUPPORT;
     for (auto& drmLayer : layers) {
         if (SvepMemcAllowedByLocalPolicy(drmLayer) && SvepMemcAllowedByBlacklist(drmLayer)) {
@@ -3540,7 +3537,8 @@ int Vop3588::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
             ctx.state.bDisableFBAfbcd = false;
 
             // Check FB target property
-            ctx.state.bDisableFBAfbcd = hwc_get_int_property("vendor.gralloc.no_afbc_for_fb_target_layer", "0") > 0;
+            ctx.state.bDisableFBAfbcd = HwcAProperty::getInstance().getIntWithInterval(
+                                                "vendor.gralloc.no_afbc_for_fb_target_layer", 1000, 0) > 0;
 
             // If FB-target unable to meet the scaling requirements, AFBC must be disable.
             if ((fb_layer->fHScaleMul_ > 4.0 || fb_layer->fHScaleMul_ < 0.25) ||
@@ -3576,25 +3574,26 @@ int Vop3588::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
 void Vop3588::UpdateResevedPlane(DrmCrtc* crtc) {
     // Reserved DrmPlane
-    char reserved_plane_name[PROPERTY_VALUE_MAX] = {0};
-    hwc_get_string_property("vendor.hwc.reserved_plane_name", "NULL", reserved_plane_name);
+    std::string reserved_plane_name =
+            HwcAProperty::getInstance().getStringWithInterval("vendor.hwc.reserved_plane_name", 1000, "NULL");
 
     if (strlen(ctx.support.arrayReservedPlaneName) == 0 ||
-        strcmp(reserved_plane_name, ctx.support.arrayReservedPlaneName)) {
-        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name, strlen(reserved_plane_name) + 1);
+        strcmp(reserved_plane_name.c_str(), ctx.support.arrayReservedPlaneName)) {
+        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name.c_str(),
+                strlen(reserved_plane_name.c_str()) + 1);
         DrmDevice* drm = crtc->getDrmDevice();
         std::vector<PlaneGroup*> all_plane_groups = drm->GetPlaneGroups();
 
-        if (strcmp(reserved_plane_name, "NULL")) {
+        if (strcmp(reserved_plane_name.c_str(), "NULL")) {
             std::string reserved_name;
-            std::stringstream ss(reserved_plane_name);
+            std::stringstream ss(reserved_plane_name.c_str());
             while (getline(ss, reserved_name, ',')) {
                 for (auto& plane_group : all_plane_groups) {
                     for (auto& p : plane_group->planes) {
                         if (!strcmp(p->name(), reserved_name.c_str())) {
                             plane_group->bReserved = true;
                             int reserved_plane_win_type = plane_group->win_type;
-                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name,
+                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name.c_str(),
                                       reserved_plane_win_type);
                             break;
                         } else {
@@ -3872,8 +3871,10 @@ void Vop3588::InitSupportContext(std::vector<PlaneGroup*>& plane_groups, DrmCrtc
 
 void Vop3588::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGroup*>& plane_groups,
                                DrmCrtc* crtc) {
-    ctx.state.iVopMaxOverlay4KPlane = hwc_get_int_property("vendor.hwc.vop_max_overlay_4k_plane", "0");
-    ctx.state.bRgaPolicyEnable = hwc_get_int_property("vendor.hwc.enable_rga_policy", "1") > 0;
+    ctx.state.iVopMaxOverlay4KPlane =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.vop_max_overlay_4k_plane", 1000, 0);
+    ctx.state.bRgaPolicyEnable =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.enable_rga_policy", 1000, 1) > 0;
     ctx.state.bUseSwPq = false;
     HWC2_LOGD_IF("bMultiAreaEnable=%d, bMultiAreaScaleEnable=%d iVopMaxOverlay4KPlane=%d bRgaPolicyEnable=%d",
                  ctx.state.bMultiAreaEnable, ctx.state.bMultiAreaScaleEnable, ctx.state.iVopMaxOverlay4KPlane,
@@ -4009,7 +4010,7 @@ int Vop3588::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
     }
 
     //force go into GPU
-    int iMode = hwc_get_int_property("vendor.hwc.compose_policy", "0");
+    int iMode = HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.compose_policy", 500, 0);
 
     if ((iMode != 1 || gles_policy) && iMode != 2) {
         ctx.state.setHwcPolicy.insert(HWC_GLES_POLICY);
@@ -4038,7 +4039,7 @@ int Vop3588::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
 #endif
 
 #ifdef USE_LIBPQ
-    int iPqMode = hwc_get_int_property("persist.vendor.tvinput.rkpq.mode", "0");
+    int iPqMode = HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0);
     // Match policy first
     HWC2_LOGD_IF("%s=%d ", "persist.vendor.tvinput.rkpq.mode", iPqMode);
     if (iPqMode > 0) {

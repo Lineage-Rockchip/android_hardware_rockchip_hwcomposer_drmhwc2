@@ -508,10 +508,11 @@ int DrmVideoProducer::AcqureBuffer(int tunnel_id) {
     ret = transform_ctx->Handle(composition);
 
     // 判断是否需要关闭ReleaseFence
-    int disableReleaseFence = hwc_get_int_property("vendor.hwc.disable_releaseFence", "0");
+    int disable_releaseFence =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_releaseFence", 1000, 0);
 
     //If Release Fence is Enabled,
-    if (disableReleaseFence > 0) {
+    if (disable_releaseFence > 0) {
         acquire_buffer->fence_fd = -1;
     } else {
         sp<ReleaseFence> release_fence = composition->GetReleaseFence();

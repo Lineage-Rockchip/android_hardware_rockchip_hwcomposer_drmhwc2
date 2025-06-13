@@ -1913,18 +1913,18 @@ int Vop3528::TryGLESPolicy(std::vector<DrmCompositionPlane>* composition, std::v
 
 void Vop3528::UpdateResevedPlane(DrmCrtc* crtc) {
     // Reserved DrmPlane
-    char reserved_plane_name[PROPERTY_VALUE_MAX] = {0};
-    hwc_get_string_property("vendor.hwc.reserved_plane_name", "NULL", reserved_plane_name);
+    std::string reserved_plane_name =
+            HwcAProperty::getInstance().getStringWithInterval("vendor.hwc.reserved_plane_name", 1000, "NULL");
 
     if (strlen(ctx.support.arrayReservedPlaneName) == 0 ||
-        strcmp(reserved_plane_name, ctx.support.arrayReservedPlaneName)) {
-        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name, strlen(reserved_plane_name) + 1);
+        strcmp(reserved_plane_name.c_str(), ctx.support.arrayReservedPlaneName)) {
+        strncpy(ctx.support.arrayReservedPlaneName, reserved_plane_name.c_str(), reserved_plane_name.size());
         DrmDevice* drm = crtc->getDrmDevice();
         std::vector<PlaneGroup*> all_plane_groups = drm->GetPlaneGroups();
 
-        if (strcmp(reserved_plane_name, "NULL")) {
+        if (strcmp(reserved_plane_name.c_str(), "NULL")) {
             std::string reserved_name;
-            std::stringstream ss(reserved_plane_name);
+            std::stringstream ss(reserved_plane_name.c_str());
             while (getline(ss, reserved_name, ',')) {
                 for (auto& plane_group : all_plane_groups) {
                     for (auto& p : plane_group->planes) {
@@ -1933,7 +1933,7 @@ void Vop3528::UpdateResevedPlane(DrmCrtc* crtc) {
 
                             plane_group->bReserved = true;
                             reserved_plane_win_type = plane_group->win_type;
-                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name,
+                            HWC2_LOGI("Reserved DrmPlane %s , win_type = 0x%x", reserved_plane_name.c_str(),
                                       reserved_plane_win_type);
                             break;
                         } else {
@@ -2143,7 +2143,8 @@ void Vop3528::InitStateContext(std::vector<DrmHwcLayer*>& layers, std::vector<Pl
     ALOGI_IF(LogLevel(DBG_DEBUG), "%s,line=%d bMultiAreaEnable=%d, bMultiAreaScaleEnable=%d", __FUNCTION__, __LINE__,
              ctx.state.bMultiAreaEnable, ctx.state.bMultiAreaScaleEnable);
 
-    ctx.state.iVopMaxOverlay4KPlane = hwc_get_int_property("vendor.hwc.vop_max_overlay_4k_plane", "0");
+    ctx.state.iVopMaxOverlay4KPlane =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.vop_max_overlay_4k_plane", 1000, 0);
 
     // Check dispaly Mode : 8K Mode or 4K 120 Mode
     DrmDevice* drm = crtc->getDrmDevice();
@@ -2212,8 +2213,8 @@ int Vop3528::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
     InitStateContext(layers, plane_groups, crtc);
 
     //force go into GPU
-    int iMode = hwc_get_int_property("vendor.hwc.compose_policy", "0");
 
+    int iMode = HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.compose_policy", 500, 0);
     if ((iMode != 1 || gles_policy) && iMode != 2) {
         ctx.state.setHwcPolicy.insert(HWC_GLES_POLICY);
         if (ctx.request.bSidebandStreamMode) {
