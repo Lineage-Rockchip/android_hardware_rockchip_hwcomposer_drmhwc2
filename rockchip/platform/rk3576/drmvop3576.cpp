@@ -442,7 +442,7 @@ bool Vop3576::SvepMemcAllowedByWhitelist(DrmHwcLayer* layer) {
     return false;
 }
 
-#define SVEP_MEMC_SUPPORT_MAX_FPS 35
+#define SVEP_MEMC_SUPPORT_MAX_FPS 62
 #define SVEP_MEMC_SUPPORT_MIN_FPS 8
 bool Vop3576::SvepMemcAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // 视频大于4K则不使用 MEMC.
@@ -497,7 +497,7 @@ bool Vop3576::SvepMemcAllowedByLocalPolicy(DrmHwcLayer* layer) {
         return false;
     }
 
-    // HWC内部会计算图层刷新率，若刷新率大于35帧/小于8帧，则关闭SR-MEMC功能
+    // HWC内部会计算图层刷新率，若刷新率超出支持范围，则关闭SR-MEMC功能
     if (layer->fFps_ > SVEP_MEMC_SUPPORT_MAX_FPS || layer->fFps_ < SVEP_MEMC_SUPPORT_MIN_FPS) {
         HWC2_LOGD_IF("disable-memc: video_max_fps=%f name=%s", layer->fFps_, layer->sLayerName_.c_str());
         return false;
@@ -3185,12 +3185,10 @@ int Vop3576::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     bool memc_layer_ready = false;
     bool memc_new_buffer = false;
 
-    std::shared_ptr<DrmBuffer> dst_buffer;
     static uint64_t last_memc_buffer_id = 0;
     int releaseFence = -1;
 
     MemcImageInfo memcSrcInfo;
-    MemcImageInfo memcReqInfo;
     MemcImageInfo memcDstInfo;
 
     bool enableSr = (HwcAProperty::getInstance().getIntWithInterval(MEMC_ENABLR_SR_NAME, 500, 0) > 0);
@@ -3216,13 +3214,15 @@ int Vop3576::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
                 skip_memc_cnt = 0;
             }
 
-            // 为了避免Memc影响视频切换过渡, 暂不执行Memc
-            skip_memc_cnt++;
-            if (skip_memc_cnt <= skip_memc_num) {
-                HWC2_LOGD_IF("skip memc success.");
-                uMemcFrameNo_ = ctx.request.frame_no_;
-                last_layer_uid = drmLayer->uId_;
-                continue;
+            if (!drmLayer->bSidebandStreamLayer_) {
+                // 为了避免Memc影响视频切换过渡, 暂不执行Memc
+                skip_memc_cnt++;
+                if (skip_memc_cnt <= skip_memc_num) {
+                    HWC2_LOGD_IF("skip memc success.");
+                    uMemcFrameNo_ = ctx.request.frame_no_;
+                    last_layer_uid = drmLayer->uId_;
+                    continue;
+                }
             }
 
             // set src info
@@ -3320,37 +3320,40 @@ int Vop3576::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
                 continue;
             }
 
-            memcSrcInfo.mCrop_.iLeft_ = drmLayer->source_crop.left;
-            memcSrcInfo.mCrop_.iTop_ = drmLayer->source_crop.top;
-            memcSrcInfo.mCrop_.iRight_ = drmLayer->source_crop.right;
-            memcSrcInfo.mCrop_.iBottom_ = drmLayer->source_crop.bottom;
-            ret = svep_memc_->MatchMemcMode(&memcSrcInfo, &memc_match_mode);
-            if (ret != MemcError::MEMC_NO_ERROR) {
-                HWC2_LOGD_IF("MatchMemcMode fail!, skip this policy. ret=%d", ret);
-                drmLayer->bUseMemc_ = false;
-                continue;
-            }
+            // Sideband 图层不需要更新数据
+            if (!drmLayer->bSidebandStreamLayer_) {
+                memcSrcInfo.mCrop_.iLeft_ = drmLayer->source_crop.left;
+                memcSrcInfo.mCrop_.iTop_ = drmLayer->source_crop.top;
+                memcSrcInfo.mCrop_.iRight_ = drmLayer->source_crop.right;
+                memcSrcInfo.mCrop_.iBottom_ = drmLayer->source_crop.bottom;
+                ret = svep_memc_->MatchMemcMode(&memcSrcInfo, &memc_match_mode);
+                if (ret != MemcError::MEMC_NO_ERROR) {
+                    HWC2_LOGD_IF("MatchMemcMode fail!, skip this policy. ret=%d", ret);
+                    drmLayer->bUseMemc_ = false;
+                    continue;
+                }
 
-            //get dst info
-            ret = svep_memc_->GetDstImageInfo(&memcDstInfo);
-            if (ret != MemcError::MEMC_NO_ERROR) {
-                HWC2_LOGD_IF("GetDstImageInfo fail!, skip this policy. ret=%d", ret);
-                continue;
-            }
+                //get dst info
+                ret = svep_memc_->GetDstImageInfo(&memcDstInfo);
+                if (ret != MemcError::MEMC_NO_ERROR) {
+                    HWC2_LOGD_IF("GetDstImageInfo fail!, skip this policy. ret=%d", ret);
+                    continue;
+                }
 
-            // 使用查询到的Memc输出参数构造一个虚拟的layer
-            hwc_frect_t source_crop;
-            source_crop.left = memcDstInfo.mCrop_.iLeft_;
-            source_crop.top = memcDstInfo.mCrop_.iTop_;
-            source_crop.right = memcDstInfo.mCrop_.iRight_;
-            source_crop.bottom = memcDstInfo.mCrop_.iBottom_;
-            drmLayer->UpdateAndStoreInfoFromDrmBuffer(
-                    drmLayer->sf_handle, drmLayer->iFd_, memcDstInfo.mBufferInfo_.iFormat_,
-                    memcDstInfo.mBufferInfo_.iWidth_, memcDstInfo.mBufferInfo_.iHeight_,
-                    memcDstInfo.mBufferInfo_.iStride_, memcDstInfo.mBufferInfo_.iHeightStride_, 0, 0, 0,
-                    memcDstInfo.mBufferInfo_.iFormat_, 0, drmLayer->uByteStridePlanes_,
-                    std::string("MEMC-") + drmLayer->sLayerName_, source_crop, drmLayer->uBufferId_,
-                    drmLayer->uGemHandle_, DRM_MODE_ROTATE_0);
+                // 使用查询到的Memc输出参数构造一个虚拟的layer
+                hwc_frect_t source_crop;
+                source_crop.left = memcDstInfo.mCrop_.iLeft_;
+                source_crop.top = memcDstInfo.mCrop_.iTop_;
+                source_crop.right = memcDstInfo.mCrop_.iRight_;
+                source_crop.bottom = memcDstInfo.mCrop_.iBottom_;
+                drmLayer->UpdateAndStoreInfoFromDrmBuffer(
+                        drmLayer->sf_handle, drmLayer->iFd_, memcDstInfo.mBufferInfo_.iFormat_,
+                        memcDstInfo.mBufferInfo_.iWidth_, memcDstInfo.mBufferInfo_.iHeight_,
+                        memcDstInfo.mBufferInfo_.iStride_, memcDstInfo.mBufferInfo_.iHeightStride_, 0, 0, 0,
+                        memcDstInfo.mBufferInfo_.iFormat_, 0, drmLayer->uByteStridePlanes_,
+                        std::string("MEMC-") + drmLayer->sLayerName_, source_crop, drmLayer->uBufferId_,
+                        drmLayer->uGemHandle_, DRM_MODE_ROTATE_0);
+            }
             memc_layer_ready = true;
             drmLayer->bUseMemc_ = true;
             drmLayer->svep_memc_ = svep_memc_;
@@ -3383,6 +3386,10 @@ int Vop3576::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
         if (!ret) {  // Match sucess, to call memc interface
             for (auto& drmLayer : layers) {
                 if (drmLayer->bUseMemc_) {
+                    if (drmLayer->bSidebandStreamLayer_) {
+                        uMemcFrameNo_ = ctx.request.frame_no_;
+                        return 0;
+                    }
                     if (memc_new_buffer) {
                         ret = svep_memc_->SetSrcImage(&memcSrcInfo);
                         if (ret != MemcError::MEMC_NO_ERROR) {
