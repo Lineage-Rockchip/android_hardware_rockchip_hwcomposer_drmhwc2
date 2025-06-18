@@ -630,6 +630,9 @@ int VpTransformContext::DoStore(std::shared_ptr<VpComposition> input) {
         input->SetFrameNo(uFrameNo_);
         input->SetName(release_fence->getName());
     }
+    if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
+        input->GetBuffer()->DumpData(GetFrameNo(), 0, "S");
+    }
     std::unique_lock<std::mutex> lock(mMutex_);
     mListVpCompositions_.push_back(input);
     return 0;
