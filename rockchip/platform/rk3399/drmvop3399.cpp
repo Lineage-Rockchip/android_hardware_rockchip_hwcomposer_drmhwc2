@@ -1032,9 +1032,11 @@ bool Vop3399::NeedUseRgaPolicy(DrmHwcLayer* layer, DrmCrtc* crtc) {
         return false;
     }
 
+    bool force_device_composite = (layer->sf_handle != NULL) && ctx.state.bHDRVideoForceOverlay;
+
     // 如果SurfaceFlinger 请求Client合成，则不采用RGA策略
     // 例如高斯模糊效果
-    if (layer->sf_composition == HWC2::Composition::Client) {
+    if (layer->sf_composition == HWC2::Composition::Client && !force_device_composite) {
         return false;
     }
 
