@@ -831,6 +831,7 @@ class DrmHwcTwo : public hwc2_device_t {
 
         HWC2::Error SetContentType(int32_t contentType);
         HWC2::Error GetClientTargetProperty(hwc_client_target_property_t* outClientTargetProperty);
+        HWC2::Error SetExpectedPresentTime(int64_t expected_present_time);
 #endif
 
         std::map<hwc2_layer_t, HwcLayer>& get_layers() { return layers_; }
@@ -950,6 +951,7 @@ class DrmHwcTwo : public hwc2_device_t {
 
         bool bUseWriteBack_ = false;
         int iLastTunnelId_ = 0;
+        int64_t iExpectedPresentTime_ = 0;
 
 #ifdef USE_LIBEBOOK
         // EBook

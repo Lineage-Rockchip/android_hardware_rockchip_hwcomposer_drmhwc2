@@ -230,7 +230,7 @@ class DrmDisplayCompositor {
     std::unique_ptr<Planner> planner_;
     int writeback_fence_;
     // Multi Thread function.
-    int64_t last_timestamp_;
+    int64_t last_timestamp_ = 0;
     struct timespec vsync_;
 
     std::map<int, uint64_t> mapDisplayHaveQeueuCnt_;

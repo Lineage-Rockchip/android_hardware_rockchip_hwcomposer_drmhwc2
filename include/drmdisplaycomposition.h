@@ -199,6 +199,9 @@ class DrmDisplayComposition {
     void SetOverscan(int left, int top, int right, int bottom);
     void GetOverscan(int* left, int* top, int* right, int* bottom);
 
+    void SetExpectedPresentTime(int64_t expected_present_time) { iExpectedPresentTime_ = expected_present_time; }
+    int64_t GetExpectedPresentTime() { return iExpectedPresentTime_; }
+
   private:
     bool validate_composition_type(DrmCompositionType desired);
 
@@ -249,6 +252,8 @@ class DrmDisplayComposition {
 
     // 当前帧的 ReleaseFence, 仅在 DRM_COMPOSITION_TYPE_FRAME 有效
     sp<ReleaseFence> releaseFence_ = ReleaseFence::NO_FENCE;
+
+    int64_t iExpectedPresentTime_ = 0;
 
     // mutable since we need to acquire in HaveQueuedComposites
     mutable pthread_mutex_t lock_;

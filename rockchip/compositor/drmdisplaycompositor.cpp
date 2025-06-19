@@ -1910,7 +1910,7 @@ void DrmDisplayCompositor::Commit() {
     }
 
     if (!pset_) {
-        ALOGE("pset_ is NULL");
+        // ALOGE("pset_ is NULL");
         return;
     }
 
@@ -2707,6 +2707,26 @@ int DrmDisplayCompositor::CollectSFInfoBySequence() {
                 composite_queue_temp_.push(std::move(composition));
                 continue;
             }
+
+            if (composition->GetExpectedPresentTime() > 0) {
+                struct timespec current;
+                int ret = clock_gettime(CLOCK_MONOTONIC, &current);
+                int64_t current_timestamps = current.tv_sec * kOneSecondNs + current.tv_nsec;
+
+                float refresh = 60.0f;  // Default to 60Hz refresh rate
+                DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
+                DrmConnector* conn = drm->GetConnectorForDisplay(display_);
+                if (conn && conn->state() == DRM_MODE_CONNECTED) {
+                    if (conn->active_mode().v_refresh() > 0.0f) refresh = conn->active_mode().v_refresh();
+                }
+
+                // 预期上屏时间 - 上一次上屏时间 小于 1 Vsync间隔，则delay到下个Vsync送显
+                if ((composition->GetExpectedPresentTime() - current_timestamps) >= (kOneSecondNs / refresh)) {
+                    exist_display.insert(composition->display());
+                    composite_queue_temp_.push(std::move(composition));
+                    continue;
+                }
+            }
             mapDisplayHaveQeueuCnt_[composition->display()]--;
             exist_display.insert(composition->display());
             CollectInfo(std::move(composition), 0);
@@ -2736,6 +2756,31 @@ int DrmDisplayCompositor::CollectSFInfoByDrop() {
             int composition_display = composition->display();
             mapDisplayHaveQeueuCnt_[composition_display]--;
             composite_queue_.pop();
+
+            if (exist_display.count(composition->display())) {
+                reserved_comp.push(std::move(composition));
+                continue;
+            }
+
+            if (composition->GetExpectedPresentTime() > 0) {
+                struct timespec current;
+                int ret = clock_gettime(CLOCK_MONOTONIC, &current);
+                int64_t current_timestamps = current.tv_sec * kOneSecondNs + current.tv_nsec;
+
+                float refresh = 60.0f;  // Default to 60Hz refresh rate
+                DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
+                DrmConnector* conn = drm->GetConnectorForDisplay(display_);
+                if (conn && conn->state() == DRM_MODE_CONNECTED) {
+                    if (conn->active_mode().v_refresh() > 0.0f) refresh = conn->active_mode().v_refresh();
+                }
+
+                // 预期上屏时间 - 上一次上屏时间 小于 1 Vsync间隔，则delay到下个Vsync送显
+                if ((composition->GetExpectedPresentTime() - current_timestamps) >= (kOneSecondNs / refresh)) {
+                    exist_display.insert(composition->display());
+                    reserved_comp.push(std::move(composition));
+                    continue;
+                }
+            }
 
             if (!droped_frame_map.count(composition_display)) droped_frame_map[composition_display] = 0;
 
