@@ -575,11 +575,9 @@ class DrmHwcTwo : public hwc2_device_t {
 
         const sp<AcquireFence> acquire_fence() { return acquire_fence_; }
 
-        void set_release_fence(sp<ReleaseFence> rf) { release_fence_.add(rf); }
+        void set_release_fence(sp<ReleaseFence> rf) { release_fence_ = rf; }
 
-        const sp<ReleaseFence> release_fence() { return release_fence_.get(); }
-
-        const sp<ReleaseFence> back_release_fence() { return release_fence_.get_back(); }
+        const sp<ReleaseFence> release_fence() { return release_fence_; }
 
         uint32_t id() { return id_; }
         // SidebandStream layer
@@ -689,7 +687,7 @@ class DrmHwcTwo : public hwc2_device_t {
         Hwc2LayerState_t mDrawingState;
         // Fence
         sp<AcquireFence> acquire_fence_ = AcquireFence::NO_FENCE;
-        DeferredReleaseFence release_fence_;
+        sp<ReleaseFence> release_fence_ = ReleaseFence::NO_FENCE;
 
         // Buffer info map
         bool bHasCache_ = false;
@@ -892,10 +890,10 @@ class DrmHwcTwo : public hwc2_device_t {
       private:
         HWC2::Error ValidatePlanes();
         HWC2::Error InitDrmHwcLayer();
-        HWC2::Error CreateComposition();
+        HWC2::Error CreateFrameComposition();
+        HWC2::Error CreateEmptyComposition();
         HWC2::Error ModifyHwcLayerDisplayFrame(bool only_fb_scale);
         int ImportBuffers();
-        void AddFenceToRetireFence(int fd);
         int DoMirrorDisplay(int32_t* retire_fence);
         void CheckForSplitModeTimeline();
 
@@ -943,7 +941,6 @@ class DrmHwcTwo : public hwc2_device_t {
         uint32_t frame_no_ = 0;
         uint64_t wb_frame_no_ = 0;
         SyncTimeline sync_timeline_;
-        DeferredRetireFence d_retire_fence_;
         bool bDropFrame_ = false;
         bool bLastSvepState_ = false;
         bool bVrrDisplay_ = false;
@@ -990,6 +987,7 @@ class DrmHwcTwo : public hwc2_device_t {
       private:
         DrmHwcTwo* hwc2_;
         DrmDevice* drm_;
+
         mutable std::recursive_mutex mRecursiveMutex;
     };
 

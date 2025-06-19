@@ -220,12 +220,16 @@ void VpTransformContext::Dump() {
 
 sp<ReleaseFence> VpTransformContext::AddReleaseFence(std::shared_ptr<VpComposition> input) {
     std::unique_lock<std::mutex> lock(mMutex_);
-    char acBuf[32];
-    uFrameNo_ = mTimeLine_.IncTimeline();
-    sprintf(acBuf, "%s-T%d-B%" PRIu64 "-FN%" PRIu64, mFenceTag_.c_str(), input->TunnelId(),
-            input->GetBuffer()->GetExternalId(), uFrameNo_);
-    sp<ReleaseFence> release_fence = sp<ReleaseFence>(new ReleaseFence(mTimeLine_, uFrameNo_, acBuf));
-    return release_fence;
+
+    int ret = mTimeLine_.createReleaseFence("%s-T%d-B%" PRIi64 "-FN%" PRIu64, mFenceTag_.c_str(), input->TunnelId(),
+                                            input->GetBuffer()->GetExternalId(), uFrameNo_);
+    if (ret) {
+        HWC2_LOGE("VpTransformContext FenceTag=%s tunnel-id=%d FrameNo=%" PRIu64, mFenceTag_.c_str(), input->TunnelId(),
+                  uFrameNo_);
+        return ReleaseFence::NO_FENCE;
+    }
+
+    return mTimeLine_.GetNextReleaseFence();
 }
 
 int VpTransformContext::ReleaseUnuseComposition() {

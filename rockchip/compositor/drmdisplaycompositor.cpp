@@ -1973,16 +1973,7 @@ void DrmDisplayCompositor::Commit() {
     }
 
     ++dump_frames_composited_;
-    // Signal 上一帧VOP显示的ReleaseFence
-    for (auto& collect_composition : collect_composition_map_) {
-        auto active_composition = active_composition_map_.find(collect_composition.first);
-        if (active_composition != active_composition_map_.end()) {
-            active_composition->second->SignalCompositionDone();
-            active_composition_map_.erase(active_composition);
-        }
-    }
-
-    // Signal 当前帧之前被丢弃的帧的ReleaseFence
+    // Signal当前帧之前被丢弃的帧的ReleaseFence
     for (auto& collect_composition : collect_composition_map_) {
         // 丢帧模式下， useless_composition_queue 会存在需要被丢弃的帧
         auto& useless_queue = collect_composition.second->useless_composition_queue();
@@ -2008,9 +1999,19 @@ void DrmDisplayCompositor::Commit() {
                     "size=%" PRIu64 " frame_no=%" PRIu64 "->%" PRIu64,
                     display_, useless_size, useless_frame_no_start, useless_frame_no_end);
         }
+    }
+
+    // Signal 当前帧 ReleaseFence, SignalTime 为当前帧上屏时刻
+    for (auto& collect_composition : collect_composition_map_) {
+        collect_composition.second->SignalCompositionDone();
+        auto active_composition = active_composition_map_.find(collect_composition.first);
+        if (active_composition != active_composition_map_.end()) {
+            active_composition_map_.erase(active_composition);
+        }
         // 保存当前正在显示的帧
         active_composition_map_.insert(std::move(collect_composition));
     }
+
     collect_composition_map_.clear();
     //flatten_countdown_ = FLATTEN_COUNTDOWN_INIT;
     //vsync_worker_.VSyncControl(!writeback);

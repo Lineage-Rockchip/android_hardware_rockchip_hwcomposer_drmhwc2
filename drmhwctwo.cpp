@@ -466,6 +466,9 @@ int DrmHwcTwo::HwcDisplay::ClearDisplay() {
         compositor_->ClearDisplay();
     }
 
+    // 创建 empty composition，更新 ReleaseFence / RetireFence 并立即 Signal
+    CreateEmptyComposition();
+
     HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
     return 0;
 }
@@ -1564,50 +1567,6 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetReleaseFences(uint32_t* num_elements, hwc2
     return HWC2::Error::None;
 }
 
-void DrmHwcTwo::HwcDisplay::AddFenceToRetireFence(int fd) {
-    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
-
-    char acBuf[32];
-    int retire_fence_fd = -1;
-    if (fd < 0) {
-        // Collet all layer releaseFence
-        const sp<ReleaseFence> client_rf = client_layer_.back_release_fence();
-        if (client_rf->isValid()) {
-            retire_fence_fd = dup(client_rf->getFd());
-            sprintf(acBuf, "RTD%" PRIu64 "-FN%d-%d", handle_, frame_no_, 0);
-        }
-        for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& hwc2layer : layers_) {
-            if (hwc2layer.second.validated_type() != HWC2::Composition::Device) continue;
-            // the new fence semantics for a frame n by returning the fence from frame n-1. For frame 0,
-            // the adapter returns NO_FENCE.
-            const sp<ReleaseFence> rf = hwc2layer.second.back_release_fence();
-            if (rf->isValid()) {
-                // cur_retire_fence is null
-                if (retire_fence_fd > 0) {
-                    sprintf(acBuf, "RTD%" PRIu64 "-FN%d-%" PRIu64, handle_, frame_no_, hwc2layer.first);
-                    int retire_fence_merge = rf->merge(retire_fence_fd, acBuf);
-                    if (retire_fence_merge > 0) {
-                        close(retire_fence_fd);
-                        retire_fence_fd = retire_fence_merge;
-                        HWC2_LOGV_IF("RetireFence(%d) %s frame = %d merge %s sucess!", retire_fence_fd, acBuf,
-                                     frame_no_, rf->getName().c_str());
-                    } else {
-                        HWC2_LOGE("RetireFence(%d) %s frame = %d merge %s faile!", retire_fence_fd, acBuf, frame_no_,
-                                  rf->getName().c_str());
-                    }
-                } else {
-                    retire_fence_fd = dup(rf->getFd());
-                    continue;
-                }
-            }
-        }
-    } else {
-        retire_fence_fd = fd;
-    }
-    d_retire_fence_.add(retire_fence_fd, acBuf);
-    return;
-}
-
 bool SortByZpos(const DrmHwcLayer& drmHwcLayer1, const DrmHwcLayer& drmHwcLayer2) {
     return drmHwcLayer1.iZpos_ < drmHwcLayer2.iZpos_;
 }
@@ -1959,7 +1918,44 @@ int DrmHwcTwo::HwcDisplay::ImportBuffers() {
     return ret;
 }
 
-HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
+HWC2::Error DrmHwcTwo::HwcDisplay::CreateEmptyComposition() {
+    HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
+    int ret;
+
+    std::unique_ptr<DrmDisplayComposition> composition = compositor_->CreateComposition();
+    composition->Init(drm_, crtc_, importer_.get(), planner_.get(), frame_no_, handle_);
+
+    // 利用 vendor.hwc.disable_releaseFence 属性强制关闭ReleaseFence，主要用于调试
+    int disable_releaseFence =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_releaseFence", 1000, 0);
+    sp<ReleaseFence> rf = ReleaseFence::NO_FENCE;
+    if (disable_releaseFence == 0) {
+        rf = composition->CreateReleaseFence(sync_timeline_);
+    }
+
+    // 配置 ReleaseFence
+    for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
+        l.second.set_release_fence(rf);
+    }
+
+    // 配置 RetireFence, client_layer_::ReleaseFence 作为 RetireFence
+    client_layer_.set_release_fence(rf);
+    // 配置 HDR mode
+    composition->SetDisplayHdrMode(ctx_.hdr_mode, ctx_.dataspace);
+    // 配置丢帧模式
+    composition->SetDropMode(resource_manager_->IsCompositionDropMode());
+    // 配置Overscan信息
+    composition->SetOverscan(ctx_.left_margin, ctx_.top_margin, ctx_.right_margin, ctx_.bottom_margin);
+
+    ret = compositor_->QueueComposition(std::move(composition));
+    if (ret) {
+        HWC2_LOGE("display_id=%ld frame_no=%d QueueComposition fail ret=%d", handle_, frame_no_, ret);
+        return HWC2::Error::BadParameter;
+    }
+    return HWC2::Error::None;
+}
+
+HWC2::Error DrmHwcTwo::HwcDisplay::CreateFrameComposition() {
     HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     int ret;
 
@@ -1998,40 +1994,32 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateComposition() {
     }
 
     // 利用 vendor.hwc.disable_releaseFence 属性强制关闭ReleaseFence，主要用于调试
-
     int disable_releaseFence =
             HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_releaseFence", 1000, 0);
-
+    sp<ReleaseFence> rf = ReleaseFence::NO_FENCE;
     if (disable_releaseFence == 0) {
-        ret = composition->CreateAndAssignReleaseFences(sync_timeline_);
-        for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
-            if (l.second.validated_type() == HWC2::Composition::Device) {
-                sp<ReleaseFence> rf = composition->GetReleaseFence(l.first);
-                l.second.set_release_fence(rf);
-            } else {
-                /*
-                   #519838 主要问题定位为 Device -> Client -> Device 策略切换过程
-                   原 Client 合成节点设置的NO_FENCE会作为第三帧 Device的ReleaseFence上
-                   传导致问题
-                */
-                l.second.set_release_fence(composition->GetReleaseFence(0));
-            }
-        }
-        sp<ReleaseFence> rf = composition->GetReleaseFence(0);
-        client_layer_.set_release_fence(rf);
-        AddFenceToRetireFence(composition->take_out_fence());
+        rf = composition->CreateReleaseFence(sync_timeline_);
     }
 
+    // 配置 ReleaseFence
+    for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
+        l.second.set_release_fence(rf);
+    }
+
+    // 配置 RetireFence, client_layer_::ReleaseFence 作为 RetireFence
+    client_layer_.set_release_fence(rf);
     // 配置 HDR mode
     composition->SetDisplayHdrMode(ctx_.hdr_mode, ctx_.dataspace);
-
     // 配置丢帧模式
     composition->SetDropMode(resource_manager_->IsCompositionDropMode());
-
     // 配置Overscan信息
     composition->SetOverscan(ctx_.left_margin, ctx_.top_margin, ctx_.right_margin, ctx_.bottom_margin);
 
     ret = compositor_->QueueComposition(std::move(composition));
+    if (ret) {
+        HWC2_LOGE("display_id=%ld frame_no=%d QueueComposition fail ret=%d", handle_, frame_no_, ret);
+        return HWC2::Error::BadParameter;
+    }
     return HWC2::Error::None;
 }
 
@@ -2357,7 +2345,6 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
 
     if (isVirtual()) {
         return PresentVirtualDisplay(retire_fence);
-        ;
     }
 #ifdef USE_LIBEBOOK
     if (isEBook()) {
@@ -2398,7 +2385,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
             ClearDisplay();
         }
     } else {
-        ret = CreateComposition();
+        ret = CreateFrameComposition();
         if (ret == HWC2::Error::BadLayer) {
             // Can we really have no client or device layers?
             *retire_fence = merge_retire_fence;
@@ -2407,23 +2394,25 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
     }
 
     if (merge_retire_fence > 0) {
-        if (d_retire_fence_.get()->isValid()) {
+        if (client_layer_.release_fence()->isValid()) {
             char acBuf[32];
             sprintf(acBuf, "RTD%" PRIu64 "M-FN%d-%d", handle_, frame_no_, 0);
             sp<ReleaseFence> rt = sp<ReleaseFence>(new ReleaseFence(merge_retire_fence, acBuf));
-            *retire_fence = rt->merge(d_retire_fence_.get()->getFd(), acBuf);
+            *retire_fence = rt->merge(client_layer_.release_fence()->getFd(), acBuf);
         } else {
             *retire_fence = merge_retire_fence;
         }
     } else {
         // The retire fence returned here is for the last frame, so return it and
         // promote the next retire fence
-        *retire_fence = d_retire_fence_.get()->isValid() ? dup(d_retire_fence_.get()->getFd()) : -1;
+        *retire_fence = client_layer_.release_fence()->isValid() ? dup(client_layer_.release_fence()->getFd()) : -1;
         if (LogLevel(DBG_DEBUG)) {
             HWC2_LOGD_IF("Return RetireFence(%d) %s frame = %d Info: size=%d act=%d signal=%d err=%d",
-                         d_retire_fence_.get()->isValid(), d_retire_fence_.get()->getName().c_str(), frame_no_,
-                         d_retire_fence_.get()->getSize(), d_retire_fence_.get()->getActiveCount(),
-                         d_retire_fence_.get()->getSignaledCount(), d_retire_fence_.get()->getErrorCount());
+                         client_layer_.release_fence()->isValid(), client_layer_.release_fence()->getName().c_str(),
+                         frame_no_, client_layer_.release_fence()->getSize(),
+                         client_layer_.release_fence()->getActiveCount(),
+                         client_layer_.release_fence()->getSignaledCount(),
+                         client_layer_.release_fence()->getErrorCount());
         }
     }
 

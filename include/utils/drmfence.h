@@ -22,28 +22,11 @@
 #include <libsync/sw_sync.h>
 #include <unistd.h>
 #include <utils/RefBase.h>
+#include <mutex>
 #include <queue>
 #include <vector>
 
 namespace android {
-
-// C++ wrapper class for sync timeline.
-class SyncTimeline {
-  public:
-    SyncTimeline() noexcept;
-    ~SyncTimeline();
-    SyncTimeline(const SyncTimeline&) = delete;
-    SyncTimeline& operator=(SyncTimeline&) = delete;
-    void destroy();
-    bool isValid() const;
-    int getFd() const;
-    int IncTimeline();
-
-  private:
-    int iFd_ = -1;
-    bool bFdInitialized_ = false;
-    int iTimelineCnt_ = 0;
-};
 
 struct SyncPointInfo {
     std::string driverName;
@@ -67,8 +50,7 @@ class ReleaseFence : public LightRefBase<ReleaseFence> {
     ReleaseFence& operator=(ReleaseFence&& rhs) = delete;
 
     ReleaseFence(const int fd, std::string name = "UnKnow") noexcept;
-    ReleaseFence(const SyncTimeline& timeline, int value, const char* name = nullptr) noexcept;
-
+    ReleaseFence(int fence_fd, int timeline_fd, const char* name) noexcept;
     void clearFd();
     void destroy();
     bool isValid() const;
@@ -93,6 +75,7 @@ class ReleaseFence : public LightRefBase<ReleaseFence> {
     int iFd_ = -1;
     int iSyncTimelineFd_ = -1;
     bool bFdInitialized_ = false;
+    bool bHasSignal_ = false;
     std::string sName_;
 };
 
@@ -186,5 +169,30 @@ class DeferredReleaseFence {
     // There are always two fences in this queue.
     std::queue<sp<ReleaseFence>> mFences;
 };
+
+// C++ wrapper class for sync timeline.
+class SyncTimeline {
+  public:
+    SyncTimeline() noexcept;
+    ~SyncTimeline();
+    SyncTimeline(const SyncTimeline&) = delete;
+    SyncTimeline& operator=(SyncTimeline&) = delete;
+    void destroy();
+    bool isValid() const;
+    int getFd() const;
+    int getTimelineCnt();
+    int createReleaseFence(const char* fmt, int display_id, uint64_t frame_no);
+    int createReleaseFence(const char* fmt, const char* tag, int tunnel_id, uint64_t buffer_id, uint64_t frame_no);
+    sp<ReleaseFence> GetReleaseFence();
+    sp<ReleaseFence> GetNextReleaseFence();
+
+  private:
+    int iFd_ = -1;
+    bool bFdInitialized_ = false;
+    int iTimelineCnt_ = 0;
+    DeferredReleaseFence mReleaseFences_;
+    mutable std::mutex mtx_;
+};
+
 }  // namespace android
 #endif

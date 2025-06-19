@@ -16,6 +16,8 @@
 
 #include "utils/drmfence.h"
 
+#include <inttypes.h>
+
 namespace android {
 
 const sp<ReleaseFence> ReleaseFence::NO_FENCE = sp<ReleaseFence>(new ReleaseFence);
@@ -52,8 +54,49 @@ bool SyncTimeline::isValid() const {
 int SyncTimeline::getFd() const {
     return iFd_;
 }
-int SyncTimeline::IncTimeline() {
-    return ++iTimelineCnt_;
+int SyncTimeline::getTimelineCnt() {
+    std::unique_lock<std::mutex> lock(mtx_);
+    return iTimelineCnt_;
+}
+
+int SyncTimeline::createReleaseFence(const char* fmt, int display_id, uint64_t frame_no) {
+    std::unique_lock<std::mutex> lock(mtx_);
+    char acBuf[32];
+    ++iTimelineCnt_;
+    snprintf(acBuf, sizeof(acBuf), fmt, display_id, frame_no, iTimelineCnt_);
+    int fd = sw_sync_fence_create(getFd(), acBuf, iTimelineCnt_);
+    if (fd > 0) {
+        mReleaseFences_.add(new ReleaseFence(fd, getFd(), acBuf));
+        return 0;
+    }
+
+    HWC2_LOGE("display_id=%d frame_no=%" PRIu64 " fail, ret=%d", display_id, frame_no, fd);
+    return -1;
+}
+int SyncTimeline::createReleaseFence(const char* fmt, const char* tag, int tunnel_id, uint64_t buffer_id,
+                                     uint64_t frame_no) {
+    std::unique_lock<std::mutex> lock(mtx_);
+    char acBuf[32];
+    ++iTimelineCnt_;
+    snprintf(acBuf, sizeof(acBuf), fmt, tag, tunnel_id, buffer_id, frame_no, iTimelineCnt_);
+    int fd = sw_sync_fence_create(getFd(), acBuf, iTimelineCnt_);
+    if (fd > 0) {
+        mReleaseFences_.add(new ReleaseFence(fd, getFd(), acBuf));
+        return 0;
+    }
+    HWC2_LOGE("tunnel_id=%d buffer_id=0x%" PRIx64 " frame_no=%" PRIu64 " fail, ret=%d", tunnel_id, buffer_id, frame_no,
+              fd);
+    return -1;
+}
+
+sp<ReleaseFence> SyncTimeline::GetReleaseFence() {
+    std::unique_lock<std::mutex> lock(mtx_);
+    return mReleaseFences_.get();
+}
+
+sp<ReleaseFence> SyncTimeline::GetNextReleaseFence() {
+    std::unique_lock<std::mutex> lock(mtx_);
+    return mReleaseFences_.get_back();
 }
 
 // Wrapper class for sync fence.
@@ -62,18 +105,16 @@ ReleaseFence::~ReleaseFence() {
     destroy();
 }
 ReleaseFence::ReleaseFence(const int fd, std::string name) noexcept {
-    int status = fcntl(fd, F_GETFD, 0);
-    if (status < 0) return;
-    setFd(fd, -1, name);
-    bFdInitialized_ = true;
+    // int status = fcntl(fd, F_GETFD, 0);
+    // if (status < 0) return;
+    if (fd > 0) {
+        setFd(fd, -1, name);
+    }
 }
-ReleaseFence::ReleaseFence(const SyncTimeline& timeline, int value, const char* name) noexcept {
-    std::string autoName = "allocReleaseFence";
-    autoName += s_fenceCount;
-    s_fenceCount++;
-    int fd = sw_sync_fence_create(timeline.getFd(), name ? name : autoName.c_str(), value);
-    if (fd == -1) return;
-    setFd(fd, timeline.getFd(), name);
+ReleaseFence::ReleaseFence(int fence_fd, int timeline_fd, const char* name) noexcept {
+    if (fence_fd > 0 && timeline_fd > 0) {
+        setFd(fence_fd, timeline_fd, name);
+    }
 }
 
 int ReleaseFence::merge(int fd, const char* name) {
@@ -98,11 +139,17 @@ void ReleaseFence::destroy() {
 }
 bool ReleaseFence::isValid() const {
     if (bFdInitialized_) {
-        int status = fcntl(iFd_, F_GETFD, 0);
-        if (status >= 0)
+        if (iFd_ > 0) {
             return true;
-        else
+        } else {
             return false;
+        }
+        // fcntl 会增加cpu负载，目前仅通过判断 iFd_ > 0 来判断有效性
+        // int status = fcntl(iFd_, F_GETFD, 0);
+        // if (status >= 0)
+        //     return true;
+        // else
+        //     return false;
     } else {
         return false;
     }
@@ -121,7 +168,12 @@ int ReleaseFence::wait(int timeout) {
 }
 int ReleaseFence::signal() {
     if (iSyncTimelineFd_ < 0) return -1;
-    return sw_sync_timeline_inc(iSyncTimelineFd_, 1);
+    if (bHasSignal_) {
+        return 0;
+    }
+    int ret = sw_sync_timeline_inc(iSyncTimelineFd_, 1);
+    bHasSignal_ = true;
+    return ret;
 }
 std::vector<SyncPointInfo> ReleaseFence::getInfo() const {
     std::vector<SyncPointInfo> fenceInfo;
@@ -175,10 +227,11 @@ int ReleaseFence::countWithStatus(int status) const {
 
 // AcquireFence
 AcquireFence::AcquireFence(const int fd) noexcept {
-    int status = fcntl(fd, F_GETFD, 0);
-    if (status < 0) return;
-    setFd(fd);
-    bFdInitialized_ = true;
+    // int status = fcntl(fd, F_GETFD, 0);
+    // if (status < 0) return;
+    if (fd > 0) {
+        setFd(fd);
+    }
 }
 
 int AcquireFence::merge(int fd, const char* name) {
@@ -204,11 +257,18 @@ void AcquireFence::destroy() {
 }
 bool AcquireFence::isValid() const {
     if (bFdInitialized_) {
-        int status = fcntl(iFd_, F_GETFD, 0);
-        if (status >= 0)
+        if (iFd_ > 0) {
             return true;
-        else
+        } else {
             return false;
+        }
+
+        // fcntl 会增加cpu负载，目前仅通过判断 iFd_ > 0 来判断有效性
+        // int status = fcntl(iFd_, F_GETFD, 0);
+        // if (status >= 0)
+        //     return true;
+        // else
+        //     return false;
     } else {
         return false;
     }

@@ -234,11 +234,19 @@ int DrmDisplayComposition::DisableUnusedPlanes() {
     return 0;
 }
 
-int DrmDisplayComposition::CreateAndAssignReleaseFences(SyncTimeline& sync_timeline) {
+sp<ReleaseFence> DrmDisplayComposition::CreateReleaseFence(SyncTimeline& sync_timeline) {
     ATRACE_CALL();
     AutoLock lock(&lock_, __func__);
-    if (lock.Lock()) return -1;
+    if (lock.Lock()) return ReleaseFence::NO_FENCE;
     signal_ = false;
+
+    // 创建ReleaseFence
+    if (sync_timeline.getTimelineCnt() == 0) {
+        sync_timeline.createReleaseFence("RFD%" PRIu64 "-F%" PRIu64 "-TC%d", display_id_, frame_no_);
+    }
+    sync_timeline.createReleaseFence("RFD%" PRIu64 "-F%" PRIu64 "-TC%d", display_id_, frame_no_ + 1);
+    releaseFence_ = sync_timeline.GetReleaseFence();
+
     std::unordered_set<DrmHwcLayer*> comp_layers;
 
     for (const DrmCompositionPlane& plane : composition_planes_) {
@@ -250,9 +258,11 @@ int DrmDisplayComposition::CreateAndAssignReleaseFences(SyncTimeline& sync_timel
         }
     }
 
-    if (comp_layers.empty()) return 0;
+    if (comp_layers.empty()) return releaseFence_;
 
-    char acBuf[32];
+    // 配置 NextReleaseFence, 由于 N+1 帧的 ReleaseFence等价于 N 帧的
+    // VOP 访问结束，HWC内部 RGA/SR/HWPQ 模块需要准确的VOP访问结束
+    // 时刻，故将 NextReleaseFence 配置到 N 帧的相关流程中
     for (DrmHwcLayer* layer : comp_layers) {
         if (!layer) {
             continue;
@@ -263,66 +273,40 @@ int DrmDisplayComposition::CreateAndAssignReleaseFences(SyncTimeline& sync_timel
             continue;
         }
 
-        int sync_timeline_cnt = sync_timeline.IncTimeline();
-        sprintf(acBuf, "RFD%" PRIu64 "-FN%" PRIu64 "-TC%d", display_id_, frame_no_, sync_timeline_cnt);
-        layer->release_fence = sp<ReleaseFence>(new ReleaseFence(sync_timeline, sync_timeline_cnt, acBuf));
-        if (layer->release_fence->isValid()) {
-            HWC2_LOGD_IF(" Create ReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
-                         layer->sLayerName_.c_str());
+        // 配置ReleaseFence
+        layer->release_fence = releaseFence_;
+        HWC2_LOGD_IF(" Create ReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s",
+                     layer->release_fence->getName().c_str(), frame_no_, layer->sLayerName_.c_str());
+        if (sync_timeline.GetNextReleaseFence()->isValid()) {
 #if (defined USE_LIBSR) || (defined USE_LIBSVEP_MEMC)
             if (layer->bUseSr_ && layer->pSrBuffer_ != NULL) {
-                layer->pSrBuffer_->SetReleaseFence(dup(layer->release_fence->getFd()));
-                HWC2_LOGD_IF(" Create SrReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                layer->pSrBuffer_->SetReleaseFence(dup(sync_timeline.GetNextReleaseFence()->getFd()));
+                HWC2_LOGD_IF(" Create SrNextReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s",
+                             sync_timeline.GetNextReleaseFence()->getName().c_str(), frame_no_,
                              layer->sLayerName_.c_str());
             }
 #endif
             if (layer->bUseRga_ && layer->pRgaBuffer_ != NULL) {
-                layer->pRgaBuffer_->SetReleaseFence(dup(layer->release_fence->getFd()));
-                HWC2_LOGD_IF(" Create RgaReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                layer->pRgaBuffer_->SetReleaseFence(dup(sync_timeline.GetNextReleaseFence()->getFd()));
+                HWC2_LOGD_IF(" Create RgaNextReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s",
+                             sync_timeline.GetNextReleaseFence()->getName().c_str(), frame_no_,
                              layer->sLayerName_.c_str());
             }
 #ifdef USE_LIBPQ_HWPQ
             if (layer->bUseHwpqScale_ && layer->pPqBuffer_ != NULL) {
-                layer->pPqBuffer_->SetReleaseFence(dup(layer->release_fence->getFd()));
-                HWC2_LOGD_IF(" Create HwPqReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
+                layer->pPqBuffer_->SetReleaseFence(dup(sync_timeline.GetNextReleaseFence()->getFd()));
+                HWC2_LOGD_IF(" Create HwpqNextReleaseFence(%s) Sucess: frame = %" PRIu64 " LayerName=%s",
+                             sync_timeline.GetNextReleaseFence()->getName().c_str(), frame_no_,
                              layer->sLayerName_.c_str());
             }
 #endif
         } else {
-            HWC2_LOGE(" Create ReleaseFence(%s) Fail!: frame = %" PRIu64 " LayerName=%s", acBuf, frame_no_,
-                      layer->sLayerName_.c_str());
-            return -1;
-        }
-    }
-    return 0;
-}
-
-sp<ReleaseFence> DrmDisplayComposition::GetReleaseFence(hwc2_layer_t layer_id) {
-    ATRACE_CALL();
-    AutoLock lock(&lock_, __func__);
-    if (lock.Lock()) return ReleaseFence::NO_FENCE;
-    std::unordered_set<DrmHwcLayer*> comp_layers;
-
-    for (const DrmCompositionPlane& plane : composition_planes_) {
-        if (plane.type() == DrmCompositionPlane::Type::kLayer) {
-            for (auto i : plane.source_layers()) {
-                DrmHwcLayer* source_layer = &layers_[i];
-                comp_layers.emplace(source_layer);
-            }
+            HWC2_LOGE(" Create NextReleaseFence(%s) Fail!: frame = %" PRIu64 " LayerName=%s",
+                      sync_timeline.GetNextReleaseFence()->getName().c_str(), frame_no_, layer->sLayerName_.c_str());
         }
     }
 
-    if (comp_layers.empty()) return ReleaseFence::NO_FENCE;
-
-    for (DrmHwcLayer* layer : comp_layers) {
-        if (!layer) {
-            continue;
-        }
-        if (layer->uId_ == layer_id) {
-            return layer->release_fence;
-        }
-    }
-    return ReleaseFence::NO_FENCE;
+    return releaseFence_;
 }
 
 int DrmDisplayComposition::SignalCompositionDone() {
@@ -335,6 +319,34 @@ int DrmDisplayComposition::SignalCompositionDone() {
         return 0;
     }
 
+    bool signal_success = false;
+    int act = 0, sig = 0;
+    if (releaseFence_ != NULL && releaseFence_ != ReleaseFence::NO_FENCE) {
+        if (LogLevel(DBG_DEBUG)) {
+            act = releaseFence_->getActiveCount();
+            sig = releaseFence_->getSignaledCount();
+        }
+        int ret = releaseFence_->signal();
+        if (ret) {
+            HWC2_LOGD_IF("Signal Fail frame = %" PRIu64 " %s Info: size=%d act=%d signal=%d err=%d SignalTime=%s",
+                         frame_no_, releaseFence_->getName().c_str(), releaseFence_->getSize(),
+                         releaseFence_->getActiveCount(), releaseFence_->getSignaledCount(),
+                         releaseFence_->getErrorCount(), releaseFence_->dump().c_str());
+        } else {
+            if (LogLevel(DBG_DEBUG) && act == 1 && sig == 0 && releaseFence_->getActiveCount() == 0 &&
+                releaseFence_->getSignaledCount() == 1) {
+                signal_success = true;
+            }
+            if (LogLevel(DBG_DEBUG)) {
+                HWC2_LOGD_IF("Signal %s frame = %" PRIu64 " %s Info: size=%d act=%d signal=%d err=%d SignalTime=%s",
+                             signal_success ? "Sucess" : "Fail", frame_no_, releaseFence_->getName().c_str(),
+                             releaseFence_->getSize(), releaseFence_->getActiveCount(),
+                             releaseFence_->getSignaledCount(), releaseFence_->getErrorCount(),
+                             releaseFence_->dump().c_str());
+            }
+        }
+    }
+
     std::unordered_set<DrmHwcLayer*> comp_layers;
     for (const DrmCompositionPlane& plane : composition_planes_) {
         if (plane.type() == DrmCompositionPlane::Type::kLayer) {
@@ -347,35 +359,27 @@ int DrmDisplayComposition::SignalCompositionDone() {
 
     if (comp_layers.empty()) return 0;
 
-    for (DrmHwcLayer* layer : comp_layers) {
-        if (!layer || !layer->release_fence->isValid()) {
-            if (layer)
-                HWC2_LOGD_IF("Fd(%d)isValid %d frame = %" PRIu64
-                             " %s Info: size=%d act=%d signal=%d err=%d LayerName=%s ",
-                             layer->release_fence->getFd(), layer->release_fence->isValid(), frame_no_,
-                             layer->release_fence->getName().c_str(), layer->release_fence->getSize(),
-                             layer->release_fence->getActiveCount(), layer->release_fence->getSignaledCount(),
-                             layer->release_fence->getErrorCount(), layer->sLayerName_.c_str());
-            continue;
-        }
-        int act, sig;
-        if (LogLevel(DBG_DEBUG)) {
-            act = layer->release_fence->getActiveCount();
-            sig = layer->release_fence->getSignaledCount();
-        }
-
-        int ret = layer->release_fence->signal();
-        if (LogLevel(DBG_DEBUG)) {
-            HWC2_LOGD_IF("Signal %s frame = %" PRIu64 " %s Info: size=%d act=%d signal=%d err=%d BufferId=0x%" PRIx64
-                         " SignalTime=%s LayerName=%s ",
-                         act == 1 && sig == 0 && layer->release_fence->getActiveCount() == 0 &&
-                                         layer->release_fence->getSignaledCount() == 1
-                                 ? "Sucess"
-                                 : "Fail",
-                         frame_no_, layer->release_fence->getName().c_str(), layer->release_fence->getSize(),
-                         layer->release_fence->getActiveCount(), layer->release_fence->getSignaledCount(),
-                         layer->release_fence->getErrorCount(), layer->uBufferId_, layer->release_fence->dump().c_str(),
-                         layer->sLayerName_.c_str());
+    if (releaseFence_->isValid()) {
+        for (DrmHwcLayer* layer : comp_layers) {
+            if (!layer || !layer->release_fence->isValid()) {
+                if (layer)
+                    HWC2_LOGD_IF("Fd(%d)isValid %d frame = %" PRIu64
+                                 " %s Info: size=%d act=%d signal=%d err=%d LayerName=%s ",
+                                 releaseFence_->getFd(), releaseFence_->isValid(), frame_no_,
+                                 releaseFence_->getName().c_str(), releaseFence_->getSize(),
+                                 releaseFence_->getActiveCount(), releaseFence_->getSignaledCount(),
+                                 releaseFence_->getErrorCount(), layer->sLayerName_.c_str());
+                continue;
+            }
+            if (LogLevel(DBG_DEBUG)) {
+                HWC2_LOGD_IF("Signal %s frame = %" PRIu64
+                             " %s Info: size=%d act=%d signal=%d err=%d BufferId=0x%" PRIx64
+                             " SignalTime=%s LayerName=%s ",
+                             signal_success ? "Sucess" : "Fail", frame_no_, releaseFence_->getName().c_str(),
+                             releaseFence_->getSize(), releaseFence_->getActiveCount(),
+                             releaseFence_->getSignaledCount(), releaseFence_->getErrorCount(), layer->uBufferId_,
+                             releaseFence_->dump().c_str(), layer->sLayerName_.c_str());
+            }
         }
     }
     signal_ = true;

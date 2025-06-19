@@ -140,8 +140,9 @@ class DrmDisplayComposition {
     bool IsDropMode();
 
     int DisableUnusedPlanes();
-    int CreateAndAssignReleaseFences(SyncTimeline& sync_timeline);
-    sp<ReleaseFence> GetReleaseFence(hwc2_layer_t layer_id);
+
+    sp<ReleaseFence> CreateReleaseFence(SyncTimeline& sync_timeline);
+    sp<ReleaseFence> GetReleaseFence() { return releaseFence_; }
     int SignalCompositionDone();
 
     std::vector<DrmHwcLayer>& layers() { return layers_; }
@@ -245,6 +246,9 @@ class DrmDisplayComposition {
     uint64_t frame_no_ = 0;
     uint64_t display_id_;
     bool update_drmplane_assign_ = false;
+
+    // 当前帧的 ReleaseFence, 仅在 DRM_COMPOSITION_TYPE_FRAME 有效
+    sp<ReleaseFence> releaseFence_ = ReleaseFence::NO_FENCE;
 
     // mutable since we need to acquire in HaveQueuedComposites
     mutable pthread_mutex_t lock_;
