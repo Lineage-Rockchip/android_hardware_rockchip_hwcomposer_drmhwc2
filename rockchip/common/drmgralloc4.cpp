@@ -130,6 +130,8 @@ const static IMapper::MetadataType RkMetadataType_FPS{
 #define DRM_FORMAT_NV15 fourcc_code('N', 'V', '1', '5') /* 2x2 subsampled Cr:Cb plane */
 #endif
 
+#define RK_HAL_PIXEL_FORMAT_RGBX_1010102 0x300
+
 /* ---------------------------------------------------------------------------------------------------------
  * External Function Prototypes (referenced in this file)
  * ---------------------------------------------------------------------------------------------------------
@@ -393,10 +395,27 @@ uint32_t get_fourcc_format(buffer_handle_t handle) {
     // 4.0.0 = Kernel 6.1
     // 3.0.0 = Kernel 5.10
     // 2.0.0 = Kernel 4.19
-    if (DrmVersion == 3 || DrmVersion == 4)
-        return fourcc;
-    else
+    if (DrmVersion == 3 || DrmVersion == 4) {
+        // 由于RK3588/RK3568/RK3566 Cluster 支持 AB30 存在问题，故如果Producer申请的是
+        // XB30格式，此处需要将 AB30 强制转换为 XB30，已满足 VOP Overlay需求
+        if ((android::gIsRK3588() || android::gIsRK356x()) && fourcc == DRM_FORMAT_ABGR2101010) {
+            int format_requested;
+            int err = get_format_requested(handle, &format_requested);
+            if (err != android::OK) {
+                ALOGE("err : %d", err);
+                return err;
+            }
+            if (format_requested == RK_HAL_PIXEL_FORMAT_RGBX_1010102) {
+                return DRM_FORMAT_XBGR2101010;
+            } else {
+                return fourcc;
+            }
+        } else {
+            return fourcc;
+        }
+    } else {
         return convertToNV12(fourcc);
+    }
 }
 
 int get_width(buffer_handle_t handle, uint64_t* width) {
