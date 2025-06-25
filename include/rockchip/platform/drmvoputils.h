@@ -23,7 +23,8 @@
 
 namespace android {
 struct TwoWinCheckCtx {
-    bool bValid;
+    bool bValidWin0;
+    bool bValidWin1;
     bool bUsed;
     int iZpos;
     int iOffset;
@@ -35,99 +36,100 @@ struct TwoWinCheckCtx {
     bool bInput4K;
     bool bOutput4K;
     std::string sWinName;
-    std::string sWin0FailReason;
+    const char* sWin0FailReason;
     android_dataspace_t eDataSpace;
     void Reset(std::string name = "Unknow") {
-        bValid = true;
+        bValidWin0 = false;
+        bValidWin1 = false;
         bUsed = iOffset = bYuv = uModifier = bInput4K = bOutput4K = 0;
         iZpos = -1;
         sWinName = name;
         sWin0FailReason = "";
     }
     bool CheckWin1(DrmHwcLayer* layer, int zpos) {
-        std::string sWin1FailReason = "";
-        bool bDebugLog = LogLevel(DBG_DEBUG);
-        bool check_ok = true;
-        do {
-            if (!bUsed) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "Win0 not used.";
-                break;
-            }
-            if (!bValid) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "Two-win not Valid.";
-                break;
-            }
-            // 要求zpos连续
-            if ((zpos - iZpos) != 1 && !(zpos == iZpos)) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "Discontinuous zpos.";
-                break;
-            }
-            // 要求RGB/YUV匹配+色域匹配
-            if (bYuv != layer->bYuv_) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "YUV/RGB not match.";
-                break;
-            }
-            if ((eDataSpace & HAL_DATASPACE_STANDARD_MASK) != (layer->eDataSpace_ & HAL_DATASPACE_STANDARD_MASK)) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "ColorSpace not match.";
-                break;
-            }
-            if ((eDataSpace & HAL_DATASPACE_TRANSFER_MASK) != (layer->eDataSpace_ & HAL_DATASPACE_TRANSFER_MASK)) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "Transfer not match.";
-                break;
-            }
-            // 要求宽度小于2048
-            if (layer->GetWidthWithOffsetBlockAligned() > 2048) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "4K Win1 input.";
-                break;
-            }
-            // 不支持旋转
-            if ((layer->transform & (DRM_MODE_ROTATE_90 | DRM_MODE_ROTATE_270)) != 0) {
-                check_ok = false;
-                if (bDebugLog) sWin1FailReason += "win1 ROTATE!=0.";
-                break;
-            }
-            if (bFbTarget) {
-                // FbTarget的Modifier不准确，使用FBC类型进行判断，要求FBC模式一致
-                if ((bAFBC != layer->bAfbcd_) || (bRFBC != layer->bRfbcd_)) {
-                    check_ok = false;
-                    if (bDebugLog) sWin1FailReason += "FBC Mode not match.";
-                    break;
-                }
-            } else {
-                // 要求FBC/raster/tile模式一致
-                if (uModifier != layer->uModifier_) {
-                    check_ok = false;
-                    if (bDebugLog) sWin1FailReason += "Modifier not match.";
-                    break;
-                }
-            }
-            if (!(gIsRK3576())) {
-                // 要求offset奇偶一致
-                int dst_x_offset = layer->display_frame.left;
-                if ((iOffset % 2) != (dst_x_offset % 2)) {
-                    check_ok = false;
-                    if (bDebugLog) sWin1FailReason += "Offset not match.";
-                    break;
-                }
-            }
-        } while (0);
-        if (!check_ok) {
-            ALOGD_IF(LogLevel(DBG_DEBUG), "\t %s Disable TwoWinMode, Reason=%s", sWinName.c_str(),
-                     (sWin0FailReason + sWin1FailReason).c_str());
+        bValidWin1 = true;
+        if (!bUsed) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=Win0 not used.", sWinName.c_str());
+            return bValidWin1;
         }
-        bValid = check_ok;
-        return check_ok;
+        if (!bValidWin0) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=%s Two-win not Valid.", sWinName.c_str(), sWin0FailReason);
+            return bValidWin1;
+        }
+        // 要求zpos连续
+        if ((zpos - iZpos) != 1 && !(zpos == iZpos)) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=Discontinuous zpos, (%d : %d).", sWinName.c_str(), iZpos, zpos);
+            return bValidWin1;
+        }
+        // 要求RGB/YUV匹配+色域匹配
+        if (bYuv != layer->bYuv_) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=YUV/RGB not match, (%s : %s).", sWinName.c_str(),
+                         bYuv ? "YUV" : "RGB", layer->bYuv_ ? "YUV" : "RGB");
+            return bValidWin1;
+        }
+        if ((eDataSpace & HAL_DATASPACE_STANDARD_MASK) != (layer->eDataSpace_ & HAL_DATASPACE_STANDARD_MASK)) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=ColorSpace not match, dataspace=(0x%x : 0x%x)",
+                         sWinName.c_str(), eDataSpace, layer->eDataSpace_);
+            return bValidWin1;
+        }
+        if ((eDataSpace & HAL_DATASPACE_TRANSFER_MASK) != (layer->eDataSpace_ & HAL_DATASPACE_TRANSFER_MASK)) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=Transfer not match, dataspace=(0x%x : 0x%x)", sWinName.c_str(),
+                         eDataSpace, layer->eDataSpace_);
+            return bValidWin1;
+        }
+        // 要求宽度小于2048
+        int aligned_w = layer->GetWidthWithOffsetBlockAligned();
+        if (aligned_w > 2048) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=4K Win1 input, Align_w=%d", sWinName.c_str(), aligned_w);
+            return bValidWin1;
+        }
+        // 不支持旋转
+        if ((layer->transform & (DRM_MODE_ROTATE_90 | DRM_MODE_ROTATE_270)) != 0) {
+            bValidWin1 = false;
+            HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=win1 ROTATE!=0, transform=0x%x", sWinName.c_str(),
+                         layer->transform);
+            return bValidWin1;
+        }
+        if (bFbTarget || layer->bFbTarget_) {
+            // FbTarget的Modifier不准确，使用FBC类型进行判断，要求FBC模式一致
+            if ((bAFBC != layer->bAfbcd_) || (bRFBC != layer->bRfbcd_)) {
+                bValidWin1 = false;
+                HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=FBC Mode not match: AFBC=(%d : %d) RFBC=(%d : %d)",
+                             sWinName.c_str(), bAFBC, layer->bAfbcd_, bRFBC, layer->bRfbcd_);
+                return bValidWin1;
+            }
+        } else {
+            // 要求FBC/raster/tile模式一致
+            if (uModifier != layer->uModifier_) {
+                bValidWin1 = false;
+                HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=Modifier not match: (0x%" PRIx64 " : 0x%" PRIx64 ")",
+                             sWinName.c_str(), uModifier, layer->uModifier_);
+                return bValidWin1;
+            }
+        }
+        if (!(gIsRK3576())) {
+            // 要求offset奇偶一致
+            int dst_x_offset = layer->display_frame.left;
+            if ((iOffset % 2) != (dst_x_offset % 2)) {
+                bValidWin1 = false;
+                HWC2_LOGD_IF("%s Disable TwoWinMode, Reason=Offset not match: (%s : %s)", sWinName.c_str(),
+                             (iOffset % 2) ? "odd" : "even", (dst_x_offset % 2) ? "odd" : "even");
+                return bValidWin1;
+            }
+        }
+
+        return bValidWin1;
     }
     void CheckWin0(DrmHwcLayer* layer, int zpos, bool mode_8k = false) {
         bUsed = true;
-        bValid = true;
+        bValidWin0 = true;
         iZpos = zpos;
         iOffset = layer->display_frame.left;
         bYuv = layer->bYuv_;
@@ -139,27 +141,20 @@ struct TwoWinCheckCtx {
         eDataSpace = layer->eDataSpace_;
         sWin0FailReason = "";
 
-        bool bDebugLog = LogLevel(DBG_DEBUG);
-        do {
-            if ((layer->transform & (DRM_MODE_ROTATE_90 | DRM_MODE_ROTATE_270)) != 0) {
-                bValid = false;
-                if (bDebugLog) sWin0FailReason += "win0 ROTATE!=0, ";
-                break;
-            }
-            if (mode_8k) {
-                bValid = false;
-                if (bDebugLog) sWin0FailReason += "8K mode, ";
-                break;
-            }
-            if (bInput4K) {
-                bValid = false;
-                if (bDebugLog) sWin0FailReason += "4K win0 input,";
-                break;
-            }
-        } while (0);
-
-        if (bValid == false) {
-            if (bDebugLog) sWin0FailReason += "not support TwoWinMode.";
+        if ((layer->transform & (DRM_MODE_ROTATE_90 | DRM_MODE_ROTATE_270)) != 0) {
+            bValidWin0 = false;
+            sWin0FailReason = "win0 ROTATE!=0, not support TwoWinMode.";
+            return;
+        }
+        if (mode_8k) {
+            bValidWin0 = false;
+            sWin0FailReason = "8K mode, not support TwoWinMode.";
+            return;
+        }
+        if (bInput4K) {
+            bValidWin0 = false;
+            sWin0FailReason = "4K win0 input, not support TwoWinMode.";
+            return;
         }
     }
 };
