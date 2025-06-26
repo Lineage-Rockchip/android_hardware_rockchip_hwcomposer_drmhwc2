@@ -3076,10 +3076,10 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     MemcImageInfo memcSrcInfo;
     MemcImageInfo memcDstInfo;
 
-    bool enableSr = HwcAProperty::getInstance().getIntWithInterval(MEMC_ENABLR_SR_NAME, 500, 0);
-    bool enableMemcComparation = HwcAProperty::getInstance().getIntWithInterval(MEMC_CONTRAST_MODE_NAME, 500, 0);
-    bool enableMemcOsd = HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_DISABLE_MODE, 500, 0);
-    bool enableMemcOsdOneline = HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0);
+    bool enableSr = (HwcAProperty::getInstance().getIntWithInterval(MEMC_ENABLR_SR_NAME, 500, 0) > 0);
+    bool enableMemcComparation = (HwcAProperty::getInstance().getIntWithInterval(MEMC_CONTRAST_MODE_NAME, 500, 0) > 0);
+    bool enableMemcOsd = (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_DISABLE_MODE, 500, 0) == 0);
+    bool enableMemcOsdOneline = (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0) > 0);
     int osd_oneline_wait_second =
             HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, 500, 12);
     static MemcMode memc_match_mode = MemcMode::MEMC_UNSUPPORT;
