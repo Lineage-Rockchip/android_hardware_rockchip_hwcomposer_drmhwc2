@@ -186,8 +186,9 @@ void HwcAProperty::dump() {
     std::cout << std::left << std::setw(30) << "Property Key" << std::setw(20) << "Value"
               << "Comment" << std::endl;
     std::cout << std::string(80, '-') << std::endl;
-
-    for (const auto& [key, entry] : mIntervalCache) {
+    for (const auto& pair : mIntervalCache) {
+        const auto& key = pair.first;
+        const auto& entry = pair.second;
         std::cout << std::left << std::setw(30) << key << std::setw(20) << entry.value << entry.comment << std::endl;
     }
 }
