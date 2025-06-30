@@ -39,8 +39,18 @@
 #include "drmbufferqueue.h"
 #include "drmdevice.h"
 #include "platform.h"
+#include "utils/drmfence.h"
 
 #include <cutils/properties.h>
+
+#include <unistd.h>  // for close
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <thread>
 
 #ifdef USE_GRALLOC_0
 // define from hardware/rockchip/libgralloc/bifrost/src/mali_gralloc_usages.h
@@ -60,6 +70,54 @@
 #define MALI_GRALLOC_USAGE_NO_AFBC (1ULL << 29)
 #endif
 #endif
+
+class RGAWorker {
+  public:
+    using Task = std::function<void()>;
+
+    RGAWorker() : stopFlag(false) {
+        workerThread = std::thread([this]() { this->threadLoop(); });
+    }
+
+    ~RGAWorker() {
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            stopFlag = true;
+            condVar.notify_all();
+        }
+        if (workerThread.joinable()) workerThread.join();
+    }
+
+    void postTask(Task task) {
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            taskQueue.push(std::move(task));
+        }
+        condVar.notify_one();
+    }
+
+  private:
+    void threadLoop() {
+        while (true) {
+            Task task;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                condVar.wait(lock, [this] { return stopFlag || !taskQueue.empty(); });
+                if (stopFlag && taskQueue.empty()) break;
+
+                task = std::move(taskQueue.front());
+                taskQueue.pop();
+            }
+            task();
+        }
+    }
+
+    std::thread workerThread;
+    std::mutex mutex;
+    std::condition_variable condVar;
+    std::queue<Task> taskQueue;
+    bool stopFlag;
+};
 
 namespace android {
 class DrmDevice;
@@ -210,6 +268,10 @@ class Vop3326 : public Planner::PlanStage {
   private:
     Vop2Ctx ctx;
     std::shared_ptr<DrmBufferQueue> rgaBufferQueue_;
+#if PLATFORM_SDK_VERSION < 33
+    SyncTimeline rgaSyncTimeLine;
+    RGAWorker mRgaWorker_;
+#endif
 };
 
 }  // namespace android

@@ -45,7 +45,7 @@
 #if USE_GRALLOC_4
 #include "rockchip/drmgralloc4.h"
 #else
-#if (defined(RK356x) || defined(RK3576)) && (PLATFORM_SDK_VERSION <= 28)
+#if (defined(RK356x) || defined(RK3576) || defined(RK3326)) && (PLATFORM_SDK_VERSION <= 28)
 #include "gralloc_drm_handle.h"
 #include "gralloc_drm_priv.h"
 #else
@@ -859,6 +859,8 @@ int64_t DrmGralloc::hwc_get_offset_of_dynamic_hdr_metadata(buffer_handle_t hnd) 
     offset = gralloc4::get_video_metadata_offset(hnd);
     return offset;
 #else  // #if USE_GRALLOC_4
+
+#if !((defined(RK3326)) && (PLATFORM_SDK_VERSION <= 28))
     int ret = 0;
     int op = GRALLOC_MODULE_PERFORM_GET_OFFSET_OF_DYNAMIC_HDR_METADATA;
 
@@ -871,6 +873,10 @@ int64_t DrmGralloc::hwc_get_offset_of_dynamic_hdr_metadata(buffer_handle_t hnd) 
     if (ret != 0) {
         ALOGE("%s: cann't get dynamic_hdr_metadata", __FUNCTION__);
     }
+#else
+    ret = -EINVAL;
+#endif
+
 #endif
     return offset;
 }
@@ -883,6 +889,7 @@ int64_t DrmGralloc::hwc_get_offset_of_pq_metadata(buffer_handle_t hnd) {
     return offset;
 #else  // #if USE_GRALLOC_4
     //Gralloc4中pq meta的Offset与HDR的是同一个，gralloc0.3暂时就直接用HDR的，后续支持上来如果不兼容再改
+#if !((defined(RK3326)) && (PLATFORM_SDK_VERSION <= 28))
     int ret = 0;
     int op = GRALLOC_MODULE_PERFORM_GET_OFFSET_OF_DYNAMIC_HDR_METADATA;
     HWC2_LOGD_IF("TODO: Gralloc0.3 Fallback to use HDR MetaData");
@@ -895,6 +902,10 @@ int64_t DrmGralloc::hwc_get_offset_of_pq_metadata(buffer_handle_t hnd) {
     if (ret != 0) {
         ALOGE("%s: cann't get dynamic_hdr_metadata", __FUNCTION__);
     }
+#else
+    ret = -EINVAL;
+#endif
+
 #endif
     return offset;
 }
@@ -1235,8 +1246,7 @@ void* DrmGralloc::hwc_buf_mmap_readonly(int fd, int size, int offset) {
 int DrmGralloc::hwc_buf_unmap(void* vaddr, int size) {
     int ret = munmap(vaddr, size);
     if (ret != 0) {
-        HWC2_LOGE("dma-buffer unmap vaddr=%p size=%d failed with code %d: %s",vaddr, size, errno,
-                  strerror(errno));
+        HWC2_LOGE("dma-buffer unmap vaddr=%p size=%d failed with code %d: %s", vaddr, size, errno, strerror(errno));
     }
 
     return ret;

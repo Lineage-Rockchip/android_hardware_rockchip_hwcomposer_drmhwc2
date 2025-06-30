@@ -155,7 +155,7 @@ int DrmPlane::Init() {
         b_sdr2hdr_ = true;
     }
 
-    if (isRK3399(soc_id_)) b_alpha_ = true;
+    if (isRK3399(soc_id_) || isRK3326(soc_id_)) b_alpha_ = true;
 
     //ALOGD("rk-debug scale=%d alpha=%d hdr2sdr=%d sdr2hdr=%d afbdc=%d", b_scale_,b_alpha_,b_hdr2sdr_,b_sdr2hdr_,b_afbdc_);
 
@@ -193,7 +193,7 @@ int DrmPlane::Init() {
 
     ret = drm_->GetPlaneProperty(*this, "NAME", &name_property_);
     if (ret) {
-        if (isRK3399(soc_id_))
+        if (isRK3399(soc_id_) || isRK3326(soc_id_))
             mark_type_by_name();
         else
             ALOGE("Could not get NAME property");
@@ -587,27 +587,105 @@ void DrmPlane::mark_type_by_name() {
             }
         }
     } else if (isRK3326(soc_id_)) {
-        struct plane_type_name_rk3326 {
-            DrmPlaneTypeRK3399 type;
-            const char* name;
-        };
+        if (gIsDrmVerison419() || gIsDrmVerison44()) {
+            struct plane_type_name_rk3326 {
+                DrmPlaneTypeRK3399 type;
+                bool is_vop_big;      //     -Kernel5.10之前版本(4.19)需要使用图层属性推断图层
+                uint32_t plane_type;  //
+                bool isScale;         //
+                bool isArea0;         //
+                const char* name;
+                bool matched = 0;
+                bool match(bool _is_vop_big, uint32_t _plane_type, bool _isScale, int _id, int _share_id) {
+                    bool _isArea0;
 
-        struct plane_type_name_rk3326 plane_type_names_rk3326[] = {
-                {DRM_PLANE_TYPE_VOP0_WIN0, "VOP0-win0-0"},   {DRM_PLANE_TYPE_VOP0_WIN1, "VOP0-win1-0"},
-                {DRM_PLANE_TYPE_VOP0_WIN2_0, "VOP0-win2-0"}, {DRM_PLANE_TYPE_VOP0_WIN2_1, "VOP0-win2-1"},
-                {DRM_PLANE_TYPE_VOP0_WIN2_2, "VOP0-win2-2"}, {DRM_PLANE_TYPE_VOP0_WIN2_3, "VOP0-win2-3"},
-                {DRM_PLANE_TYPE_VOP1_WIN1, "VOP1-win1-0"},
+                    if (matched) return false;
 
-                {DRM_PLANE_TYPE_VOP1_Unknown, "unknown"},
-        };
-        for (int i = 0; i < ARRAY_SIZE(plane_type_names_rk3326); i++) {
-            int ret;
-            bool find_name = false;
-            std::tie(ret, find_name) = name_property_.bitmask(plane_type_names_rk3326[i].name);
-            if (find_name) {
-                win_type_ = plane_type_names_rk3326[i].type;
-                name_ = plane_type_names_rk3326[i].name;
-                break;
+                    if (_id == _share_id)
+                        _isArea0 = true;
+                    else
+                        _isArea0 = false;
+
+                    if (_is_vop_big == is_vop_big && _plane_type == plane_type && _isScale == isScale &&
+                        _isArea0 == isArea0) {
+                        matched = true;
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            };
+            //Kernel5.10之前版本(4.19)需要使用图层属性推断图层, Kernel5.10之后已拉齐支持使用NAME属性推断图层
+            struct plane_type_name_rk3326 plane_type_names_rk3326[] = {
+                    {DRM_PLANE_TYPE_VOP0_WIN0, true, DRM_PLANE_TYPE_OVERLAY, true, true, "VOP0-win0-0"},
+                    {DRM_PLANE_TYPE_VOP0_WIN1, true, DRM_PLANE_TYPE_PRIMARY, false, true, "VOP0-win1-0"},
+                    {DRM_PLANE_TYPE_VOP0_WIN2_0, true, DRM_PLANE_TYPE_CURSOR, false, true, "VOP0-win2-0"},
+                    {DRM_PLANE_TYPE_VOP0_WIN2_1, true, DRM_PLANE_TYPE_OVERLAY, false, false, "VOP0-win2-1"},
+                    {DRM_PLANE_TYPE_VOP0_WIN2_2, true, DRM_PLANE_TYPE_OVERLAY, false, false, "VOP0-win2-2"},
+                    {DRM_PLANE_TYPE_VOP0_WIN2_3, true, DRM_PLANE_TYPE_OVERLAY, false, false, "VOP0-win2-3"},
+
+                    {DRM_PLANE_TYPE_VOP1_WIN1, false, DRM_PLANE_TYPE_PRIMARY, false, true, "VOP1-win1-0"},
+
+                    {DRM_PLANE_TYPE_VOP1_Unknown, 0, 0, 0, 0, "unknown"},
+            };
+            uint32_t crtc_mask_big = 0;
+
+            for (auto& crtc : drm_->crtcs()) {
+                if (crtc->get_afbc() == true) crtc_mask_big = 1 << crtc->pipe();
+            }
+
+            if (name_property_.id()) {
+                for (int i = 0; i < ARRAY_SIZE(plane_type_names_rk3326); i++) {
+                    int ret;
+                    bool find_name = false;
+                    std::tie(ret, find_name) = name_property_.bitmask(plane_type_names_rk3326[i].name);
+                    if (find_name) {
+                        win_type_ = plane_type_names_rk3326[i].type;
+                        name_ = plane_type_names_rk3326[i].name;
+                        return;
+                    }
+                }
+            }
+            //Kernel5.10之前版本(4.19)无NAME属性，需要使用图层属性推断图层
+            int _ret;
+            int shareid;
+            std::tie(_ret, shareid) = share_id_property_.value();
+
+            for (int i = 0; i < ARRAY_SIZE(plane_type_names_rk3326); i++) {
+                bool is_vop_big = possible_crtc_mask_ == crtc_mask_big;
+                if (plane_type_names_rk3326[i].match(is_vop_big, type_, b_scale_, id_, shareid)) {
+                    win_type_ = plane_type_names_rk3326[i].type;
+                    name_ = plane_type_names_rk3326[i].name;
+                    return;
+                }
+            }
+
+            win_type_ = DRM_PLANE_TYPE_VOP1_Unknown;
+            name_ = "unknown";
+
+        } else {
+            struct plane_type_name_rk3326 {
+                DrmPlaneTypeRK3399 type;
+                const char* name;
+            };
+
+            struct plane_type_name_rk3326 plane_type_names_rk3326[] = {
+                    {DRM_PLANE_TYPE_VOP0_WIN0, "VOP0-win0-0"},   {DRM_PLANE_TYPE_VOP0_WIN1, "VOP0-win1-0"},
+                    {DRM_PLANE_TYPE_VOP0_WIN2_0, "VOP0-win2-0"}, {DRM_PLANE_TYPE_VOP0_WIN2_1, "VOP0-win2-1"},
+                    {DRM_PLANE_TYPE_VOP0_WIN2_2, "VOP0-win2-2"}, {DRM_PLANE_TYPE_VOP0_WIN2_3, "VOP0-win2-3"},
+                    {DRM_PLANE_TYPE_VOP1_WIN1, "VOP1-win1-0"},
+
+                    {DRM_PLANE_TYPE_VOP1_Unknown, "unknown"},
+            };
+            for (int i = 0; i < ARRAY_SIZE(plane_type_names_rk3326); i++) {
+                int ret;
+                bool find_name = false;
+                std::tie(ret, find_name) = name_property_.bitmask(plane_type_names_rk3326[i].name);
+                if (find_name) {
+                    win_type_ = plane_type_names_rk3326[i].type;
+                    name_ = plane_type_names_rk3326[i].name;
+                    break;
+                }
             }
         }
     } else if (isRK3562(soc_id_)) {
@@ -678,6 +756,43 @@ void DrmPlane::AddLocalPlaneInfo() {
             HWC2_LOGD_IF("VOP_LIT,not support afbc");
         }
     }
+    if (isRK3326(soc_id_) && (gIsDrmVerison419() || gIsDrmVerison44())) {
+        if (win_type_ & (DRM_PLANE_TYPE_VOP0_WIN0 | DRM_PLANE_TYPE_VOP0_WIN1)) {
+            input_w_max_ = 1920;
+            input_h_max_ = 8192;
+            output_w_max_ = 1920;
+            output_h_max_ = 8192;
+        } else if (win_type_ & DRM_PLANE_TYPE_VOP0_WIN2_MASK) {
+            input_w_max_ = 1280;
+            input_h_max_ = 8192;
+            output_w_max_ = 1280;
+            output_h_max_ = 8192;
+        } else if (win_type_ & DRM_PLANE_TYPE_VOP1_MASK) {
+            input_w_max_ = 1920;
+            input_h_max_ = 8192;
+            output_w_max_ = 1920;
+            output_h_max_ = 8192;
+        } else {
+            HWC2_LOGE("name:%s,UNKNOW Layer", name_);
+        }
+        HWC2_LOGD_IF("name:%s,fixing input and output size:%d,%d,%d,%d", name_, input_w_max_, input_h_max_,
+                     output_w_max_, output_h_max_);
+        if (win_type_ & (DRM_PLANE_TYPE_VOP0_WIN0)) {
+            scale_max_ = 8.0f;
+            scale_min_ = 1.0f / 8.0f;
+            b_scale_ = true;
+        } else {
+            scale_max_ = 1.0f;
+            scale_min_ = 1.0f;
+            b_scale_ = false;
+        }
+        HWC2_LOGD_IF("name:%s,fixing scale:%s(%f - %f)", name_, b_scale_ ? "true" : "false", scale_min_, scale_max_);
+        if (win_type_ & DRM_PLANE_TYPE_VOP1_MASK) {
+            b_afbdc_ = false;
+            HWC2_LOGD_IF("VOP_LIT,not support afbc");
+        }
+    }
+
     //Two win mode can output 4K
     if (isRK3588(soc_id_)) {
         if (win_type_ & (PLANE_RK3588_CLUSTER0_WIN1 | PLANE_RK3588_CLUSTER1_WIN1 | PLANE_RK3588_CLUSTER2_WIN1 |

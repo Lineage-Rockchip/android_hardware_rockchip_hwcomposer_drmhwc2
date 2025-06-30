@@ -65,6 +65,48 @@
     fourcc_code('V', 'U', '3', '0') /* Y followed by U then V, 10:10:10. Non-linear modifier only */
 #endif
 
+#ifndef DRM_FORMAT_P010
+#define DRM_FORMAT_P010 fourcc_code('P', '0', '1', '0') /* 2x2 subsampled Cr:Cb plane 10 bits per channel */
+#endif
+
+#ifndef DRM_FORMAT_YUV420_8BIT
+#define DRM_FORMAT_YUV420_8BIT fourcc_code('Y', 'U', '0', '8')
+#endif
+
+#ifndef DRM_FORMAT_YUV420_10BIT
+#define DRM_FORMAT_YUV420_10BIT fourcc_code('Y', 'U', '1', '0')
+#endif
+
+#ifndef DRM_FORMAT_Y210
+#define DRM_FORMAT_Y210 \
+    fourcc_code('Y', '2', '1', '0') /* [63:0] Cr0:0:Y1:0:Cb0:0:Y0:0 10:6:10:6:10:6:10:6 little endian per 2 Y pixels */
+#endif
+
+#ifndef DRM_FORMAT_VUY888
+#define DRM_FORMAT_VUY888 fourcc_code('V', 'U', '2', '4') /* [23:0] Cr:Cb:Y 8:8:8 little endian */
+#endif
+
+#ifndef DRM_FORMAT_VUY101010
+#define DRM_FORMAT_VUY101010 \
+    fourcc_code('V', 'U', '3', '0') /* Y followed by U then V, 10:10:10. Non-linear modifier only */
+#endif
+
+#ifndef DRM_FORMAT_XRGB16161616F
+#define DRM_FORMAT_XRGB16161616F fourcc_code('X', 'R', '4', 'H') /* [63:0] x:R:G:B 16:16:16:16 little endian */
+#endif
+
+#ifndef DRM_FORMAT_XBGR16161616F
+#define DRM_FORMAT_XBGR16161616F fourcc_code('X', 'B', '4', 'H') /* [63:0] x:B:G:R 16:16:16:16 little endian */
+#endif
+
+#ifndef DRM_FORMAT_ARGB16161616F
+#define DRM_FORMAT_ARGB16161616F fourcc_code('A', 'R', '4', 'H') /* [63:0] A:R:G:B 16:16:16:16 little endian */
+#endif
+
+#ifndef DRM_FORMAT_ABGR16161616F
+#define DRM_FORMAT_ABGR16161616F fourcc_code('A', 'B', '4', 'H') /* [63:0] A:B:G:R 16:16:16:16 little endian */
+#endif
+
 #ifndef DRM_FORMAT_MOD_VENDOR_ROCKCHIP
 #define DRM_FORMAT_MOD_VENDOR_ROCKCHIP 0x0b
 #endif
@@ -109,6 +151,45 @@
     (fourcc_mod_is_vendor((val), ROCKCHIP) &&                                               \
      (((val) >> DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) & DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK) == \
              DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC)
+#endif
+
+#if ((defined(RK3326)) && (PLATFORM_SDK_VERSION <= 28))
+
+#ifndef DRM_MODE_ROTATE_0
+#define DRM_MODE_ROTATE_0 (1 << 0)
+#define DRM_MODE_ROTATE_90 (1 << 1)
+#define DRM_MODE_ROTATE_180 (1 << 2)
+#define DRM_MODE_ROTATE_270 (1 << 3)
+#endif
+
+#ifndef DRM_MODE_REFLECT_X
+#define DRM_MODE_REFLECT_X (1 << 4)
+#define DRM_MODE_REFLECT_Y (1 << 5)
+#endif
+
+#ifndef AFBC_FORMAT_MOD_BLOCK_SIZE_16x16
+#define AFBC_FORMAT_MOD_BLOCK_SIZE_MASK 0xf
+#define AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 (1ULL)
+#define AFBC_FORMAT_MOD_BLOCK_SIZE_32x8 (2ULL)
+#endif
+
+#ifndef DRM_FORMAT_MOD_ARM_TYPE_AFBC
+#define DRM_FORMAT_MOD_ARM_TYPE_AFBC 0x00
+#endif
+
+#ifndef DRM_FORMAT_MOD_ARM_TYPE_MISC
+#define DRM_FORMAT_MOD_ARM_TYPE_MISC 0x01
+#endif
+
+#define DRM_FORMAT_MOD_ARM_CODE(__type, __val) \
+    fourcc_mod_code(ARM, ((__u64)(__type) << 52) | ((__val) & 0x000fffffffffffffULL))
+
+#ifdef DRM_FORMAT_MOD_ARM_AFBC
+#undef DRM_FORMAT_MOD_ARM_AFBC
+#endif
+
+#define DRM_FORMAT_MOD_ARM_AFBC(__afbc_mode) DRM_FORMAT_MOD_ARM_CODE(DRM_FORMAT_MOD_ARM_TYPE_AFBC, __afbc_mode)
+
 #endif
 
 #endif

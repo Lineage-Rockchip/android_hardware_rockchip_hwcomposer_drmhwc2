@@ -27,6 +27,10 @@
 #endif
 #endif
 
+#if ((defined(RK3326)) && (PLATFORM_SDK_VERSION < 34))
+#include "hardware/hardware.h"
+#endif
+
 #ifdef ANDROID_S
 #include <hardware/hardware_rockchip.h>
 #endif
@@ -52,6 +56,19 @@
 #define HAL_PIXEL_FORMAT_YUV422_10BIT_RFBC 0x203
 #define HAL_PIXEL_FORMAT_YUV444_8BIT_RFBC 0x204
 #define HAL_PIXEL_FORMAT_YUV444_10BIT_RFBC 0x205
+#endif
+
+#ifndef HAL_PIXEL_FORMAT_YUV420_8BIT_I
+#define HAL_PIXEL_FORMAT_YUV420_8BIT_I 0x1A   // 420I 8bit, 26
+#define HAL_PIXEL_FORMAT_YUV420_10BIT_I 0x1B  // 420I 10bit, 27
+#endif
+
+#ifndef HAL_PIXEL_FORMAT_Y210
+#define HAL_PIXEL_FORMAT_Y210 0x1C  // 422I 10bit, 28
+#endif
+
+#ifndef HAL_PIXEL_FORMAT_BPP_1
+#define HAL_PIXEL_FORMAT_BPP_1 0x30  // 48
 #endif
 
 static inline bool hwc_is_hal_rfbc_format(int format) {
