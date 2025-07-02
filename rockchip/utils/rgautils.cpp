@@ -36,8 +36,9 @@
 
 #include <set>
 
-#include <3rd/hal/drmhwc2_hal_format.h>
 #include <hardware/hardware.h>
+
+#include <3rd/hal/drmhwc2_hal_format.h>
 #include <rockchip/utils/drmdebug.h>
 #include <rockchip/utils/rgaformats.h>
 #include <rockchip/utils/rgautils.h>
