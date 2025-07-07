@@ -430,12 +430,23 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
             if (gralloc == NULL) {
                 HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
             } else if (drmLayer->bHasPqMetadata_) {
-                src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
-                if (src.iMetaDataOffset_ > 0) {
-                    src.iMetaDataFd_ = drmLayer->iFd_;
-                    src.iMetaDataSize_ = drmLayer->iSize_;
-                    HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
-                                 src.iMetaDataOffset_, src.iMetaDataSize_);
+                if (isHwPqAsPostProcess) {
+                    src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
+                    if (src.iMetaDataOffset_ > 0) {
+                        src.iMetaDataFd_ = drmLayer->storeLayerInfo_.iFd_;
+                        src.iMetaDataSize_ = drmLayer->storeLayerInfo_.iSize_;
+                        HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
+                                    src.iMetaDataOffset_, src.iMetaDataSize_);
+                    }
+                }
+                else{
+                    src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
+                    if (src.iMetaDataOffset_ > 0) {
+                        src.iMetaDataFd_ = drmLayer->iFd_;
+                        src.iMetaDataSize_ = drmLayer->iSize_;
+                        HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
+                                    src.iMetaDataOffset_, src.iMetaDataSize_);
+                    }
                 }
             }
 
@@ -902,12 +913,23 @@ int DrmPq::CheckHwPqDstScale(DrmHwcLayer* drmLayer) {
     if (gralloc == NULL) {
         HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
     } else if (drmLayer->bHasPqMetadata_) {
-        src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
-        if (src.iMetaDataOffset_ > 0) {
-            src.iMetaDataFd_ = drmLayer->iFd_;
-            src.iMetaDataSize_ = drmLayer->iSize_;
-            HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_, src.iMetaDataOffset_,
-                         src.iMetaDataSize_);
+        if (drmLayer->bUseRga_) {
+            src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
+            if (src.iMetaDataOffset_ > 0) {
+                src.iMetaDataFd_ = drmLayer->storeLayerInfo_.iFd_;
+                src.iMetaDataSize_ = drmLayer->storeLayerInfo_.iSize_;
+                HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
+                            src.iMetaDataOffset_, src.iMetaDataSize_);
+            }
+        }
+        else{
+            src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
+            if (src.iMetaDataOffset_ > 0) {
+                src.iMetaDataFd_ = drmLayer->iFd_;
+                src.iMetaDataSize_ = drmLayer->iSize_;
+                HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
+                            src.iMetaDataOffset_, src.iMetaDataSize_);
+            }
         }
     }
 
