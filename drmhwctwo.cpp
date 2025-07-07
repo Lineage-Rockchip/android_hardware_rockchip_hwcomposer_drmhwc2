@@ -3228,7 +3228,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetClientTargetProperty(hwc_client_target_pro
 #ifdef USE_LIBPQ_HWPQ
         // If HWPQ is enabled, use RGB_888 instead of RGBA_8888 for better quality.
         if (gIsRK3576()) {
-            if (crtc_->get_port_id() == 0) {
+            if (crtc_ && crtc_->get_port_id() == 0) {
                 if (ctx_.use_pq_fb) pixelFormat = HAL_PIXEL_FORMAT_RGB_888;
             }
         }
