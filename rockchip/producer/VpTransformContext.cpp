@@ -1039,6 +1039,12 @@ int VpTransformContext::DoTransformBySvepMemc(std::shared_ptr<VpComposition> inp
         return -1;
     }
 
+    if (input->GetBuffer() != NULL) {
+        if (input->GetBuffer()->WaitFinishFence(500)) {
+            HWC2_LOGE("%s Wait AcqurieFence 500ms Failed!", input->Name().c_str());
+        }
+    }
+
     error = svep_memc->SetSrcImage(&memc_src);
     if (error != MemcError::MEMC_NO_ERROR) {
         HWC2_LOGE("SetSrcImage fail!, skip this policy. ret=%d", error);
