@@ -866,6 +866,15 @@ int ResourceManager::SwapWBBuffer(uint64_t frame_no) {
                          ((last_buffer_pair->second != NULL) ? last_buffer_pair->second->GetId() : -1),
                          mFinishBufferQueue_.size());
         }
+
+        // Handle Callback
+        if (mWriteBackCb_.count(iWriteBackDisplayId_) && mWriteBackCb_[iWriteBackDisplayId_].size() > 0) {
+            for (auto wbpair : mWriteBackCb_[iWriteBackDisplayId_]) {
+                if (wbpair.second.first) {
+                    wbpair.second.first(mDrawingWriteBackBuffer_, wbpair.second.second);
+                }
+            }
+        }
     }
     // 2. Next 切换为 Drawing 状态
     mDrawingWriteBackBuffer_ = mNextWriteBackBuffer_;
@@ -941,6 +950,30 @@ bool ResourceManager::IsWBMirrorDisplay(uint64_t display_id, uint32_t zorder, Mi
 
     // 该层满足WriteBack使能需求
     return true;
+}
+
+int ResourceManager::RegisterWBCallback(uint64_t display_id, void (*callback)(std::shared_ptr<DrmBuffer>, void* arg),
+                                        void* argument) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    int callback_id = iWriteBackCallbackCount_++;
+    if (callback) {
+        mWriteBackCb_[display_id][callback_id] = {callback, argument};
+        return callback_id;
+    } else {
+        HWC2_LOGE("Failed to register WB callback! callback is null");
+        return -1;
+    }
+}
+
+int ResourceManager::UnregisterWBCallback(uint64_t display_id, int callback_id) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (mWriteBackCb_.count(display_id) && mWriteBackCb_[display_id].count(callback_id)) {
+        mWriteBackCb_[display_id].erase(callback_id);
+        return 0;
+    } else {
+        HWC2_LOGE("Could not found callback %" PRIu64 ":%d", display_id, callback_id);
+        return -1;
+    }
 }
 
 }  // namespace android

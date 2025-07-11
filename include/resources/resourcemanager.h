@@ -125,6 +125,9 @@ class ResourceManager {
     // 检查是否是WriteBack Display 的 Mirror Dispaly
     bool IsWBMirrorDisplay(uint64_t display_id, uint32_t zorder, MirrorDisplayInfo_t info);
     // WriteBack interface.
+    int RegisterWBCallback(uint64_t display_id, void (*callback)(std::shared_ptr<DrmBuffer>, void* arg),
+                           void* argument);
+    int UnregisterWBCallback(uint64_t display_id, int callback_id);
 
     // 系统属性开关
     bool IsCompositionDropMode() const;
@@ -203,6 +206,12 @@ class ResourceManager {
     std::shared_ptr<DrmBuffer> mNextWriteBackBuffer_ = NULL;
     std::shared_ptr<DrmBuffer> mDrawingWriteBackBuffer_ = NULL;
     std::vector<PAIR_ID_BUFFER> mFinishBufferQueue_;
+    std::map</*display_id*/ uint64_t,
+             std::map</*Callback id*/ int,
+                      std::pair</*function*/ void (*)(std::shared_ptr<DrmBuffer>, void* arg), /*argument*/ void*>>>
+            mWriteBackCb_;
+    int iWriteBackCallbackCount_ = 0;
+
     // 主要用于保存WriteBack 图层信息，用于评估虚拟屏幕是否支持从WriteBack获取图像
     std::map<uint32_t /*z*/, MirrorDisplayInfo_t> mWBDisplayLayerInfo_;
     std::map<int, std::set<uint64_t>> mMapDisplayBufferSet_;
