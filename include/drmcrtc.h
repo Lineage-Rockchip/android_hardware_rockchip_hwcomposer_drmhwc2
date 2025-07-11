@@ -85,6 +85,7 @@ class DrmCrtc {
     const DrmProperty& post_csc_data() const;
     const DrmProperty& post_sharp_data() const;
     const DrmProperty& is_virtual() const;
+    const DrmProperty& dimming_data() const;
 
     DrmDevice* getDrmDevice() { return drm_; }
     bool is_vrr() {
@@ -142,6 +143,7 @@ class DrmCrtc {
     DrmProperty post_csc_data_;
     DrmProperty post_sharp_data_;
     DrmProperty is_virtual_;
+    DrmProperty dimming_data_;
 
     /* Vop2 */
     uint32_t soc_id_;

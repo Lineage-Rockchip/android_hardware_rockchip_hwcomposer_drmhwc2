@@ -293,6 +293,9 @@ struct DrmHwcLayer {
     bool bUsePq_;
     std::shared_ptr<DrmBuffer> pPqBuffer_;
 
+    std::shared_ptr<std::vector<uint8_t>> pDimmingBuffer_ = NULL;
+    std::shared_ptr<std::vector<uint32_t>> pDimmingBufferSize_ = NULL;
+
 #ifdef USE_LIBPQ_HWPQ
     bool bUseHwpqScale_;
     std::shared_ptr<rk_hwpq_reg> hwPqReg_ = NULL;

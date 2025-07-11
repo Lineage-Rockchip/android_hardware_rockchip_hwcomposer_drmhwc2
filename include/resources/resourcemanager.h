@@ -157,6 +157,24 @@ class ResourceManager {
     std::shared_ptr<DrmPq> ResetAndGetDrmPq();
 #endif
 
+#ifdef USE_LIBPQ
+    enum SwpqMode {
+        SWPQ_MODE_NOUSE = 0,
+        SWPQ_MODE_PQ = 1,
+        SWPQ_MODE_WBLD = 2,
+    };
+
+    std::recursive_mutex& GetSwpqMutex() { return mSwpqMutex_; }
+
+    bool NeedReinitSwpqForMode(SwpqMode mode) {
+        int last_mode = mSwpqMode_.exchange(mode);
+        if (last_mode != SWPQ_MODE_NOUSE && last_mode != mode) {
+            return true;
+        }
+        return false;
+    }
+#endif
+
   private:
     ResourceManager();
     ResourceManager(const ResourceManager&) = delete;
@@ -254,6 +272,11 @@ class ResourceManager {
 #ifdef USE_LIBPQ_HWPQ
     // DRM PQ
     std::shared_ptr<DrmPq> mDrmPq_ = nullptr;
+#endif
+
+#ifdef USE_LIBPQ
+    mutable std::recursive_mutex mSwpqMutex_;
+    std::atomic<int> mSwpqMode_ = 0;
 #endif
 
     mutable std::recursive_mutex mRecursiveMutex;

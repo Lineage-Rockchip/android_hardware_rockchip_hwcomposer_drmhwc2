@@ -71,6 +71,10 @@ namespace android {
 
 ResourceManager::ResourceManager() : num_displays_(0) {
     drmGralloc_ = DrmGralloc::getInstance();
+
+#ifdef USE_LIBPQ
+    mSwpqMode_ = SWPQ_MODE_NOUSE;
+#endif
 }
 
 int ResourceManager::Init(DrmHwcTwo* hwc2) {
@@ -982,6 +986,11 @@ int ResourceManager::RegisterWBCallback(uint64_t display_id, void (*callback)(st
     int callback_id = iWriteBackCallbackCount_++;
     if (callback) {
         mWriteBackCb_[display_id][callback_id] = {callback, argument};
+        if (mWriteBackCb_.size() > 10)
+            HWC2_LOGW("mWriteBackCb_.size=%zu, please check for DisplayID leak!", mWriteBackCb_.size());
+        if (mWriteBackCb_[display_id].size() > 10)
+            HWC2_LOGW("mWriteBackCb_[%" PRIu64 "].size=%zu, please check for Callback leak!", display_id,
+                      mWriteBackCb_.size());
         return callback_id;
     } else {
         HWC2_LOGW("Failed to register WB callback! callback is null");

@@ -5362,6 +5362,18 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
             HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0) > 0;
 
     if (pq_mode_enable == 1) {
+        std::lock_guard<std::recursive_mutex> pq_lock(ResourceManager::getInstance()->GetSwpqMutex());
+        if (ResourceManager::getInstance()->NeedReinitSwpqForMode(ResourceManager::SWPQ_MODE_PQ)) {
+            if (swpq_ == NULL) {
+                swpq_ = Pq::Get();
+            }
+            if (swpq_) {
+                HWC2_LOGI("SWPQ: Swap form LD mode to PQ mode! Deinit swpq!");
+                swpq_->DeInit();
+                swpq_ = NULL;
+                bPqReady_ = false;
+            }
+        }
         if (validate) {
             ctx->use_pq_fb = false;
             if (bufferQueue_ == NULL) {
@@ -5441,6 +5453,25 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 src.mCrop_.iRight_ = (int)drmHwcLayer->source_crop.right;
                 src.mCrop_.iBottom_ = (int)drmHwcLayer->source_crop.bottom;
 
+#ifdef USE_LIBPQ_LD
+                //local dimming
+                DrmCrtc* crtc = drm_->GetCrtcForDisplay(ctx->display_id);
+
+                std::shared_ptr<std::vector<uint32_t>> pDimmingBufferSize = NULL;
+                std::shared_ptr<std::vector<uint8_t>> pDimmingBuffer = NULL;
+
+                //使用crtc是否存在dimming_data作为启用dimming的标记
+                bool use_local_dimming = crtc && crtc->dimming_data().id();
+
+                if (crtc) src.uCrtcId = crtc->id();
+                if (use_local_dimming) {
+                    pDimmingBufferSize = std::make_shared<std::vector<uint32_t>>(1);
+                    src.uSpiProtLength = pDimmingBufferSize->data();
+                } else {
+                    src.uSpiProtLength = nullptr;
+                }
+#endif
+
                 ret = swpq_->SetSrcImage(pqCtx_, src);
                 if (ret) {
                     printf("Pq SetSrcImage fail\n");
@@ -5480,6 +5511,21 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                 dst.mCrop_.iRight_ = ctx->framebuffer_width;
                 dst.mCrop_.iBottom_ = ctx->framebuffer_height;
 
+#ifdef USE_LIBPQ_LD
+                //LocalDimming 申请和配置LocalDimming buffer
+                if (crtc) dst.uCrtcId = crtc->id();
+                if (use_local_dimming) {
+                    uint32_t dimm_size = swpq_->getDimmingSize(crtc->id());
+                    HWC2_LOGV_IF("local_dimm: DimmingBufferSize = %" PRIu32, dimm_size);
+                    pDimmingBuffer = std::make_shared<std::vector<uint8_t>>(dimm_size);
+                    dst.uSpiProtLength = pDimmingBufferSize->data();
+                    dst.uSpiBuffAddr = pDimmingBuffer->data();
+                } else {
+                    dst.uSpiProtLength = nullptr;
+                    dst.uSpiBuffAddr = nullptr;
+                }
+#endif
+
                 ret = swpq_->SetDstImage(pqCtx_, dst);
                 if (ret) {
                     printf("Pq SetSrcImage fail\n");
@@ -5508,7 +5554,7 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                         return ret;
                     }
                 }
-                int output_fence = 0;
+                int output_fence = -1;
                 ret = swpq_->RunAsync(pqCtx_, &output_fence);
                 if (ret) {
                     HWC2_LOGD_IF("RunAsync fail!");
@@ -5516,6 +5562,14 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
                     bufferQueue_->QueueBuffer(dst_buffer);
                     return ret;
                 }
+
+#ifdef USE_LIBPQ_LD
+                if (use_local_dimming) {
+                    drmHwcLayer->pDimmingBuffer_ = pDimmingBuffer;
+                    drmHwcLayer->pDimmingBufferSize_ = pDimmingBufferSize;
+                }
+#endif
+
                 dst_buffer->SetFinishFence(dup(output_fence));
                 drmHwcLayer->acquire_fence = sp<AcquireFence>(new AcquireFence(output_fence));
 
@@ -5528,10 +5582,13 @@ int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_dr
         }
         drmHwcLayer->uFourccFormat_ = DRM_FORMAT_NV24;
     } else {
+#ifndef USE_LIBPQ_LD
+        //local dimming下，swpq与HDMI-in通路是复用的，不进行deinit避免冲突
         if (bPqReady_) {
             swpq_->DeInit();
             bPqReady_ = false;
         }
+#endif
     }
     drmHwcLayer->Init();
     if (gIsDrmVerison6_1()) {

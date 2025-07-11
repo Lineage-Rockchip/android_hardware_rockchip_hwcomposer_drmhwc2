@@ -122,6 +122,7 @@ LOCAL_SRC_FILES := \
   rockchip/compositor/drmdisplaycompositor.cpp \
   rockchip/utils/drmdebug.cpp \
   rockchip/utils/rgautils.cpp \
+  rockchip/utils/localdimming.cpp \
   rockchip/common/drmfence.cpp \
   rockchip/common/drmlayer.cpp \
   rockchip/common/drmtype.cpp \
@@ -393,6 +394,11 @@ LOCAL_SHARED_LIBRARIES += \
 
 LOCAL_CFLAGS += \
 	-DUSE_LIBPQ=1
+
+ifeq ($(strip $(BOARD_USES_LIBPQ_LD)),true)
+LOCAL_CFLAGS += \
+	-DUSE_LIBPQ_LD=1
+endif
 
 CHECKED_DIRECTORY := hardware/rockchip/libvisionpq
 ifeq ($(wildcard $(CHECKED_DIRECTORY)),)

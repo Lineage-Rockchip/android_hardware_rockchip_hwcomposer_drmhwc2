@@ -381,6 +381,9 @@ int DrmCrtc::Init() {
     ret = drm_->GetCrtcProperty(*this, "IS_VIRTUAL", &is_virtual_);
     if (ret) ALOGE("Could not get IS_VIRTUAL property");
 
+    ret = drm_->GetCrtcProperty(*this, "DIMMING_DATA", &dimming_data_);
+    if (ret) ALOGE("Could not get DIMMING_DATA property");
+
     if (isRK3576(soc_id_)) {
         HWC2_LOGI("RK3576 do not use vop overscan, set b_can_overscan_ to false");
         b_can_overscan_ = false;
@@ -498,6 +501,10 @@ const DrmProperty& DrmCrtc::post_sharp_data() const {
 
 const DrmProperty& DrmCrtc::is_virtual() const {
     return is_virtual_;
+}
+
+const DrmProperty& DrmCrtc::dimming_data() const {
+    return dimming_data_;
 }
 
 bool DrmCrtc::get_afbc() const {

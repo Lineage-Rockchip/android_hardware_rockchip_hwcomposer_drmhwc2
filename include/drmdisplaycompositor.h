@@ -27,6 +27,9 @@
 #include "vsyncworker.h"
 #ifdef USE_LIBPQ
 #include "rkpq.h"
+#ifdef USE_LIBPQ_LD
+#include "rockchip/utils/localdimming.h"
+#endif
 #endif
 
 #ifdef USE_LIBSVEP_MEMC
@@ -109,6 +112,11 @@ class DrmDisplayCompositor {
         bool enable_ = false;
         uint64_t tunnel_id_ = 0;
         std::shared_ptr<VpComposition> composition_ = NULL;
+#ifdef USE_LIBPQ_LD
+        std::shared_ptr<std::vector<uint8_t>> pDimmingBuffer_ = NULL;
+        int iDimmingBufferSize_ = -1;
+        uint64_t uDimmingFrameNo_ = 0;
+#endif
     };
 
 #ifdef USE_LIBSVEP_MEMC
@@ -127,6 +135,10 @@ class DrmDisplayCompositor {
 
     struct ModeSetState {
         HdrState hdr_;
+#ifdef USE_LIBPQ_LD
+        std::shared_ptr<std::vector<uint8_t>> dimming_buffer_ = NULL;
+        int dimming_data_blob_len_ = 0;
+#endif
 #ifdef USE_LIBPQ_HWPQ
         // HWPQ 寄存器配置
         std::shared_ptr<rk_hwpq_reg> hwpq_regs_;
@@ -168,6 +180,10 @@ class DrmDisplayCompositor {
 
 #ifdef USE_LIBSVEP_MEMC
     int UpdateMemcState();
+#endif
+#ifdef USE_LIBPQ_LD
+    int CollectLocalDimmingInfo();
+    int UpdatelocalDimmingState();
 #endif
 
     int ApplyDpms(DrmDisplayComposition* display_comp);
@@ -267,6 +283,16 @@ class DrmDisplayCompositor {
     uint32_t hwpq_csc_id_ = 0;
     uint32_t hwpq_acm_id_ = 0;
     uint32_t hwpq_dci_id_ = 0;
+#endif
+#ifdef USE_LIBPQ_LD
+    uint32_t dimming_data_blob_id_ = 0;
+    LocalDimmingCtx dimming_ctx_;
+    int dimming_callback_id_ = -1;
+    int dimming_wb_display_id_ = 0;
+    bool dimming_wb_enabled_ = 0;
+    int EnableLocalDimmingWB();
+    int DisableLocalDimmingWB();
+    int GetLocalDimmingInfoWB();
 #endif
 };
 }  // namespace android

@@ -664,6 +664,102 @@ int DrmDisplayCompositor::CommitSidebandStream(drmModeAtomicReqPtr pset, DrmPlan
     return 0;
 }
 
+#ifdef USE_LIBPQ_LD
+int DrmDisplayCompositor::EnableLocalDimmingWB() {
+    //如果已经使能，不重复使能
+    if (dimming_wb_enabled_) {
+        HWC2_LOGD_IF("local_dimm: LocalDimming WriteBack is enabled, not enable again.");
+        return 0;
+    }
+
+    //检查当前屏幕是否支持LocalDimming
+    DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
+    if (!drm) {
+        HWC2_LOGE("local_dimm: Could not locate drm for display %d", display_);
+        return -1;
+    }
+    DrmCrtc* crtc = drm->GetCrtcForDisplay(display_);
+    if (!crtc) {
+        HWC2_LOGE("local_dimm: Could not locate crtc for display %d", display_);
+        return -1;
+    }
+    if (crtc->dimming_data().id() == 0) {
+        HWC2_LOGD_IF("local_dimm: crtc->dimming_data().id is 0, skip.");
+        return 0;
+    }
+
+    //检查当前屏幕是否为Writeback屏幕
+    int write_back_id =
+            HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.virtual_display_write_back_id", 1000, 0);
+
+    if (write_back_id != display_) {
+        HWC2_LOGD_IF("local_dimm: writeback id =%d not match display=%d, skip", write_back_id, display_);
+        return 0;
+    }
+    dimming_wb_display_id_ = write_back_id;
+
+    //注册Writeback回调
+    auto writeback_callback = [](std::shared_ptr<DrmBuffer> buffer, void* argument) {
+        LocalDimmingCtx* ctx = (LocalDimmingCtx*)argument;
+        int ret = ctx->HandleBuffer(buffer);
+        HWC2_LOGD_IF("local_dimm: WritebackCallback, ret=%d, buffer_id=%" PRIx64 ", size=%d,%d", ret,
+                     buffer->GetBufferId(), buffer->GetWidth(), buffer->GetHeight());
+    };
+
+    if (dimming_callback_id_ >= 0)
+        resource_manager_->UnregisterWBCallback(dimming_wb_display_id_, dimming_callback_id_);
+    dimming_ctx_.SetCrtcId(crtc->id());
+    dimming_callback_id_ =
+            resource_manager_->RegisterWBCallback(dimming_wb_display_id_, writeback_callback, &dimming_ctx_);
+    if (dimming_callback_id_ < 0) {
+        //this should never happend
+        HWC2_LOGE("local_dimm: Failed to register WB callback");
+        return -1;
+    }
+
+    //启用Writeback
+    int ret = resource_manager_->EnableWriteBackMode(write_back_id);
+    HWC2_LOGD_IF("Enable WriteBack for Dispaly %d %s, ret=%d", display_, ret ? "Failed" : "OK", ret);
+    dimming_wb_enabled_ = (ret == 0);
+    return ret;
+}
+
+int DrmDisplayCompositor::DisableLocalDimmingWB() {
+    if (dimming_wb_enabled_) {
+        if (dimming_callback_id_ >= 0) {
+            resource_manager_->UnregisterWBCallback(dimming_wb_display_id_, dimming_callback_id_);
+            dimming_callback_id_ = -1;
+        }
+        HWC2_LOGD_IF("local_dimm: Disable WriteBack for Dispaly %d, WBDisplay=%d", display_, dimming_wb_display_id_);
+        resource_manager_->DisableWriteBackMode(dimming_wb_display_id_);
+        dimming_wb_enabled_ = false;
+    }
+    current_sideband2_.pDimmingBuffer_ = nullptr;
+    current_sideband2_.iDimmingBufferSize_ = -1;
+    current_sideband2_.uDimmingFrameNo_ = 0;
+    dimming_ctx_.ClearLocalDimmingData();
+    return 0;
+}
+
+int DrmDisplayCompositor::GetLocalDimmingInfoWB() {
+    if (!dimming_wb_enabled_) {
+        HWC2_LOGD_IF("local_dimm: Writeback is not enabled, Skip display %d", display_);
+        return -1;
+    }
+
+    auto dimm_data = dimming_ctx_.GetLocalDimmingData();
+    if (dimm_data.pData && dimm_data.iSize > 0) {
+        current_sideband2_.pDimmingBuffer_ = dimm_data.pData;
+        current_sideband2_.iDimmingBufferSize_ = dimm_data.iSize;
+        current_sideband2_.uDimmingFrameNo_ = dimm_data.uFrameNo;
+        return 0;
+    } else {
+        HWC2_LOGW("local_dimm: Failed to get Dimming Data!");
+        return -1;
+    }
+}
+#endif
+
 #ifdef USE_LIBPQ_HWPQ
 int DrmDisplayCompositor::CollectHwPqInfo() {
     ATRACE_CALL();
@@ -1004,6 +1100,185 @@ int DrmDisplayCompositor::CollectHwPqInfo() {
 }
 #endif
 
+#ifdef USE_LIBPQ_LD
+int DrmDisplayCompositor::CollectLocalDimmingInfo() {
+    ATRACE_CALL();
+    int ret = 0;
+    if (!pset_) {
+        return -1;
+    }
+    drmModeAtomicReqPtr pset = pset_;
+    DrmDisplayComposition* current_composition = NULL;
+
+    bool sf_update = false;
+    // collect_composition_map_ 有值则表示当前帧包含 SF 刷新
+    if (collect_composition_map_.count(display_) > 0) {
+        current_composition = collect_composition_map_[display_].get();
+        sf_update = true;
+        // collect_composition_map_ 无值，则表示当前帧包含不包含
+    } else if (active_composition_map_.count(display_) > 0) {
+        current_composition = active_composition_map_[display_].get();
+    }
+
+    if (current_composition == NULL) {
+        HWC2_LOGE("can't find suitable active DrmDisplayComposition");
+        return 0;
+    }
+
+    std::vector<DrmHwcLayer>& layers = current_composition->layers();
+    std::vector<DrmCompositionPlane>& comp_planes = current_composition->composition_planes();
+    DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
+
+    DrmConnector* connector = drm->GetConnectorForDisplay(display_);
+    if (!connector) {
+        HWC2_LOGE("Could not locate connector for display %d", display_);
+        return -ENODEV;
+    }
+
+    DrmCrtc* crtc = drm->GetCrtcForDisplay(display_);
+    if (!crtc) {
+        HWC2_LOGE("Could not locate crtc for display %d", display_);
+        return -ENODEV;
+    }
+
+    if (!crtc->dimming_data().id()) {
+        HWC2_LOGD_IF("local_dimm: display %d crtc_id=%" PRIu32 " do not support dimming. ", display_, crtc->id());
+        return 0;
+    }
+
+    int zpos = -1;
+    request_mode_set_.dimming_buffer_ = NULL;
+    request_mode_set_.dimming_data_blob_len_ = -1;
+    std::shared_ptr<std::vector<uint8_t>> fb_dimming = NULL;
+    int fb_dimming_size = -1;
+
+    // Collect dimming buffer form layer (FbTarget)
+    for (DrmCompositionPlane& comp_plane : comp_planes) {
+        DrmPlane* plane = comp_plane.plane();
+        std::vector<size_t>& source_layers = comp_plane.source_layers();
+        if (comp_plane.type() == DrmCompositionPlane::Type::kDisable) continue;
+        if (source_layers.empty()) {
+            HWC2_LOGE("Can't handle empty source layer CompositionPlane.");
+            continue;
+        }
+
+        if (source_layers.size() > 1) {
+            HWC2_LOGE("Can't handle more than one source layer sz=%zu type=%d", source_layers.size(),
+                      comp_plane.type());
+            continue;
+        }
+
+        if (source_layers.front() >= layers.size()) {
+            HWC2_LOGE("Source layer index %zu out of bounds %zu type=%d", source_layers.front(), layers.size(),
+                      comp_plane.type());
+            break;
+        }
+
+        DrmHwcLayer& layer = layers[source_layers.front()];
+
+        if (layer.pDimmingBuffer_ && layer.pDimmingBufferSize_) {
+            if (layer.acquire_fence->wait(1000) == 0) {
+                fb_dimming = layer.pDimmingBuffer_;
+                fb_dimming_size = *(layer.pDimmingBufferSize_->data());
+                // HWC2_LOGE("Wait AcquireFence %d OK", layer.acquire_fence->getFd());
+            } else {
+                HWC2_LOGE("local_dimm: Wait AcquireFence %d 1000ms Failed, dimming size=%d is ignored",
+                          layer.acquire_fence->getFd(), *(layer.pDimmingBufferSize_->data()));
+            }
+        }
+    }
+
+    const char* dimming_data_path = "unknown";
+    uint64_t dimming_data_frame_no;
+    if (fb_dimming && fb_dimming_size > 0) {
+        request_mode_set_.dimming_buffer_ = fb_dimming;
+        request_mode_set_.dimming_data_blob_len_ = fb_dimming_size;
+        dimming_data_path = "FbTarget";
+        dimming_data_frame_no = current_composition->frame_no();
+    } else if (current_sideband2_.pDimmingBuffer_ && current_sideband2_.iDimmingBufferSize_ > 0) {
+        request_mode_set_.dimming_buffer_ = current_sideband2_.pDimmingBuffer_;
+        request_mode_set_.dimming_data_blob_len_ = current_sideband2_.iDimmingBufferSize_;
+        dimming_data_path = "Sideband-WB";
+        dimming_data_frame_no = current_sideband2_.uDimmingFrameNo_;
+    } else {
+        //在UI通路SWPQ关闭，且不存在Sideband场景下，从libpq获取静态的dimming数据，用于调整整体背光亮度
+        auto pq = Pq::Get();
+        if (pq != NULL) {
+            uint32_t dimming_size = pq->getDimmingSize(crtc->id());
+            std::shared_ptr<std::vector<uint8_t>> dimming_data = std::make_shared<std::vector<uint8_t>>(dimming_size);
+            int ret = pq->getDimmingConfig(crtc->id(), dimming_data->data(), &dimming_size);
+            if (!ret) {
+                request_mode_set_.dimming_buffer_ = dimming_data;
+                request_mode_set_.dimming_data_blob_len_ = dimming_size;
+                dimming_data_path = "Static";
+                dimming_data_frame_no = current_composition->frame_no();
+            } else {
+                HWC2_LOGE("local_dimm: Failed to get dimming config for crtc %u", crtc->id());
+            };
+        }
+    }
+
+    if (current_mode_set_.dimming_buffer_ != request_mode_set_.dimming_buffer_ ||
+        current_mode_set_.dimming_data_blob_len_ != request_mode_set_.dimming_data_blob_len_) {
+        if (request_mode_set_.dimming_buffer_ && request_mode_set_.dimming_data_blob_len_ > 0) {
+            if (dimming_data_blob_id_) {
+                ret = drm->DestroyPropertyBlob(dimming_data_blob_id_);
+                if (ret < 0) {
+                    HWC2_LOGE("Failed to destory Dimming blob. blob_id:[%" PRIu32 "]", dimming_data_blob_id_);
+                }
+                dimming_data_blob_id_ = 0;
+            }
+            if (request_mode_set_.dimming_data_blob_len_ > 0) {
+                ret = drm->CreatePropertyBlob(request_mode_set_.dimming_buffer_->data(),
+                                              request_mode_set_.dimming_data_blob_len_, &dimming_data_blob_id_);
+                if (ret < 0) {
+                    dimming_data_blob_id_ = 0;
+                    HWC2_LOGE("Failed to create dimming blob with data=%p,length=%" PRIu32,
+                              request_mode_set_.dimming_buffer_->data(), request_mode_set_.dimming_data_blob_len_);
+                }
+            }
+            //CRTC
+            ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->dimming_data().id(), dimming_data_blob_id_);
+            if (ret < 0) {
+                HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                          crtc->dimming_data().name().c_str(), crtc->dimming_data().id(), dimming_data_blob_id_);
+            }
+        } else {
+            if (dimming_data_blob_id_) {
+                ret = drm->DestroyPropertyBlob(dimming_data_blob_id_);
+                if (ret < 0) {
+                    HWC2_LOGE("Failed to destory dimming blob. blob_id:[%" PRIu32 "]", dimming_data_blob_id_);
+                }
+                dimming_data_blob_id_ = 0;
+                ret = drmModeAtomicAddProperty(pset_, crtc->id(), crtc->dimming_data().id(), dimming_data_blob_id_);
+                if (ret < 0) {
+                    HWC2_LOGE("Failed to add blob to prop %s(id:%d) blob_id:[%" PRIu32 "]",
+                              crtc->dimming_data().name().c_str(), crtc->dimming_data().id(), dimming_data_blob_id_);
+                }
+            }
+        }
+        if (request_mode_set_.dimming_buffer_) {
+            HWC2_LOGD_IF("local_dimm: Update %s dimming data, buffer=%p, len=%" PRIu32 ", frame_no=%" PRIu64
+                         " crtc_id=%d",
+                         dimming_data_path, request_mode_set_.dimming_buffer_->data(),
+                         request_mode_set_.dimming_data_blob_len_, dimming_data_frame_no, crtc->id());
+        } else {
+            HWC2_LOGD_IF("local_dimm: Dimming data cleared for crtc_id=%" PRIu32, crtc->id());
+        }
+    } else {
+        if (request_mode_set_.dimming_buffer_) {
+            HWC2_LOGD_IF("local_dimm: %s dimming data no change, buffer=%p, len=%" PRIu32 ", frame_no=%" PRIu64
+                         " crtc_id=%d",
+                         dimming_data_path, request_mode_set_.dimming_buffer_->data(),
+                         request_mode_set_.dimming_data_blob_len_, dimming_data_frame_no, crtc->id());
+        } else {
+            HWC2_LOGD_IF("local_dimm: No dimming data for crtc_id=%" PRIu32, crtc->id());
+        }
+    }
+    return ret < 0 ? -1 : 0;
+}
+#endif
+
 int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDisplayComposition* display_comp,
                                              bool is_sideband_collect) {
     ATRACE_CALL();
@@ -1150,6 +1425,19 @@ int DrmDisplayCompositor::UpdateHwPqState() {
 
     current_mode_set_.hwpq_regs_ = request_mode_set_.hwpq_regs_;
     current_mode_set_.hwpq_plane_ = request_mode_set_.hwpq_plane_;
+    return 0;
+}
+#endif
+
+#ifdef USE_LIBPQ_LD
+int DrmDisplayCompositor::UpdatelocalDimmingState() {
+    ATRACE_CALL();
+    AutoLock lock(&lock_, __func__);
+    if (lock.Lock()) return -1;
+
+    current_mode_set_.dimming_buffer_ = request_mode_set_.dimming_buffer_;
+    current_mode_set_.dimming_data_blob_len_ = request_mode_set_.dimming_data_blob_len_;
+
     return 0;
 }
 #endif
@@ -3429,6 +3717,29 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
         out_log.clear();
     }
 
+    if (!sf_update) {
+        // 只有 WriteBack by vop 需要执行以下步骤
+        if (resource_manager_->isWBMode() && resource_manager_->IsWriteBackByVop()) {
+            int wbDisplay = resource_manager_->GetWBDisplay();
+            if (wbDisplay == display_) {
+                android_dataspace_t writeback_dataspace = HAL_DATASPACE_UNKNOWN;
+                if (current_composition->has_hwpq()) {
+                    writeback_dataspace = HAL_DATASPACE_V0_JFIF;  // BT601-full
+                } else {
+                    writeback_dataspace = HAL_DATASPACE_V0_BT601_625;  // BT601-limit
+                }
+                ret = SetupWritebackCommit(pset, crtc->id(), drm->GetWritebackConnectorForDisplay(wbDisplay), NULL,
+                                           writeback_dataspace);
+                if (ret < 0) {
+                    ALOGE("Failed to Setup Writeback Commit ret = %d", ret);
+                    return ret;
+                }
+            }
+        } else {
+            DisableWritebackCommit(pset, drm->GetWritebackConnectorForDisplay(0));
+        }
+    }
+
     return ret;
 }
 
@@ -4696,13 +5007,57 @@ int DrmDisplayCompositor::Composite() {
         return ret;
     }
 
+#ifdef USE_LIBPQ_LD
+    if (IsSidebandMode()) {
+        //CollectSidebandInfo
+        ret = CollectSidebandInfo();
+
+        //提供一个禁用接口
+        int disable_sideband_ld =
+                HwcAProperty::getInstance().getIntWithInterval("vendor.hwc.disable_sideband_local_dimming", 1000, 0);
+        if (disable_sideband_ld) {
+            HWC2_LOGD_IF("local_dimm: vendor.hwc.disable_sideband_local_dimming=%d, Disable LocalDimming WB!",
+                         disable_sideband_ld);
+            DisableLocalDimmingWB();
+        } else {
+            if (ret) {
+                //Collect sideband失败， 清空Dimming数据
+                HWC2_LOGE("CollectSidebandInfo fail.");
+                current_sideband2_.pDimmingBuffer_ = nullptr;
+                current_sideband2_.iDimmingBufferSize_ = -1;
+                current_sideband2_.uDimmingFrameNo_ = 0;
+                dimming_ctx_.ClearLocalDimmingData();
+            } else {
+                //没有禁用且Collect sideband成功， 启用Writeback,获取LocalDimming数据
+                EnableLocalDimmingWB();
+                ret = GetLocalDimmingInfoWB();
+                if (ret) {
+                    HWC2_LOGD_IF("local_dimm: GetLocalDimmingInfoWB fail, clear wb localdimming info");
+                    current_sideband2_.pDimmingBuffer_ = nullptr;
+                    current_sideband2_.iDimmingBufferSize_ = -1;
+                    current_sideband2_.uDimmingFrameNo_ = 0;
+                }
+            }
+        }
+    } else {
+        //非Sideband模式，关闭Writeback
+        DisableLocalDimmingWB();
+    }
+#else
     if (IsSidebandMode() && CollectSidebandInfo()) {
         HWC2_LOGE("CollectSidebandInfo fail.");
     }
+#endif
 
 #ifdef USE_LIBPQ_HWPQ
     if (gIsRK3576() && CollectHwPqInfo()) {
         HWC2_LOGE("CollectHwPqInfo fail.");
+    }
+#endif
+
+#ifdef USE_LIBPQ_LD
+    if (CollectLocalDimmingInfo()) {
+        HWC2_LOGE("CollectLocalDimmingInfo fail.");
     }
 #endif
 
