@@ -711,19 +711,18 @@ int ResourceManager::OutputWBBuffer(int display_id, rga_buffer_t& dst, im_rect& 
 
     std::shared_ptr<DrmBuffer> output_buffer = NULL;
     uint64_t output_frame_no = 0;
-    std::queue<PAIR_ID_BUFFER> tmp_bufferqueue;
-    for (auto& FinishBufferPair : mFinishBufferQueue_) {
-        if (FinishBufferPair.first > *last_frame_no) {
-            output_buffer = FinishBufferPair.second;
-            output_frame_no = FinishBufferPair.first;
+    for (auto& finish_buffer : mFinishBufferQueue_) {
+        if (finish_buffer->GetFrameNumber() > *last_frame_no) {
+            output_buffer = finish_buffer;
+            output_frame_no = finish_buffer->GetFrameNumber();
             break;
         }
     }
 
     // 从已经 WriteBack 完成的缓冲池获取下一帧 WriteBack 图像
     if (output_buffer == NULL && mFinishBufferQueue_.size() > 0) {
-        output_buffer = mFinishBufferQueue_.back().second;
-        output_frame_no = mFinishBufferQueue_.back().first;
+        output_buffer = mFinishBufferQueue_.back();
+        output_frame_no = mFinishBufferQueue_.back()->GetFrameNumber();
         HWC2_LOGW("VDS may output a same image frame_no=%" PRIu64 " Last_frame_no=%" PRIu64, output_frame_no,
                   *last_frame_no);
     }
@@ -853,18 +852,24 @@ int ResourceManager::SwapWBBuffer(uint64_t frame_no) {
         return -1;
     }
 
+    // 将 Frame_no 更新到当前 WriteBackBuffer中
+    if (mNextWriteBackBuffer_ != NULL) {
+        mNextWriteBackBuffer_->SetFrameNumber(frame_no);
+    }
+
     // 1. Drawing 切换为 Finish 状态, 并 push 进队列
     if (mDrawingWriteBackBuffer_ != NULL) {
-        mFinishBufferQueue_.push_back(PAIR_ID_BUFFER{frame_no, mDrawingWriteBackBuffer_});
-        HWC2_LOGD_IF("WB: frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu", frame_no,
-                     mDrawingWriteBackBuffer_->GetId(), mFinishBufferQueue_.size());
+        mFinishBufferQueue_.push_back(mDrawingWriteBackBuffer_);
+        HWC2_LOGD_IF("WB: frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu",
+                     mDrawingWriteBackBuffer_->GetFrameNumber(), mDrawingWriteBackBuffer_->GetId(),
+                     mFinishBufferQueue_.size());
         // 环形缓冲区，若达到环形缓冲区最大尺寸，则需要丢掉最旧的一帧缓存
         if (mFinishBufferQueue_.size() > (WB_BUFFERQUEUE_MAX_SIZE - 1)) {
-            auto last_buffer_pair = mFinishBufferQueue_.begin();
-            mFinishBufferQueue_.erase(last_buffer_pair);
-            HWC2_LOGW_IF("WB: lost frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu", last_buffer_pair->first,
-                         ((last_buffer_pair->second != NULL) ? last_buffer_pair->second->GetId() : -1),
+            auto last_finish_buffer = mFinishBufferQueue_.begin();
+            HWC2_LOGW_IF("WB: lost frame_no=%" PRIu64 " id=%" PRIu64 " queue.size=%zu",
+                         (*last_finish_buffer)->GetFrameNumber(), (*last_finish_buffer)->GetId(),
                          mFinishBufferQueue_.size());
+            mFinishBufferQueue_.erase(last_finish_buffer);
         }
 
         // Handle Callback
@@ -877,7 +882,6 @@ int ResourceManager::SwapWBBuffer(uint64_t frame_no) {
         }
     }
     // 2. Next 切换为 Drawing 状态
-    mNextWriteBackBuffer_->SetFrameNumber(frame_no);
     mDrawingWriteBackBuffer_ = mNextWriteBackBuffer_;
 
     // 3. 申请 Next Buffer
@@ -961,7 +965,7 @@ int ResourceManager::RegisterWBCallback(uint64_t display_id, void (*callback)(st
         mWriteBackCb_[display_id][callback_id] = {callback, argument};
         return callback_id;
     } else {
-        HWC2_LOGE("Failed to register WB callback! callback is null");
+        HWC2_LOGW("Failed to register WB callback! callback is null");
         return -1;
     }
 }
@@ -972,7 +976,7 @@ int ResourceManager::UnregisterWBCallback(uint64_t display_id, int callback_id) 
         mWriteBackCb_[display_id].erase(callback_id);
         return 0;
     } else {
-        HWC2_LOGE("Could not found callback %" PRIu64 ":%d", display_id, callback_id);
+        HWC2_LOGW("Could not found callback %" PRIu64 ":%d", display_id, callback_id);
         return -1;
     }
 }

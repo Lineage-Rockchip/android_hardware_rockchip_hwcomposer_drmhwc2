@@ -58,8 +58,6 @@ namespace android {
 class DrmDisplayCompositor;
 class DrmHwcTwo;
 
-typedef std::pair<uint64_t, std::shared_ptr<DrmBuffer>> PAIR_ID_BUFFER;
-
 typedef enum HwVirtualDisplayMode {
     HWC2_DISABLE_HW_VIRTUAL_DISPLAY = 0,
     HWC2_HW_VIRTUAL_DISPLAY_USE_VOP = 1,
@@ -205,7 +203,7 @@ class ResourceManager {
     std::shared_ptr<DrmBuffer> mResetBackBuffer_ = NULL;
     std::shared_ptr<DrmBuffer> mNextWriteBackBuffer_ = NULL;
     std::shared_ptr<DrmBuffer> mDrawingWriteBackBuffer_ = NULL;
-    std::vector<PAIR_ID_BUFFER> mFinishBufferQueue_;
+    std::vector<std::shared_ptr<DrmBuffer>> mFinishBufferQueue_;
     std::map</*display_id*/ uint64_t,
              std::map</*Callback id*/ int,
                       std::pair</*function*/ void (*)(std::shared_ptr<DrmBuffer>, void* arg), /*argument*/ void*>>>

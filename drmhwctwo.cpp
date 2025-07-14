@@ -4687,7 +4687,7 @@ int DrmHwcTwo::HwcDisplay::EnableDumpWithWB() {
 
     //注册Writeback回调
     auto writeback_callback = [](std::shared_ptr<DrmBuffer> buffer, void* argument) {
-        int ret = buffer->DumpData(/*z-pos*/ 0, "W");
+        buffer->DumpData(/*z-pos*/ 0, "M");
     };
 
     if (iDumpWBCallbackId_ >= 0) resource_manager_->UnregisterWBCallback(iDumpWbDisplayId_, iDumpWBCallbackId_);
