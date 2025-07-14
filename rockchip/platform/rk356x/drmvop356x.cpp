@@ -723,8 +723,8 @@ int Vop356x::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     if (match_best) {
                         if (!((*iter)->win_type & (*iter_layer)->iBestPlaneType)) {
                             HWC2_LOGV_IF("line=%d, plane_group win-type = 0x%" PRIx64
-                                         " , layer best-type = %x, not match ",
-                                         __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
+                                            " , layer best-type = %x, not match ",
+                                            __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
                             continue;
                         }
                     }
@@ -1248,14 +1248,17 @@ int Vop356x::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
     int zpos = 0;
     for (auto i = layer_map.begin(); i != layer_map.end(); i = layer_map.erase(i)) {
         int ret = MatchPlane(composition, plane_groups, DrmCompositionPlane::Type::kLayer, crtc,
-                             std::make_pair(i->first, i->second), zpos);
+                             std::make_pair(i->first, i->second), zpos, true);
         if (ret) {
-            ALOGD_IF(LogLevel(DBG_DEBUG), "Failed to match all layer, try other HWC policy ret = %d, line = %d", ret,
-                     __LINE__);
-            ResetLayer(layers);
-            ResetPlaneGroups(plane_groups);
-            composition->clear();
-            return ret;
+            ret = MatchPlane(composition, plane_groups, DrmCompositionPlane::Type::kLayer, crtc,
+                             std::make_pair(i->first, i->second), zpos, false);
+            if (ret) {
+                ALOGD_IF(LogLevel(DBG_DEBUG), "Failed to match all layer, try other HWC policy ret = %d, line = %d", ret, __LINE__);
+                ResetLayer(layers);
+                ResetPlaneGroups(plane_groups);
+                composition->clear();
+                return ret;
+            }
         }
 
         if (ctx.state.bCommitMirrorMode && ctx.state.pCrtcMirror != NULL) {
@@ -3337,6 +3340,7 @@ void Vop356x::InitRequestContext(std::vector<DrmHwcLayer*>& layers) {
     ctx.request.iSkipCnt = 0;
     ctx.request.iRotateCnt = 0;
     ctx.request.iHdrCnt = 0;
+    ctx.request.iCnt = 0;
 
     ctx.request.accelerate_app_exist_ = false;
 
@@ -3380,6 +3384,7 @@ void Vop356x::InitRequestContext(std::vector<DrmHwcLayer*>& layers) {
 
             if (layer->bHdr_) ctx.request.iAfbcdHdrCnt++;
 
+            layer->iBestPlaneType = DRM_PLANE_TYPE_ALL_CLUSTER_MASK;
         } else {
             ctx.request.iCnt++;
 
@@ -3395,6 +3400,8 @@ void Vop356x::InitRequestContext(std::vector<DrmHwcLayer*>& layers) {
             if (layer->transform != DRM_MODE_ROTATE_0) ctx.request.iRotateCnt++;
 
             if (layer->bHdr_) ctx.request.iHdrCnt++;
+
+            layer->iBestPlaneType = DRM_PLANE_TYPE_ALL_ESMART_MASK | DRM_PLANE_TYPE_ALL_SMART_MASK;
         }
     }
     return;

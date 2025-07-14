@@ -443,11 +443,11 @@ int Vop3528::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     //reset is_match to false
                     (*iter_layer)->bMatch_ = false;
 
-                    if (match_best || (*iter_layer)->iBestPlaneType > 0) {
+                    if (match_best) {
                         if (!((*iter)->win_type & (*iter_layer)->iBestPlaneType)) {
                             HWC2_LOGV_IF("line=%d, plane_group win-type = 0x%" PRIx64
-                                         " , layer best-type = %x, not match ",
-                                         __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
+                                            " , layer best-type = %x, not match ",
+                                            __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
                             continue;
                         }
                     }
@@ -769,51 +769,56 @@ int Vop3528::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
     int zpos = 0;
     for (auto i = layer_map.begin(); i != layer_map.end(); i = layer_map.erase(i)) {
         int ret = MatchPlane(composition, plane_groups, DrmCompositionPlane::Type::kLayer, crtc,
-                             std::make_pair(i->first, i->second), zpos);
-#ifdef RK3528
-        // RK3528 支持预缩小，当源片源无法匹配时，需要考虑预缩小是否可以满足需求；
+                             std::make_pair(i->first, i->second), zpos, true);
         if (ret) {
-            for (auto& drmlayer : i->second) {
-                if (drmlayer->bYuv_ && drmlayer->bAfbcd_) {
-                    if (ctx.request.iAfbcdCnt > 0 && drmlayer->bAfbcd_) {
-                        ctx.request.iAfbcdCnt--;
-                    }
-                    drmlayer->bNeedPreScale_ = true;
-                    if (drmlayer->SwitchPreScaleBufferInfo() == 0) {
-                        use_prescale = true;
+            ret = MatchPlane(composition, plane_groups, DrmCompositionPlane::Type::kLayer, crtc,
+                             std::make_pair(i->first, i->second), zpos, false);
+    #ifdef RK3528
+            // RK3528 支持预缩小，当源片源无法匹配时，需要考虑预缩小是否可以满足需求；
+            if (ret) {
+                for (auto& drmlayer : i->second) {
+                    if (drmlayer->bYuv_ && drmlayer->bAfbcd_) {
+                        if (ctx.request.iAfbcdCnt > 0 && drmlayer->bAfbcd_) {
+                            ctx.request.iAfbcdCnt--;
+                        }
+                        drmlayer->bNeedPreScale_ = true;
+                        if (drmlayer->SwitchPreScaleBufferInfo() == 0) {
+                            use_prescale = true;
+                        }
                     }
                 }
-            }
 
-            if (use_prescale) {
-                HWC2_LOGD_IF("PreScaleVideo: Try to use PreScale video mode, try MatchPlane again.");
-                ret = MatchPlane(composition, plane_groups, DrmCompositionPlane::Type::kLayer, crtc,
-                                 std::make_pair(i->first, i->second), zpos);
-                if (ret) {
-                    ALOGD_IF(LogLevel(DBG_DEBUG),
-                             "Failed to match prescale layer, try other HWC policy ret = %d, line = %d", ret, __LINE__);
-                    for (auto& drmlayer : i->second) {
-                        if (drmlayer->bYuv_) {
-                            drmlayer->ResetInfoFromPreScaleStore();
-                            drmlayer->bNeedPreScale_ = false;
-                            use_prescale = false;
-                            if (drmlayer->bAfbcd_) {
-                                ctx.request.iAfbcdCnt++;
+                if (use_prescale) {
+                    HWC2_LOGD_IF("PreScaleVideo: Try to use PreScale video mode, try MatchPlane again.");
+                    ret = MatchPlane(composition, plane_groups, DrmCompositionPlane::Type::kLayer, crtc,
+                                    std::make_pair(i->first, i->second), zpos);
+                    if (ret) {
+                        ALOGD_IF(LogLevel(DBG_DEBUG),
+                                "Failed to match prescale layer, try other HWC policy ret = %d, line = %d", ret, __LINE__);
+                        for (auto& drmlayer : i->second) {
+                            if (drmlayer->bYuv_) {
+                                drmlayer->ResetInfoFromPreScaleStore();
+                                drmlayer->bNeedPreScale_ = false;
+                                use_prescale = false;
+                                if (drmlayer->bAfbcd_) {
+                                    ctx.request.iAfbcdCnt++;
+                                }
                             }
                         }
                     }
                 }
             }
+    #endif
+            if (ret) {
+                ALOGD_IF(LogLevel(DBG_DEBUG), "Failed to match all layer, try other HWC policy ret = %d, line = %d", ret,
+                        __LINE__);
+                ResetLayer(layers);
+                ResetPlaneGroups(plane_groups);
+                composition->clear();
+                return ret;
+            }
         }
-#endif
-        if (ret) {
-            ALOGD_IF(LogLevel(DBG_DEBUG), "Failed to match all layer, try other HWC policy ret = %d, line = %d", ret,
-                     __LINE__);
-            ResetLayer(layers);
-            ResetPlaneGroups(plane_groups);
-            composition->clear();
-            return ret;
-        }
+
         zpos++;
 
         // 总数据量超过，iVopMaxOverlay4KPlane 层 4K RGBA 图层，则认为匹配失败。
@@ -2003,6 +2008,7 @@ void Vop3528::InitRequestContext(std::vector<DrmHwcLayer*>& layers) {
     ctx.request.iSkipCnt = 0;
     ctx.request.iRotateCnt = 0;
     ctx.request.iHdrCnt = 0;
+    ctx.request.iCnt = 0;
 
     ctx.request.bSidebandStreamMode = false;
 
@@ -2052,6 +2058,7 @@ void Vop3528::InitRequestContext(std::vector<DrmHwcLayer*>& layers) {
 
             if (layer->bHdr_) ctx.request.iAfbcdHdrCnt++;
 
+            layer->iBestPlaneType = PLANE_RK3528_ALL_CLUSTER_MASK;
         } else {
             ctx.request.iCnt++;
 
@@ -2067,6 +2074,8 @@ void Vop3528::InitRequestContext(std::vector<DrmHwcLayer*>& layers) {
             if (layer->transform != DRM_MODE_ROTATE_0) ctx.request.iRotateCnt++;
 
             if (layer->bHdr_) ctx.request.iHdrCnt++;
+
+            layer->iBestPlaneType = PLANE_RK3528_ALL_ESMART_MASK;
         }
     }
     return;
