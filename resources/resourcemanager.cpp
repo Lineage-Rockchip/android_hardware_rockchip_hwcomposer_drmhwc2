@@ -408,7 +408,6 @@ HwVirtualDisplayMode_t ResourceManager::ChooseWriteBackMode(int display) {
     }
 
     // 3. 获取待 WriteBack 当前分辨率，用于申请 WriteBackBuffer
-    // 4. WriteBack 硬件要求 16对齐，否则超出部分会直接丢弃
     mWBMode_ = writeBackConn->current_mode();
     if (mWBMode_.width() > 4096 || mWBMode_.height() > 2160) {
         HWC2_LOGI("Primary resolution=%dx%d, use WriteBack by RGA", mWBMode_.width(), mWBMode_.height());
@@ -422,9 +421,14 @@ HwVirtualDisplayMode_t ResourceManager::ChooseWriteBackMode(int display) {
 // 使用 Vop 作为 WriteBack 内容输出单元
 int ResourceManager::WriteBackUseVop(int display) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-    iWBWidth_ = ALIGN_DOWN(mWBMode_.width(), 16);
+    iWBWidth_ = mWBMode_.width();
     iWBHeight_ = mWBMode_.height();
     iWBFormat_ = HAL_PIXEL_FORMAT_YCrCb_NV12;
+
+    // RK3576之前 WriteBack 硬件限制，Writeback区域缩放至向下16对齐, 且不支持虚宽。
+    //            例如，1080分辨率实际上输出1072，且要求buffer的虚宽为1072
+    // RK3576之后，仅要求虚宽4byte对齐
+    if (!gIsRK3576()) iWBWidth_ = ALIGN_DOWN(iWBWidth_, 16);
 
     // 5. 创建 WriteBackBuffer BufferQueue，并且申请 WB Buffer.
     if (mWriteBackBQ_ == NULL) {
@@ -538,8 +542,15 @@ int ResourceManager::UpdateWriteBackResolutionUseVop(int display) {
     // 3. 获取待 WriteBack 当前分辨率，用于申请 WriteBackBuffer
     DrmMode currentMode = writeBackConn->current_mode();
     mWBMode_ = currentMode;
-    int tempWBWidth = ALIGN_DOWN(mWBMode_.width(), 16);
+
+    int tempWBWidth = mWBMode_.width();
     int tempWBHeight = mWBMode_.height();
+
+    // RK3576之前 WriteBack 硬件限制，Writeback区域缩放至向下16对齐, 且不支持虚宽。
+    //            例如，1080分辨率实际上输出1072，且要求buffer的虚宽为1072
+    // RK3576之后，仅要求虚宽4byte对齐
+    if (!gIsRK3576()) tempWBWidth = ALIGN_DOWN(tempWBWidth, 16);
+
     if (tempWBWidth == iWBWidth_ && tempWBHeight == iWBHeight_) {
         return 0;
     } else {
