@@ -886,7 +886,8 @@ int ResourceManager::SwapWBBuffer(uint64_t frame_no) {
         return -1;
     }
 
-    HWC2_LOGI_IF("display=%d success, w=%d h=%d format=%d", iWriteBackDisplayId_, iWBWidth_, iWBHeight_, iWBFormat_);
+    HWC2_LOGI_IF("display=%d success, w=%d h=%d format=%d bid=%" PRIu64 , iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
+                 iWBFormat_, mDrawingWriteBackBuffer_->GetId());
 
     mNextWriteBackBuffer_ = next;
     return 0;
@@ -898,6 +899,22 @@ void ResourceManager::AddWBDisplayLayerInfo(std::map<uint32_t, MirrorDisplayInfo
     mWBDisplayLayerInfo_.clear();
     mWBDisplayLayerInfo_ = Info;
 }
+
+void ResourceManager::SetWriteBackRunningState(bool enable, const char* tag) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (bWriteBackRuningEnable_ != enable) {
+        HWC2_LOGI_IF("VDS : Update WriteBack running state %d => %d, info=%s", bWriteBackRuningEnable_, enable, tag);
+        bWriteBackRuningEnable_ = enable;
+        if (bWriteBackRuningEnable_ == true) {
+            mDrawingWriteBackBuffer_ = NULL;
+            mFinishBufferQueue_.clear();
+        }
+    }
+};
+bool ResourceManager::GetWriteBackRunningState() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    return bWriteBackRuningEnable_;
+};
 
 // 检查是否是WriteBack Display 的 Mirror Dispaly
 bool ResourceManager::IsWBMirrorDisplay(uint64_t display_id, uint32_t zorder, MirrorDisplayInfo_t info) {

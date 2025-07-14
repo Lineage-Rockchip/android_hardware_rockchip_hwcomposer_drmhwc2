@@ -584,16 +584,18 @@ int DrmBuffer::WaitFinishFence(int timeout_ms) {
     int ret = 0;
     if (iFinishFence_.get() > 0) {
         int fence_fd = dup(iFinishFence_.get());
+        int old_fd = iFinishFence_.get();
         if (fence_fd < 0) {
-            HWC2_LOGE("Failed to dup fence fd BufferId=0x%" PRIx64 " for Finish fence %d/%d %dms", uBufferId_, fence_fd,
-                      ret, timeout_ms);
+            HWC2_LOGE("Failed to dup fence fd BufferId=0x%" PRIx64 " for Finish fence %d/%d ret=%d/ %dms", uBufferId_,
+                      fence_fd, old_fd, ret, timeout_ms);
             return -1;
         }
         lk.unlock();
         ret = sync_wait(fence_fd, timeout_ms);
         if (ret) {
             if (timeout_ms > 0) {
-                HWC2_LOGE("Failed to wait for finish fence %d/%d %dms", iFinishFence_.get(), ret, timeout_ms);
+                HWC2_LOGE("Failed to wait for finish fence %d/%d/%d ret=%d %dms", fence_fd, old_fd, iFinishFence_.get(),
+                          ret, timeout_ms);
             }
         }
         close(fence_fd);

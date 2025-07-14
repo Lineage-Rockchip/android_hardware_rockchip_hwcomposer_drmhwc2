@@ -1301,21 +1301,34 @@ int DrmDisplayCompositor::CollectCommitInfo(drmModeAtomicReqPtr pset, DrmDisplay
 
     // WriteBack Mode
     if (!test_only) {
+        // 如果没有硬件图层送显，则关闭WriteBack
+        bool drmplane_enable = false;
+        for (DrmCompositionPlane& comp_plane : comp_planes) {
+            if (comp_plane.type() == DrmCompositionPlane::Type::kLayer) {
+                drmplane_enable = true;
+                break;
+            }
+        }
         // 只有 WriteBack by vop 需要执行以下步骤
         if (resource_manager_->isWBMode() && resource_manager_->IsWriteBackByVop()) {
             int wbDisplay = resource_manager_->GetWBDisplay();
             if (wbDisplay == display_) {
-                android_dataspace_t writeback_dataspace = HAL_DATASPACE_UNKNOWN;
-                if (display_comp->has_hwpq()) {
-                    writeback_dataspace = HAL_DATASPACE_V0_JFIF;  // BT601-full
+                if (drmplane_enable == false) {
+                    resource_manager_->SetWriteBackRunningState(false, "NoDrmPlanesEnable");
+                    DisableWritebackCommit(pset, drm->GetWritebackConnectorForDisplay(0));
                 } else {
-                    writeback_dataspace = HAL_DATASPACE_V0_BT601_625;  // BT601-limit
-                }
-                ret = SetupWritebackCommit(pset, crtc->id(), drm->GetWritebackConnectorForDisplay(wbDisplay), NULL,
-                                           writeback_dataspace);
-                if (ret < 0) {
-                    ALOGE("Failed to Setup Writeback Commit ret = %d", ret);
-                    return ret;
+                    android_dataspace_t writeback_dataspace = HAL_DATASPACE_UNKNOWN;
+                    if (display_comp->has_hwpq()) {
+                        writeback_dataspace = HAL_DATASPACE_V0_JFIF;  // BT601-full
+                    } else {
+                        writeback_dataspace = HAL_DATASPACE_V0_BT601_625;  // BT601-limit
+                    }
+                    ret = SetupWritebackCommit(pset, crtc->id(), drm->GetWritebackConnectorForDisplay(wbDisplay), NULL,
+                                               writeback_dataspace);
+                    if (ret < 0) {
+                        ALOGE("Failed to Setup Writeback Commit ret = %d", ret);
+                        return ret;
+                    }
                 }
             }
         } else {
@@ -1956,6 +1969,7 @@ void DrmDisplayCompositor::Commit() {
                     wbBuffer->SetFinishFence(writeback_fence_);
                     writeback_fence_ = -1;
                 }
+                resource_manager_->SetWriteBackRunningState(true, "HasDrmPlanesEnable");
                 resource_manager_->SwapWBBuffer(frame_no_);
             }
         } else {
@@ -2536,6 +2550,26 @@ void DrmDisplayCompositor::ClearDisplay() {
         return;
     }
 
+    if (bWriteBackEnable_) {
+        drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
+        if (!pset) {
+            HWC2_LOGE("Failed to allocate property set");
+            return;
+        }
+        DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
+        resource_manager_->SetWriteBackRunningState(false, "ClearDisplay");
+        DisableWritebackCommit(pset, drm->GetWritebackConnectorForDisplay(0));
+        uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
+        int ret = drmModeAtomicCommit(drm->fd(), pset, flags, drm);
+        if (ret) {
+            HWC2_LOGE("Failed to commit pset ret=%d\n", ret);
+        }
+
+        drmModeAtomicFree(pset);
+        pset = NULL;
+        bWriteBackEnable_ = false;
+    }
+
     // Bug: #363288 #361559
     // 清空 DrmDisplayComposition 前需要将已经送显的图层统一关闭后再进行RMFB
     // 如果上层直接 RMFB 的话，底层会自动关闭对应图层，因为关闭有先后顺序
@@ -2564,25 +2598,6 @@ void DrmDisplayCompositor::ClearDisplay() {
         pthread_cond_signal(&composite_queue_cond_);
     }
     mapDisplayHaveQeueuCnt_.clear();
-
-    if (bWriteBackEnable_) {
-        drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
-        if (!pset) {
-            HWC2_LOGE("Failed to allocate property set");
-            return;
-        }
-        DrmDevice* drm = resource_manager_->GetDrmDevice(display_);
-        DisableWritebackCommit(pset, drm->GetWritebackConnectorForDisplay(0));
-        uint32_t flags = DRM_MODE_ATOMIC_ALLOW_MODESET;
-        int ret = drmModeAtomicCommit(drm->fd(), pset, flags, drm);
-        if (ret) {
-            HWC2_LOGE("Failed to commit pset ret=%d\n", ret);
-        }
-
-        drmModeAtomicFree(pset);
-        pset = NULL;
-        bWriteBackEnable_ = false;
-    }
 
     // 重置HDR状态
 #ifdef USE_VIVID_HDR

@@ -2868,6 +2868,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
                 bUseWriteBack_ = false;
             }
 
+            if (resource_manager_->GetWriteBackRunningState() == false) {
+                HWC2_LOGD_IF("WB:  Current display=%" PRIu64 " WBDisplay=%d runing state=%d. disable VDS. frame_no=%d",
+                             handle_, WBDisplayId, resource_manager_->GetWriteBackRunningState(), frame_no_);
+                bUseWriteBack_ = false;
+            }
+
             // if(resource_manager_->GetFinishWBBufferSize() == 0){
             //   HWC2_LOGD_IF("WB buffer not ready, display=%" PRIu64 " wb-display %d frame_no=%d", handle_, WBDisplayId, frame_no_);
             //   bUseWriteBack_ = false;

@@ -119,6 +119,9 @@ class ResourceManager {
     int SwapWBBuffer(uint64_t frame_no);
     // 更新WriteBack Display的图层信息，以便判断是否可以开启WriteBack
     void AddWBDisplayLayerInfo(std::map<uint32_t, MirrorDisplayInfo_t>& Info);
+    void SetWriteBackRunningState(bool enable, const char* tag);
+    bool GetWriteBackRunningState();
+
     // 检查是否是WriteBack Display 的 Mirror Dispaly
     bool IsWBMirrorDisplay(uint64_t display_id, uint32_t zorder, MirrorDisplayInfo_t info);
     // WriteBack interface.
@@ -191,22 +194,22 @@ class ResourceManager {
     int iWBFormat_;
     // WriteBack分辨率
     DrmMode mWBMode_;
+    // 需要临时关闭 WriteBack 模式，比如 屏端没有图层使能
+    bool bWriteBackRuningEnable_;
+
     // WriteBack BufferQueue 信息，用于实现环形缓冲区结构
     std::shared_ptr<DrmBufferQueue> mWriteBackBQ_ = NULL;
     std::shared_ptr<DrmBuffer> mResetBackBuffer_ = NULL;
     std::shared_ptr<DrmBuffer> mNextWriteBackBuffer_ = NULL;
     std::shared_ptr<DrmBuffer> mDrawingWriteBackBuffer_ = NULL;
     std::vector<PAIR_ID_BUFFER> mFinishBufferQueue_;
+    // 主要用于保存WriteBack 图层信息，用于评估虚拟屏幕是否支持从WriteBack获取图像
+    std::map<uint32_t /*z*/, MirrorDisplayInfo_t> mWBDisplayLayerInfo_;
+    std::map<int, std::set<uint64_t>> mMapDisplayBufferSet_;
+    // -->
 
     // SolidColor manager
     SolidColorManager mSolidColorManager_;
-
-    // 主要用于保存WriteBack 图层信息，用于评估虚拟屏幕是否支持从WriteBack获取图像
-    std::map<uint32_t /*z*/, MirrorDisplayInfo_t> mWBDisplayLayerInfo_;
-
-    // -->
-    std::map<int, std::set<uint64_t>> mMapDisplayBufferSet_;
-
     // Composition丢帧模式
     bool mCompositionDropMode_;
     // 使能动态分辨率切换模式
