@@ -3572,6 +3572,13 @@ int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
             }
         }
 
+        bool disable_dump_with_wb = HwcAProperty::getInstance().getBoolWithInterval("vendor.dump.disable_wb", 500, false);
+        if (disable_dump_with_wb) {
+            DisableDumpWithWB();
+        } else {
+            EnableDumpWithWB();
+        }
+
         if (iDumpCnt <= 0) {
             int framecnt = HwcAProperty::getInstance().getInt("vendor.dump.cnt", -1);
             if (framecnt > 0) {
@@ -3586,6 +3593,7 @@ int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
             }
         }
     } else {
+        DisableDumpWithWB();
         iDumpCnt = -1;
     }
 
@@ -4659,6 +4667,55 @@ HWC2::Error DrmHwcTwo::HwcDisplay::DestoryDummyLayer() {
     } else {
         return HWC2::Error::None;
     }
+}
+
+int DrmHwcTwo::HwcDisplay::EnableDumpWithWB() {
+    //如果已经使能，不重复使能
+    if (bDumpWbEnabled_) {
+        HWC2_LOGD_IF("dump: Dump WriteBack is enabled, not enable again.");
+        return 0;
+    }
+
+    //检查当前屏幕是否为Writeback屏幕
+    int write_back_id = property_get_int32("vendor.hwc.virtual_display_write_back_id", 0);
+
+    if (write_back_id != handle_) {
+        HWC2_LOGD_IF("dump: writeback id =%d not match display=%" PRIu64 ", skip", write_back_id, handle_);
+        return 0;
+    }
+    iDumpWbDisplayId_ = write_back_id;
+
+    //注册Writeback回调
+    auto writeback_callback = [](std::shared_ptr<DrmBuffer> buffer, void* argument) {
+        int ret = buffer->DumpData(/*z-pos*/ 0, "W");
+    };
+
+    if (iDumpWBCallbackId_ >= 0) resource_manager_->UnregisterWBCallback(iDumpWbDisplayId_, iDumpWBCallbackId_);
+    iDumpWBCallbackId_ = resource_manager_->RegisterWBCallback(iDumpWbDisplayId_, writeback_callback, &frame_no_);
+    if (iDumpWBCallbackId_ < 0) {
+        //this should never happend
+        HWC2_LOGE("dump: Failed to register WB callback");
+        return -1;
+    }
+
+    //启用Writeback
+    int ret = resource_manager_->EnableWriteBackMode(iDumpWbDisplayId_);
+    HWC2_LOGI("dump: Enable WriteBack for Dispaly %" PRIu64 " %s, ret=%d", handle_, ret ? "Failed" : "OK", ret);
+    bDumpWbEnabled_ = (ret == 0);
+    return ret;
+}
+
+int DrmHwcTwo::HwcDisplay::DisableDumpWithWB() {
+    if (bDumpWbEnabled_) {
+        if (iDumpWBCallbackId_ >= 0) {
+            resource_manager_->UnregisterWBCallback(iDumpWbDisplayId_, iDumpWBCallbackId_);
+            iDumpWBCallbackId_ = -1;
+        }
+        HWC2_LOGI("dump: Disable WriteBack for Dispaly %" PRIu64 ", WBDisplay=%d", handle_, iDumpWbDisplayId_);
+        resource_manager_->DisableWriteBackMode(iDumpWbDisplayId_);
+        bDumpWbEnabled_ = false;
+    }
+    return 0;
 }
 
 HWC2::Error DrmHwcTwo::HwcLayer::SetLayerBlendMode(int32_t mode) {

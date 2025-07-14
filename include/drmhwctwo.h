@@ -897,6 +897,8 @@ class DrmHwcTwo : public hwc2_device_t {
         int ImportBuffers();
         int DoMirrorDisplay(int32_t* retire_fence);
         void CheckForSplitModeTimeline();
+        int EnableDumpWithWB();
+        int DisableDumpWithWB();
 
         ResourceManager* resource_manager_;
         DrmDevice* drm_;
@@ -972,6 +974,9 @@ class DrmHwcTwo : public hwc2_device_t {
 #endif
         mutable std::recursive_mutex mDisplayMutex_;
         int iDumpCnt = -1;
+        int iDumpWBCallbackId_ = -1;
+        int iDumpWbDisplayId_ = 0;
+        bool bDumpWbEnabled_ = false;
     };
 
     enum PLUG_EVENT_TYPE {

@@ -85,6 +85,7 @@ class DrmBuffer {
     int SetReleaseFence(int fence);
     int WaitReleaseFence(int timeout_ms = 1500);
     int DumpData(uint32_t frame_no, int zpos, const char* tag);
+    int DumpData(int zpos, const char* tag) { return DumpData(uFrameNo_, zpos, tag); }
 
     void SetDataspace(android_dataspace_t dataspace);
     android_dataspace_t GetDataspace();
@@ -113,6 +114,9 @@ class DrmBuffer {
     void* GetHdrMetadataVir() { return pHdrMetadataVir_; }
     int GetHdrMetadataMapSize() { return iHdrMetadataMapSize_; }
 
+    void SetFrameNumber(uint32_t frame_no) { uFrameNo_ = frame_no; }
+    uint32_t GetFrameNumber() { return uFrameNo_; };
+
   private:
     uint64_t uId = 0;
     int iParentId_ = -1;
@@ -135,6 +139,7 @@ class DrmBuffer {
     uint32_t uFbId_ = 0;
     rga_buffer_handle_t uRgaHandle_ = 0;
     android_dataspace_t uDataspace_ = HAL_DATASPACE_UNKNOWN;
+    uint32_t uFrameNo_ = 0;
 
     // rect crop info
     int iLeft_ = -1;

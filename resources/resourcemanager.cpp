@@ -877,6 +877,7 @@ int ResourceManager::SwapWBBuffer(uint64_t frame_no) {
         }
     }
     // 2. Next 切换为 Drawing 状态
+    mNextWriteBackBuffer_->SetFrameNumber(frame_no);
     mDrawingWriteBackBuffer_ = mNextWriteBackBuffer_;
 
     // 3. 申请 Next Buffer
@@ -895,8 +896,8 @@ int ResourceManager::SwapWBBuffer(uint64_t frame_no) {
         return -1;
     }
 
-    HWC2_LOGI_IF("display=%d success, w=%d h=%d format=%d bid=%" PRIu64 , iWriteBackDisplayId_, iWBWidth_, iWBHeight_,
-                 iWBFormat_, mDrawingWriteBackBuffer_->GetId());
+    HWC2_LOGI_IF("display=%d success, w=%d h=%d format=%d id=%" PRIu64 ",  frame_no=%" PRIu64, iWriteBackDisplayId_,
+                 iWBWidth_, iWBHeight_, iWBFormat_, mDrawingWriteBackBuffer_->GetId(), frame_no);
 
     mNextWriteBackBuffer_ = next;
     return 0;
