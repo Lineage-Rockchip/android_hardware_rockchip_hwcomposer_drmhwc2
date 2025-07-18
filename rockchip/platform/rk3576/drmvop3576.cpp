@@ -903,25 +903,6 @@ int Vop3576::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     //reset is_match to false
                     (*iter_layer)->bMatch_ = false;
 
-                    //预留Cluster0给视频图层
-                    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE &&
-                        ctx.state.bNeedReservedCluster0ForHWPQVideo == true &&
-                        (*iter)->win_type == PLANE_RK3576_CLUSTER0_WIN0 && (*iter_layer)->bYuv_ != true) {
-                        HWC2_LOGD_IF("Hwpq Enabled, Cluster0_win0 only overlay yuv layer. layer->bYuv_=false");
-                        continue;
-                    }
-
-                    //预留Cluster0给Sideband图层
-                    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE &&
-                        (*iter)->win_type == PLANE_RK3576_CLUSTER0_WIN0 &&
-                        ctx.state.bNeedReservedCluster0ForHWPQSideband == true &&
-                        (*iter_layer)->bSidebandStreamLayer_ != true) {
-                        HWC2_LOGD_IF(
-                                "Hwpq Enabled, Cluster0_win0 only overlay sideband layer. "
-                                "layer->bSidebandStreamLayer_=false");
-                        continue;
-                    }
-
                     if (match_best) {
                         if (!((*iter)->win_type & (*iter_layer)->iBestPlaneType)) {
                             HWC2_LOGV_IF("line=%d, plane_group win-type = 0x%" PRIx64
@@ -1296,26 +1277,39 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
 
     int total_size = 0;
 
-    ctx.state.bNeedReservedCluster0ForHWPQVideo = false;
-    ctx.state.bNeedReservedCluster0ForHWPQSideband = false;
-
     // 判断是否需要预留Cluster0给HWPQ模块
     if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE) {
+        DrmHwcLayer* layer_use_cluster0 = nullptr;
+        // Search for video layer need use Cluster0
         for (auto& layer : layers) {
-            //检查格式是否可以使用Cluster合成
-            if (!FormatSupportByEsmartButNotCluster(layer->uFourccFormat_)) {
-                //预留Cluster0给视频
-                if (layer->bYuv_) {
-                    ctx.state.bNeedReservedCluster0ForHWPQVideo = true;
-                }
-                //预留Cluster0给Sideband
-                if (layer->bSidebandStreamLayer_) {
-                    ctx.state.bNeedReservedCluster0ForHWPQSideband = true;
+            if (!FormatSupportByEsmartButNotCluster(layer->uFourccFormat_)){
+                // Sideband use Cluster0 > yuv layer use cluster0
+                if(layer->bSidebandStreamLayer_) {
+                    layer_use_cluster0 = layer;
+                }else if(layer_use_cluster0==nullptr && layer->bYuv_) {
+                    layer_use_cluster0 = layer;
                 }
             }
         }
-        //同时存在的时候，优先把Cluster0预留给Sideband图层
-        if (ctx.state.bNeedReservedCluster0ForHWPQSideband) ctx.state.bNeedReservedCluster0ForHWPQVideo = false;
+        if(layer_use_cluster0){
+            bool has_cluster0 = false;
+            //check if Cluster0 plane present
+            for (auto &plane_group: plane_groups){
+                if (plane_group->win_type == PLANE_RK3576_CLUSTER0_WIN0 &&
+                    plane_group->bReserved == false){
+                    has_cluster0 = true;
+                    break;
+                }
+            }
+            if(has_cluster0){
+                // Remove Cluster0 match for all layer
+                for (auto& layer : layers) {
+                    layer->iBestPlaneType &= ~(uint64_t)PLANE_RK3576_ALL_CLUSTER0_MASK;
+                }
+                // Add Cluster0 mask for selected layer
+                layer_use_cluster0->iBestPlaneType = PLANE_RK3576_CLUSTER0_WIN0;
+            }
+        }
     }
 
     // Fill up the remaining planes

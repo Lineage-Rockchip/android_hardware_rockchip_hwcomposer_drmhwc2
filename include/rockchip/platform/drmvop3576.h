@@ -181,8 +181,6 @@ class Vop3576 : public Planner::PlanStage {
 
         int iVopPerformanceFactor;
 
-        bool bNeedReservedCluster0ForHWPQVideo;
-        bool bNeedReservedCluster0ForHWPQSideband;
         // CropSplit mode
         bool bIsCropSplit_;
         bool bIsCropSplitPrimary_;
