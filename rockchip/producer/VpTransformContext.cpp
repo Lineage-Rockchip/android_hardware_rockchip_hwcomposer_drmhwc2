@@ -333,6 +333,7 @@ int VpTransformContext::Handle(std::shared_ptr<VpComposition> input) {
 }
 
 void VpTransformContext::CalculateFPS() {
+    uFrameNo_++;
     //每10帧计算一次FPS
     if (mLastFpsTimestampUs_ == 0) {
         mLastFpsTimestampUs_ = SidebandGetTimestampUs();
