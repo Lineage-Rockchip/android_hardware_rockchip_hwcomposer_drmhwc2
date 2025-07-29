@@ -237,6 +237,10 @@ class ResourceManager {
     bool mBlockHotplugInPowerOff_ = false;
     // 检查是否是 GSI SDK
     bool mIsGsiSDK_ = false;
+    // 使用pq平均亮度接口的DisplayID
+    int mPqLumaAvgDisplayId_ = 0;
+    // 使用pq平均亮度接口的间隔
+    int mPqLumaAvgInterval_ = -1;
 
 #ifdef USE_LIBSR
     // SVEP SR

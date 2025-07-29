@@ -3049,6 +3049,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
 #ifdef USE_LIBPQ_HWPQ
                 int iPqMode =
                         HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0);
+                bool run_hwpq_sideband_mode = false;  // Mark if HWPQ sideband mode used
                 if (iPqMode == PqUtils::HWPQ_HDMIRX_MODE || iPqMode == PqUtils::HWPQ_VIDEO_MODE) {
                     if (plane->win_type() == PLANE_RK3576_CLUSTER0_WIN0) {
                         // 准备当前屏幕的分辨率信息
@@ -3064,9 +3065,19 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                             vp_composition->SetPqBuffer(hwpq_buffer);
                             output_buffer = hwpq_buffer;
                         }
+                        run_hwpq_sideband_mode = true;
                     } else {
                         ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(output_buffer);
                     }
+                }
+                // If HWPQ sideband mode did not used, run GetLumaAvg for sideband buffer.
+                if (!run_hwpq_sideband_mode &&
+                    ResourceManager::getInstance()->GetDrmPq()->CheckDisplayRunLumaAvg(display_)) {
+                    int display_w = conn->active_mode().h_display();
+                    int display_h = conn->active_mode().v_display();
+                    layer.hwPqDisplayStatus = PqUtils::CollectPqSidebandDisplayStatus(
+                            layers, {display_w, display_h, ResourceManager::getInstance()->getSocId()});
+                    ResourceManager::getInstance()->GetDrmPq()->RunGetLumaAvg(output_buffer, layer.hwPqDisplayStatus);
                 }
 #endif
 

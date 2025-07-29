@@ -1349,6 +1349,8 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
         }
     }
 #ifdef USE_LIBPQ_HWPQ
+    bool run_hwpq_video_mode = false;  // Mark if HWPQ video mode used
+    bool run_get_luma_avg = false;
     if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE ||
         ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_UI_MODE) {
         int hwpq_run_ret = 0;
@@ -1379,6 +1381,7 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
                         } else {
                             HWC2_LOGD_IF("HWPQ-Video enable on LayerName=%s", layer->sLayerName_.c_str());
                         }
+                        run_hwpq_video_mode = true;
                         break;
                     }
                 }
@@ -1404,6 +1407,30 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
             }
             HWC2_LOGD_IF("Not use HwPq Video Mode.");
         }
+    }
+    // If HWPQ video mode did not used, run GetLumaAvg for video layer.
+    if (!run_hwpq_video_mode && ResourceManager::getInstance()->GetDrmPq()->CheckDisplayRunLumaAvg(crtc->display())) {
+        int hwpq_run_ret = 0;
+        for (auto& layer : ctx.state.vStoreDrmHwcLayer_) {
+            if (layer->bYuv_ && layer->bSidebandStreamLayer_ == false) {
+                //获取当前display status
+                layer->hwPqDisplayStatus = PqUtils::CollectPqDisplayStatus(
+                        ctx.state.vStoreDrmHwcLayer_, {ctx.state.iDisplayWidth_, ctx.state.iDisplayHeight_,
+                                                       ResourceManager::getInstance()->getSocId()});
+                hwpq_run_ret = ResourceManager::getInstance()->GetDrmPq()->RunGetLumaAvg(layer);
+                if (hwpq_run_ret) {
+                    HWC2_LOGE("HWPQ: RunGetLumaAvg fail! ret=%d, LayerName=%s", hwpq_run_ret,
+                              layer->sLayerName_.c_str());
+                } else {
+                    HWC2_LOGD_IF("HWPQ: RunGetLumaAvg on LayerName=%s", layer->sLayerName_.c_str());
+                }
+                run_get_luma_avg = true;
+                break;
+            }
+        }
+        // Reset LumaAvg if not in sideband mode and no video to call GetLumaAvg.
+        if (!run_get_luma_avg && !ctx.request.bSidebandStreamMode)
+            ResourceManager::getInstance()->GetDrmPq()->ResetLumaAvg();
     }
 #endif
 

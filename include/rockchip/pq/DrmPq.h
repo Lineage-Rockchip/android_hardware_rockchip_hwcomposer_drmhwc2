@@ -97,6 +97,15 @@ class DrmPq {
     int RunHwPqGetReg(std::shared_ptr<DrmBuffer> src_buffer);
     void ClearCache() { mLastHwPqBufInfo_.clear(); }
 
+    void SetLumaAvgParam(int display_id, int interval) {
+        mPqLumaAvgDisplayId_ = display_id;
+        mPqLumaAvgInterval_ = interval;
+    }
+    bool CheckDisplayRunLumaAvg(int display_id);
+    int RunGetLumaAvg(DrmHwcLayer* drmLayer);
+    int RunGetLumaAvg(std::shared_ptr<DrmBuffer> src_buffer, std::shared_ptr<android::HwpqDisplayStatus> display_state);
+    int ResetLumaAvg();
+
   private:
     bool bInit_;
     std::shared_ptr<Pq> mPq_;
@@ -110,6 +119,13 @@ class DrmPq {
     DrmPqBufferInfo mLastHwPqBufInfo_;
     std::shared_ptr<rk_hwpq_reg> mLastHwPqReg_;
     mutable std::recursive_mutex mRecursiveMutex;
+
+    //Pq->GetLumaAvg
+    int mPqLumaAvgDisplayId_ = 0;
+    // Interval of Callings of Pq->GetLumaAvg
+    int mPqLumaAvgInterval_ = -1;
+    int64_t mLastPqLumaAvgTimeStamp_;
+    bool bPqLumaAvgReset_ = false;
 };
 
 #endif  // _DRM_PQ_H_

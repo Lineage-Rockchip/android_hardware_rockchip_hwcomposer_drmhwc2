@@ -203,6 +203,13 @@ int ResourceManager::InitProperty() {
     // 检查是否是GSI SDK
     mIsGsiSDK_ = hwc_get_int_property("ro.vendor.rk_sdk", "0") == 0;
 
+    // 使用pq平均亮度接口的DisplayID，默认值为0（主屏）
+    mPqLumaAvgDisplayId_ = property_get_int32("vendor.hwc.pq_luma_avg_display_id", 0);
+
+    // 使用pq平均亮度接口的间隔
+    // 默认值 -1 (disabled) 设置为>=0时开启此功能
+    mPqLumaAvgInterval_ = property_get_int32("vendor.hwc.pq_luma_avg_interval_ms", -1);
+
     return 0;
 }
 
@@ -312,6 +319,7 @@ std::shared_ptr<DrmPq> ResourceManager::GetDrmPq() {
     if (mDrmPq_ == nullptr) {
         mDrmPq_ = std::make_shared<DrmPq>();
     }
+    mDrmPq_->SetLumaAvgParam(mPqLumaAvgDisplayId_, mPqLumaAvgInterval_);
     mDrmPq_->Init();
     return mDrmPq_;
 };

@@ -58,6 +58,11 @@ int DrmPq::Init() {
         HWC2_LOGE("DrmPq Init Failed, ret = %d", ret);
         return ret;
     }
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    mLastPqLumaAvgTimeStamp_ = ts.tv_sec * 1000 * 1000 + ts.tv_nsec / 1000;
+
     bInit_ = true;
     HWC2_LOGI("DrmPq Init Version=%s Successfully.", PQ_VERSION);
     return 0;
@@ -316,6 +321,9 @@ int DrmPq::RunHwPqUiMode(std::vector<DrmHwcLayer>& layers) {
                 } else {
                     drmLayer.uColorSpace.colorspace_kernel_510_ = V4L2_COLORSPACE_JPEG;
                 }
+
+                bPqLumaAvgReset_ = false;
+
                 return 0;
 
             } else {  //Use last buffer
@@ -635,6 +643,8 @@ int DrmPq::RunHwPqVideoMode(DrmHwcLayer* drmLayer) {
                 mLastHwPqUseNewBuffer_ = false;
             }
 
+            bPqLumaAvgReset_ = false;
+
             return 0;
 
         } else {  //Use last buffer
@@ -861,6 +871,8 @@ std::shared_ptr<DrmBuffer> DrmPq::RunHwPqSidebandMode(std::shared_ptr<DrmBuffer>
         return NULL;
     }
 
+    bPqLumaAvgReset_ = false;
+
     if (dst_buffer) {
         if (HwcAProperty::getInstance().getBoolWithInterval("vendor.dump", 500, false)) {
             dst_buffer->DumpData(0, 0, "S");
@@ -1024,4 +1036,250 @@ int DrmPq::RunHwPqGetReg(std::shared_ptr<DrmBuffer> src_buffer) {
     }
 
     return ret;
+}
+
+bool DrmPq::CheckDisplayRunLumaAvg(int display_id) {
+    // 匹配Display ID
+    if (mPqLumaAvgDisplayId_ != display_id) return false;
+    // 是否关闭功能
+    if (mPqLumaAvgInterval_ < 0) return false;
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    int64_t cur_ts = ts.tv_sec * 1000 * 1000 + ts.tv_nsec / 1000;
+    // 检查时间间隔是否符合要求
+    if ((cur_ts - mLastPqLumaAvgTimeStamp_) > (mPqLumaAvgInterval_ * 1000)) {
+        mLastPqLumaAvgTimeStamp_ = cur_ts;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+int DrmPq::RunGetLumaAvg(DrmHwcLayer* drmLayer) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (bInit_ == false) {
+        HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
+        return -1;
+    }
+    int ret = 0;
+    bool isHwPqAsPostProcess = false;
+
+    if (!drmLayer->bYuv_) return -1;
+
+    if (drmLayer->bUseRga_) {
+        isHwPqAsPostProcess = true;
+    }
+    // 1. Fill buffer Info
+    HwPqImageInfo src;
+
+    if (isHwPqAsPostProcess) {
+        src.mBufferInfo_.iFd_ = drmLayer->storeLayerInfo_.iFd_;
+        src.mBufferInfo_.iWidth_ = drmLayer->storeLayerInfo_.iWidth_;
+        src.mBufferInfo_.iHeight_ = drmLayer->storeLayerInfo_.iHeight_;
+        src.mBufferInfo_.iFormat_ = drmLayer->storeLayerInfo_.iFormat_;
+        src.mBufferInfo_.iStride_ = drmLayer->storeLayerInfo_.iStride_;
+        src.mBufferInfo_.iHeightStride_ = drmLayer->storeLayerInfo_.iHeightStride_;
+        src.mBufferInfo_.uBufferId_ = drmLayer->storeLayerInfo_.uBufferId_;
+        src.mBufferInfo_.uDataSpace_ = (uint64_t)drmLayer->storeLayerInfo_.eDataSpace_;
+
+        src.iRotation_ = drmLayer->storeLayerInfo_.transform;
+        src.mIsFbcdFormat_ = drmLayer->storeLayerInfo_.bAfbcd_ || drmLayer->storeLayerInfo_.bRfbcd_;
+
+        src.mCrop_.iLeft_ = (int)drmLayer->storeLayerInfo_.source_crop.left;
+        src.mCrop_.iTop_ = (int)drmLayer->storeLayerInfo_.source_crop.top;
+        src.mCrop_.iRight_ = (int)drmLayer->storeLayerInfo_.source_crop.right;
+        src.mCrop_.iBottom_ = (int)drmLayer->storeLayerInfo_.source_crop.bottom;
+    } else {
+        src.mBufferInfo_.iFd_ = drmLayer->iFd_;
+        src.mBufferInfo_.iWidth_ = drmLayer->iWidth_;
+        src.mBufferInfo_.iHeight_ = drmLayer->iHeight_;
+        src.mBufferInfo_.iFormat_ = drmLayer->iFormat_;
+        src.mBufferInfo_.iStride_ = drmLayer->iStride_;
+        src.mBufferInfo_.iHeightStride_ = drmLayer->iHeightStride_;
+        src.mBufferInfo_.uBufferId_ = drmLayer->uBufferId_;
+        src.mBufferInfo_.uDataSpace_ = (uint64_t)drmLayer->eDataSpace_;
+
+        src.iRotation_ = drmLayer->transform;
+        src.mIsFbcdFormat_ = drmLayer->bAfbcd_ || drmLayer->bRfbcd_;
+
+        src.mCrop_.iLeft_ = (int)drmLayer->source_crop.left;
+        src.mCrop_.iTop_ = (int)drmLayer->source_crop.top;
+        src.mCrop_.iRight_ = (int)drmLayer->source_crop.right;
+        src.mCrop_.iBottom_ = (int)drmLayer->source_crop.bottom;
+    }
+    //Get and set MetaData
+    src.iMetaDataFd_ = -1;
+    src.iMetaDataSize_ = 0;
+    src.iMetaDataOffset_ = 0;
+
+    DrmGralloc* gralloc = DrmGralloc::getInstance();
+    if (gralloc == NULL) {
+        HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
+    } else if (drmLayer->bHasPqMetadata_) {
+        if (isHwPqAsPostProcess) {
+            src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
+            if (src.iMetaDataOffset_ > 0) {
+                src.iMetaDataFd_ = drmLayer->storeLayerInfo_.iFd_;
+                src.iMetaDataSize_ = drmLayer->storeLayerInfo_.iSize_;
+                HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
+                             src.iMetaDataOffset_, src.iMetaDataSize_);
+            }
+        } else {
+            src.iMetaDataOffset_ = drmLayer->iPqMetadataOffset_;
+            if (src.iMetaDataOffset_ > 0) {
+                src.iMetaDataFd_ = drmLayer->iFd_;
+                src.iMetaDataSize_ = drmLayer->iSize_;
+                HWC2_LOGD_IF("Pq metadata:fd=%d offset=%" PRIi64 " size=%" PRIi64, src.iMetaDataFd_,
+                             src.iMetaDataOffset_, src.iMetaDataSize_);
+            }
+        }
+    }
+
+    src.mDisplayStatus_ = drmLayer->hwPqDisplayStatus;
+
+    HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
+                 src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
+                 src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
+
+    // 5. Run HWPQ
+    int output_fence = -1;
+
+    if (drmLayer->acquire_fence->isValid()) {
+        ret = drmLayer->acquire_fence->wait(500);
+        if (ret) {
+            HWC2_LOGE("Fence Wait 500ms failed! ret = %d", ret);
+        }
+    }
+
+    ret = mPq_->getLumaAvg(src, &output_fence);
+    if (ret) {
+        HWC2_LOGE("getLumaAvg fail! ret = %d", ret);
+        return ret;
+    }
+
+    if (output_fence > 0) {
+        if (drmLayer->acquire_fence->isValid()) {
+            drmLayer->acquire_fence = sp<AcquireFence>(new AcquireFence(drmLayer->acquire_fence->merge(output_fence)));
+            close(output_fence);
+        } else
+            drmLayer->acquire_fence = sp<AcquireFence>(new AcquireFence(output_fence));
+    }
+
+    bPqLumaAvgReset_ = false;
+
+    return 0;
+}
+
+int DrmPq::RunGetLumaAvg(std::shared_ptr<DrmBuffer> src_buffer,
+                         std::shared_ptr<android::HwpqDisplayStatus> display_state) {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (bInit_ == false) {
+        HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
+        return -1;
+    }
+    int left, top, right, bottom;
+    src_buffer->GetCrop(&left, &top, &right, &bottom);
+
+    int act_w = right - left;
+    int act_h = bottom - top;
+
+    int ret = 0;
+    // 1. 初始化Ctx
+    // 2. Fill buffer Info
+    HwPqImageInfo src;
+    src.mBufferInfo_.iFd_ = src_buffer->GetFd();
+    src.mBufferInfo_.iWidth_ = src_buffer->GetWidth();
+    src.mBufferInfo_.iHeight_ = src_buffer->GetHeight();
+    src.mBufferInfo_.iFormat_ = src_buffer->GetFormat();
+    src.mBufferInfo_.iStride_ = src_buffer->GetStride();
+    src.mBufferInfo_.iHeightStride_ = src_buffer->GetHeightStride();
+    src.mBufferInfo_.uBufferId_ = src_buffer->GetBufferId();
+    src.mBufferInfo_.uDataSpace_ = (uint64_t)src_buffer->GetDataspace();
+
+    src.mIsFbcdFormat_ = (src_buffer->IsAfbc() || src_buffer->IsRfbc());
+
+    src.mCrop_.iLeft_ = (int)left;
+    src.mCrop_.iTop_ = (int)top;
+    src.mCrop_.iRight_ = (int)right;
+    src.mCrop_.iBottom_ = (int)bottom;
+
+    src.iMetaDataFd_ = -1;
+    src.iMetaDataSize_ = 0;
+    src.iMetaDataOffset_ = 0;
+
+    src.mDisplayStatus_ = display_state;
+
+    // src.mVirtualAddress_ = src_buffer->Lock();
+    DrmGralloc* gralloc = DrmGralloc::getInstance();
+    if (gralloc == NULL) {
+        HWC2_LOGI_IF("DrmGralloc is null, Can not get PQ Metadata");
+    } else {
+        src.iMetaDataOffset_ = gralloc->hwc_get_offset_of_pq_metadata(src_buffer->GetHandle());
+        if (src.iMetaDataOffset_ > 0) {
+            src.iMetaDataFd_ = src_buffer->GetFd();
+            src.iMetaDataSize_ = src_buffer->GetSize();
+        }
+    }
+
+    HWC2_LOGD_IF("src: fd:%d,wh:%d,%d, format:%d, ws/hs=%d,%d buffid:0x%" PRIx64, src.mBufferInfo_.iFd_,
+                 src.mBufferInfo_.iWidth_, src.mBufferInfo_.iHeight_, src.mBufferInfo_.iFormat_,
+                 src.mBufferInfo_.iStride_, src.mBufferInfo_.iHeightStride_, src.mBufferInfo_.uBufferId_);
+    // 4. ReAlloc buffer if needed
+
+    int output_fence = -1;
+    src_buffer->WaitFinishFence();
+
+    //执行PQ
+    ret = mPq_->getLumaAvg(src, &output_fence);
+    if (ret) {
+        HWC2_LOGE("buffer_id=0x%" PRIx64 " .hwPq Run fail ret = %d", src_buffer->GetExternalId(), ret);
+        return -1;
+    }
+
+    if (output_fence > 0) {
+        src_buffer->MergeFinishFence(output_fence);
+    }
+
+    bPqLumaAvgReset_ = false;
+
+    return 0;
+}
+
+int DrmPq::ResetLumaAvg() {
+    std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+    if (bInit_ == false) {
+        HWC2_LOGE("DrmPq Init fail, disable DrmPQ.");
+        return -1;
+    }
+
+    if (bPqLumaAvgReset_ == true) {
+        HWC2_LOGD_IF("LumaAvg already reset, not doing it again.");
+        return 0;
+    }
+
+    int ret = 0;
+    // 1. 初始化Ctx
+    // 2. Fill buffer Info
+    HwPqImageInfo src;
+    src.mBufferInfo_.iFd_ = -1021;
+    src.iMetaDataFd_ = -1;
+    src.iMetaDataSize_ = 0;
+    src.iMetaDataOffset_ = 0;
+
+    int output_fence = -1;
+
+    //执行PQ
+    ret = mPq_->getLumaAvg(src, &output_fence);
+    if (ret) {
+        HWC2_LOGD_IF("src: fd:%d getLumaAvg Run ret = %d", src.mBufferInfo_.iFd_, ret);
+    }
+
+    if (output_fence > 0) {
+        close(output_fence);
+    }
+
+    bPqLumaAvgReset_ = true;
+
+    return 0;
 }
