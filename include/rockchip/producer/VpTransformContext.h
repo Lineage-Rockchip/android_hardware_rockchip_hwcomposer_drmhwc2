@@ -56,8 +56,8 @@ class VpComposition {
     std::shared_ptr<DrmBuffer> GetBuffer() { return mBuffer_; };
     void SetBuffer(std::shared_ptr<DrmBuffer> buffer) { mBuffer_ = buffer; };
 
-    std::shared_ptr<DrmBuffer> GetPqBuffer() { return mPpBuffer_; };
-    void SetPqBuffer(std::shared_ptr<DrmBuffer> buffer) { mPpBuffer_ = buffer; };
+    std::shared_ptr<DrmBuffer> GetPqBuffer() { return mPqBuffer_; };
+    void SetPqBuffer(std::shared_ptr<DrmBuffer> buffer) { mPqBuffer_ = buffer; };
 
     void SetReleaseFence(sp<ReleaseFence> release_fence) { mReleaseFence_ = release_fence; };
     sp<ReleaseFence> GetReleaseFence() { return mReleaseFence_; }
@@ -77,7 +77,7 @@ class VpComposition {
     uint32_t mTransform_;
     uint64_t mFrameNo_;
     std::shared_ptr<DrmBuffer> mBuffer_;
-    std::shared_ptr<DrmBuffer> mPpBuffer_;
+    std::shared_ptr<DrmBuffer> mPqBuffer_;
     sp<AcquireFence> mAcquireFence_;
     sp<ReleaseFence> mReleaseFence_;
     int64_t mQueueTimestampUs_;

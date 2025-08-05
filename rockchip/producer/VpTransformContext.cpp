@@ -56,7 +56,10 @@ VpComposition::VpComposition(int tunnel_id, uint32_t transform, std::shared_ptr<
                              sp<ReleaseFence> release_fence, int64_t queue_timestamp_us)
     : mTunnelId_(tunnel_id),
       mTransform_(transform),
+      mFrameNo_(0),
       mBuffer_(buffer),
+      mPqBuffer_(nullptr),
+      mAcquireFence_(AcquireFence::NO_FENCE),
       mReleaseFence_(release_fence),
       mQueueTimestampUs_(queue_timestamp_us),
       mCreateTimestampUs_(SidebandGetTimestampUs()),
@@ -111,6 +114,8 @@ void VpComposition::Dump(String8& output) {
 VpTransformContext::VpTransformContext(int tunnel_id, uint32_t transform, android_dataspace_t dataspace)
     : mTunnelId_(tunnel_id),
       mTransform_(transform),
+      mFenceTag_("VP-" + TransformToString(mTransform_)),
+      uFrameNo_(0),
       mBufferQueue_(std::make_shared<DrmBufferQueue>(4)),
       mSrEnableOnelineMode_(false),
       mSrAuthTimeline_(0),
@@ -118,8 +123,12 @@ VpTransformContext::VpTransformContext(int tunnel_id, uint32_t transform, androi
       mLastFpsTimestampUs_(0),
       mFps_(0.0),
       bNeedRelease_(false),
+      mCommitLatencyCnt_(0),
+      mCommitLatencyTotalMs_(0.0),
+      mCommitAvgLatencyMs_(0.0),
       mDataspace_(dataspace) {
-    mFenceTag_ = "VP-" + TransformToString(mTransform_);
+    mListVpCompositions_.clear();
+    mMapDisplayFrame_.clear();
 }
 
 std::string VpTransformContext::TransformToString(uint32_t transform) const {
@@ -940,7 +949,8 @@ int VpTransformContext::DoTransformBySvepMemc(std::shared_ptr<VpComposition> inp
     bool enableSr = (HwcAProperty::getInstance().getIntWithInterval(MEMC_ENABLR_SR_NAME, 500, 0) > 0);
     bool enableMemcComparation = (HwcAProperty::getInstance().getIntWithInterval(MEMC_CONTRAST_MODE_NAME, 500, 0) > 0);
     bool enableMemcOsd = (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_DISABLE_MODE, 500, 0) == 0);
-    bool enableMemcOsdOneline = (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0) > 0);
+    bool enableMemcOsdOneline =
+            (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0) > 0);
     int osd_oneline_wait_second =
             HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, 500, 12);
 
