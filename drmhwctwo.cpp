@@ -467,9 +467,6 @@ int DrmHwcTwo::HwcDisplay::ClearDisplay() {
         compositor_->ClearDisplay();
     }
 
-    // 创建 empty composition，更新 ReleaseFence / RetireFence 并立即 Signal
-    CreateEmptyComposition();
-
     HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
     return 0;
 }
@@ -2387,6 +2384,11 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
         if (ret == HWC2::Error::BadLayer) {
             ClearDisplay();
         }
+
+        // 创建 empty composition，更新 ReleaseFence / RetireFence 并立即 Signal
+        // Bug: #566932 / #489238 并发对 sp<ReleaseFence> 修改（赋值）操作低概率会引起内存异常问题
+        // 故将对 sp<ReleaseFence> 的操作移动到主线程进行处理
+        CreateEmptyComposition();
     } else {
         ret = CreateFrameComposition();
         if (ret == HWC2::Error::BadLayer) {
@@ -3572,7 +3574,8 @@ int DrmHwcTwo::HwcDisplay::DumpAllLayerData() {
             }
         }
 
-        bool disable_dump_with_wb = HwcAProperty::getInstance().getBoolWithInterval("vendor.dump.disable_wb", 500, false);
+        bool disable_dump_with_wb =
+                HwcAProperty::getInstance().getBoolWithInterval("vendor.dump.disable_wb", 500, false);
         if (disable_dump_with_wb) {
             DisableDumpWithWB();
         } else {
