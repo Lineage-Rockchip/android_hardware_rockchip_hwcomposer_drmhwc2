@@ -3156,7 +3156,11 @@ HWC2::Error DrmHwcTwo::HwcDisplay::GetDisplayVsyncPeriod(hwc2_vsync_period_t* ou
     HWC2_LOGV_IF("display-id=%" PRIu64, handle_);
     supported(__func__);
     DrmMode const& mode = connector_->active_mode();
-    if (mode.id() == 0) return HWC2::Error::BadConfig;
+    if (mode.id() == 0) {
+        // 如果屏幕没有接，则直接上报60帧的默认刷新
+        *outVsyncPeriod = 1E9 / 60;
+        return HWC2::Error::None;
+    }
 
     *outVsyncPeriod = 1E9 / mode.v_refresh();
     return HWC2::Error::None;
