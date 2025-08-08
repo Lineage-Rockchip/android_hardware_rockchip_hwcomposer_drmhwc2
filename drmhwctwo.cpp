@@ -2381,10 +2381,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
     if (ret != HWC2::Error::None || !validate_success_ || connector_->type() == DRM_MODE_CONNECTOR_VIRTUAL) {
         ALOGE_IF(LogLevel(DBG_ERROR), "Check display %" PRIu64 " state fail %s, %s,line=%d", handle_,
                  validate_success_ ? "" : "or validate fail.", __FUNCTION__, __LINE__);
-        if (ret == HWC2::Error::BadLayer) {
-            ClearDisplay();
-        }
-
+        ClearDisplay();
         // 创建 empty composition，更新 ReleaseFence / RetireFence 并立即 Signal
         // Bug: #566932 / #489238 并发对 sp<ReleaseFence> 修改（赋值）操作低概率会引起内存异常问题
         // 故将对 sp<ReleaseFence> 的操作移动到主线程进行处理
