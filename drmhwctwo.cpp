@@ -4909,6 +4909,11 @@ HWC2::Error DrmHwcTwo::HwcLayer::SetLayerSidebandStream(const native_handle_t* s
     } else {
         setSidebandStream(stream);
     }
+
+    // #564052 , 存在 SolidColor layer转换为 Normal Layer的可能
+    // 故当Layer存在有效的BufferHandle时需要将 SolidColor 标志重置
+    mCurrentState.solid_color_buffer_ = NULL;
+    mCurrentState.is_solid_color_ = false;
     bUpdate_ = true;
 
     return HWC2::Error::None;

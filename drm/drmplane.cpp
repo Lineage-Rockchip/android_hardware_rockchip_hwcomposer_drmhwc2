@@ -1191,6 +1191,13 @@ int DrmPlane::disable_plane(drmModeAtomicReqPtr pset, const char* tag_str) {
         }
     }
 
+    if (background_property().id() > 0) {
+        ret = drmModeAtomicAddProperty(pset, id(), background_property().id(), 0);
+        if (ret < 0) {
+            ALOGE("Failed to add background_property property %d to plane %d", background_property().id(), id());
+        }
+    }
+
     return 0;
 }
 

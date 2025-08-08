@@ -2967,6 +2967,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
         bool need_wait_fence = false;
         uint64_t hnd_buffer_id = 0;
         uint64_t buffer_id = 0;
+        uint32_t background = 0;
 
         if (comp_plane.type() != DrmCompositionPlane::Type::kDisable) {
             if (source_layers.empty()) {
@@ -3125,6 +3126,16 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     colorspace = layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
                 }
 
+                if (layer.bBackgraoundLayer_) {
+                    background = layer.uArgbValue_;
+                    // 如果不存在 background_property 属性，则需要等前端填充完成
+                    if (plane->background_property().id() <= 0) {
+                        // 若未填充完成
+                        if (layer.pSolidColorBuffer_ != NULL && layer.pSolidColorBuffer_->isFillCompleted() == false) {
+                            layer.pSolidColorBuffer_->waitForFillComplete();
+                        }
+                    }
+                }
                 // HDR metadata 信息
                 if (output_buffer->IsHdrMetadata()) {
                     layer.bHasHdrMetadata_ = output_buffer->IsHdrMetadata();
@@ -3394,6 +3405,20 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                 out_log << " async_commit=" << sideband;
             }
         }
+
+        if (plane->background_property().id()) {
+            ret = drmModeAtomicAddProperty(pset, plane->id(), plane->background_property().id(), background) < 0;
+            if (ret) {
+                ALOGE("Failed to add background_property property %d to plane %d", plane->background_property().id(),
+                      plane->id());
+                break;
+            }
+
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " background=" << background;
+            }
+        }
+
         if (LogLevel(DBG_DEBUG)) {
             out_log << " hnd_buffer_id=0x" << hnd_buffer_id << " buffer_id=0x" << buffer_id << " fps: " << producer_fps
                     << "=>" << display_refresh << " waitAcqFence=" << need_wait_fence;
@@ -3467,6 +3492,7 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
         uint64_t blend = 0;
         uint16_t eotf = TRADITIONAL_GAMMA_SDR;
         drm_colorspace colorspace;
+        uint32_t background = 0;
 
         int dst_l, dst_t, dst_w, dst_h;
         int src_l, src_t, src_w, src_h;
@@ -3592,6 +3618,17 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
                 continue;
             }
 #endif
+
+            if (layer.bBackgraoundLayer_) {
+                background = 0;
+                // 如果不存在 background_property 属性，则需要等前端填充完成
+                if (plane->background_property().id() <= 0) {
+                    // 若未填充完成
+                    if (layer.pSolidColorBuffer_ != NULL && layer.pSolidColorBuffer_->isFillCompleted() == false) {
+                        layer.pSolidColorBuffer_->waitForFillComplete();
+                    }
+                }
+            }
 
             display_frame = layer.display_frame;
             display_frame_mirror = layer.display_frame_mirror;
@@ -3813,6 +3850,19 @@ int DrmDisplayCompositor::CollectMEMCInfo() {
 
             if (LogLevel(DBG_DEBUG)) {
                 out_log << " async_commit=" << sideband;
+            }
+        }
+
+        if (plane->background_property().id()) {
+            ret = drmModeAtomicAddProperty(pset, plane->id(), plane->background_property().id(), background) < 0;
+            if (ret) {
+                ALOGE("Failed to add background_property property %d to plane %d", plane->background_property().id(),
+                      plane->id());
+                break;
+            }
+
+            if (LogLevel(DBG_DEBUG)) {
+                out_log << " background=" << background;
             }
         }
 
