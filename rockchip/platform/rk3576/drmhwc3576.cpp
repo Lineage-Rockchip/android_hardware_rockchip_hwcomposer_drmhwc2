@@ -112,11 +112,30 @@ int Hwc3576::assignPlaneByHWC(DrmDevice* drm, uint64_t connected_port_mask) {
             continue;
         }
 
+        // 如果 possible_crtcs 等于 crtc_mask，则直接分配对应图层
+        for (auto& plane_group : all_plane_group) {
+            int64_t possible_crtcs = plane_group->possible_crtcs;
+            // 直接分配图层
+            if (possible_crtcs == crtc_mask) {
+                plane_group->set_current_crtc(crtc_mask, display_id);
+            }
+        }
+
+        // 根据 hwc 本地的策略分配逻辑进行图层分配
         uint64_t plane_mask = map_policy->second[crtc->get_port_id()];
         HWC2_LOGI("display=%d crtc-id=%d port_mask=0x%" PRIx64 " plane_mask=0x%" PRIx64, display_id, crtc->id(),
                   port_mask, plane_mask);
         for (auto& plane_group : all_plane_group) {
             uint64_t plane_group_win_type = plane_group->win_type;
+            int64_t possible_crtcs = plane_group->possible_crtcs;
+            // 不支持配置的 possible_display，直接跳过
+            if ((possible_crtcs & crtc_mask) == 0) {
+                HWC2_LOGI_IF("display=%d crtc-id=%d crtc_mask=0x%" PRIx32 " possible_crtcs=0x%" PRIx32
+                             " PlaneGroup=%s skip.",
+                             display_id, crtc->id(), crtc_mask, plane_group->possible_crtcs,
+                             plane_group->planes[0]->name());
+                continue;
+            }
             if ((plane_mask & plane_group_win_type) == plane_group_win_type) {
                 plane_group->set_next_crtc(crtc_mask, display_id);
             }
