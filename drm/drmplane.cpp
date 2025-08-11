@@ -157,8 +157,6 @@ int DrmPlane::Init() {
 
     if (isRK3399(soc_id_) || isRK3326(soc_id_)) b_alpha_ = true;
 
-    //ALOGD("rk-debug scale=%d alpha=%d hdr2sdr=%d sdr2hdr=%d afbdc=%d", b_scale_,b_alpha_,b_hdr2sdr_,b_sdr2hdr_,b_afbdc_);
-
     support_format_list.clear();
     for (uint32_t j = 0; j < plane_->count_formats; j++) {
         support_format_list.insert(plane_->formats[j]);
@@ -306,6 +304,9 @@ int DrmPlane::Init() {
 
     AddLocalPlaneInfo();
 
+    // ALOGD("rk-debug Name%s scale=%d alpha=%d hdr2sdr=%d sdr2hdr=%d afbdc=%d scale_min_exclusive_=%d "
+    //       "scale_max_exclusive_%d",
+    //       name_, b_scale_, b_alpha_, b_hdr2sdr_, b_sdr2hdr_, b_afbdc_, scale_min_exclusive_, scale_max_exclusive_);
     return 0;
 }
 
@@ -725,6 +726,10 @@ void DrmPlane::mark_type_by_name() {
 }
 
 void DrmPlane::AddLocalPlaneInfo() {
+    // 默认为 min/max 开区间
+    scale_min_exclusive_ = false;
+    scale_max_exclusive_ = false;
+
     if (isRK3399(soc_id_) && gIsDrmVerison419()) {
         if (win_type_ & DRM_PLANE_TYPE_VOP0_MASK) {
             input_w_max_ = 4096;
@@ -799,20 +804,59 @@ void DrmPlane::AddLocalPlaneInfo() {
                          PLANE_RK3588_CLUSTER3_WIN1)) {
             output_w_max_ = 4096;
         }
+
+        // VOP2 开始 Esmart缩小范围不包含8倍整数缩小
+        // 图层缩放倍率计算方式为：src/dst, 即缩小 scale > 1 ,放大 scale < 1
+        if (win_type_ & PLANE_RK3588_ALL_ESMART_MASK) {
+            // 默认为 min/max 开区间
+            scale_min_exclusive_ = false;
+            scale_max_exclusive_ = true;
+        }
     }
     if (isRK356x(soc_id_)) {
         if (win_type_ & (DRM_PLANE_TYPE_CLUSTER0_WIN1 | DRM_PLANE_TYPE_CLUSTER1_WIN1)) {
             output_w_max_ = 4096;
+        }
+        // VOP2 开始 Esmart缩小范围不包含8倍整数缩小
+        // 图层缩放倍率计算方式为：src/dst, 即缩小 scale > 1 ,放大 scale < 1
+        if (win_type_ & DRM_PLANE_TYPE_ALL_ESMART_MASK) {
+            // 默认为 min/max 开区间
+            scale_min_exclusive_ = false;
+            scale_max_exclusive_ = true;
         }
     }
     if (isRK3576(soc_id_)) {
         if (win_type_ & (PLANE_RK3576_CLUSTER0_WIN1 | PLANE_RK3576_CLUSTER1_WIN1)) {
             output_w_max_ = 4096;
         }
+        // VOP2 开始 Esmart缩小范围不包含8倍整数缩小
+        // 图层缩放倍率计算方式为：src/dst, 即缩小 scale > 1 ,放大 scale < 1
+        if (win_type_ & PLANE_RK3576_ALL_ESMART_MASK) {
+            // 默认为 min/max 开区间
+            scale_min_exclusive_ = false;
+            scale_max_exclusive_ = true;
+        }
     }
     if (isRK3528(soc_id_)) {
         if (win_type_ & (PLANE_RK3528_CLUSTER0_WIN1)) {
             output_w_max_ = 4096;
+        }
+        // VOP2 开始 Esmart缩小范围不包含8倍整数缩小
+        // 图层缩放倍率计算方式为：src/dst, 即缩小 scale > 1 ,放大 scale < 1
+        if (win_type_ & PLANE_RK3528_ALL_ESMART_MASK) {
+            // 默认为 min/max 开区间
+            scale_min_exclusive_ = false;
+            scale_max_exclusive_ = true;
+        }
+    }
+
+    if (isRK3562(soc_id_)) {
+        // VOP2 开始 Esmart缩小范围不包含8倍整数缩小
+        // 图层缩放倍率计算方式为：src/dst, 即缩小 scale > 1 ,放大 scale < 1
+        if (win_type_ & PLANE_RK3562_ALL_ESMART_MASK) {
+            // 默认为 min/max 开区间
+            scale_min_exclusive_ = false;
+            scale_max_exclusive_ = true;
         }
     }
 }
@@ -991,20 +1035,14 @@ void DrmPlane::set_reserved(bool bReserved) {
 }
 
 bool DrmPlane::is_support_scale(float scale_rate) {
-    if (isRK3588(soc_id_)) {
-        if ((win_type_ & PLANE_RK3588_ALL_CLUSTER_MASK) > 0)
-            return (scale_rate >= scale_min_) && (scale_rate <= scale_max_);
-        // RK3588 Esmart scale down 1080x1920 => 135x240 颜色出现错误，故认为缩小倍数8倍为不支持
-        else if ((win_type_ & PLANE_RK3588_ALL_ESMART_MASK) > 0)
-            return (scale_rate > scale_min_) && (scale_rate <= scale_max_);
-        else
-            return scale_rate == 1.0;
-    } else {
-        if (get_scale()) {
-            return (scale_rate >= scale_min_) && (scale_rate <= scale_max_);
-        } else {
-            return scale_rate == 1.0;
-        }
+    if (!scale_min_exclusive_ && !scale_max_exclusive_) {  // min闭, max闭
+        return (scale_rate >= scale_min_) && (scale_rate <= scale_max_);
+    } else if (!scale_min_exclusive_ && scale_max_exclusive_) {  // min闭, max开
+        return (scale_rate >= scale_min_) && (scale_rate < scale_max_);
+    } else if (scale_min_exclusive_ && scale_max_exclusive_) {  // min开, max开
+        return (scale_rate > scale_min_) && (scale_rate < scale_max_);
+    } else {  // min开, max闭
+        return (scale_rate > scale_min_) && (scale_rate <= scale_max_);
     }
 }
 

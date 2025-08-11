@@ -554,8 +554,11 @@ class DrmPlane {
     int input_h_max_;
     int output_w_max_;
     int output_h_max_;
+    // 图层缩放倍率计算方式为：src/dst, 即缩小 scale > 1 ,放大 scale < 1
     float scale_min_ = 0.0;
     float scale_max_ = 0.0;
+    bool scale_min_exclusive_ = false;
+    bool scale_max_exclusive_ = false;
 
     std::set<uint32_t> support_format_list;
     drmModePlanePtr plane_;
