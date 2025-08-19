@@ -3068,7 +3068,9 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                         }
                         run_hwpq_sideband_mode = true;
                     } else {
-                        ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(output_buffer);
+                        if (crtc && crtc->get_port_id() == 0) {
+                            ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(output_buffer);
+                        }
                     }
                 }
                 // If HWPQ sideband mode did not used, run GetLumaAvg for sideband buffer.

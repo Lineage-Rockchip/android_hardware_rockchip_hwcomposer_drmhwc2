@@ -1387,14 +1387,18 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
                 }
             }
         } else {
-            for (auto& layer : layers) {
-                if (layer->bMatch_) {
-                    if (int ret = ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(layer)) {
-                        HWC2_LOGE("HWPQ: RunHwPqGetReg fail! ret=%d, LayerName=%s", ret, layer->sLayerName_.c_str());
-                    } else {
-                        HWC2_LOGD_IF("HWPQ-Overlay enable on LayerName=%s", layer->sLayerName_.c_str());
+            //Only vp0 support HWPQ reg
+            if (crtc && crtc->get_port_id() == 0) {
+                for (auto& layer : layers) {
+                    if (layer->bMatch_) {
+                        if (int ret = ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(layer)) {
+                            HWC2_LOGE("HWPQ: RunHwPqGetReg fail! ret=%d, LayerName=%s", ret,
+                                      layer->sLayerName_.c_str());
+                        } else {
+                            HWC2_LOGD_IF("HWPQ-Overlay enable on LayerName=%s", layer->sLayerName_.c_str());
+                        }
+                        break;
                     }
-                    break;
                 }
             }
         }
