@@ -165,7 +165,11 @@ class DrmConnector {
     int FilterColorFormatWithCaps(int inFormat);
 
     // VRR
-    const std::vector<int>& vrr_modes() const { return vrr_modes_; }
+    std::vector<int> vrr_modes() {
+        std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
+        return vrr_modes_;
+    }
+
     uint8_t* MakeFakeEDID();
 
     int32_t get_kernel_crtc_id() const { return mKernelCrtcId_; }

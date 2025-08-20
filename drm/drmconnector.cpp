@@ -442,6 +442,9 @@ int DrmConnector::UpdatePropertys() {
     return 0;
 }
 int DrmConnector::UpdateVrrModes() {
+    int ret = 0;
+    vrr_modes_.clear();
+
     if (!encoder() || !(encoder()->crtc()) || encoder()->crtc()->variable_refresh_rate().id() == 0) {
         return 0;
     }
@@ -449,9 +452,6 @@ int DrmConnector::UpdateVrrModes() {
     if (modes_.size() != 1) {
         return 0;
     }
-
-    int ret = 0;
-    vrr_modes_.clear();
 
     DrmCrtc* crtc = encoder()->crtc();
     uint64_t min_refresh_rate = 0;

@@ -2497,7 +2497,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetActiveConfig(hwc2_config_t config) {
                     .left = srcX + 0.0f, .top = srcY + 0.0f, .right = srcX + srcW + 0.0f, .bottom = srcY + srcH + 0.0f};
             client_layer_.SetLayerSourceCrop(source_crop);
         } else {
-            if (bVrrDisplay_) {
+            if (bVrrDisplay_ && connector_->vrr_modes().size() > 1) {
                 // VRR
                 HWC2::Error error = UpdateRefreshRate(config);
                 if (error != HWC2::Error::None) {
@@ -2530,6 +2530,9 @@ HWC2::Error DrmHwcTwo::HwcDisplay::UpdateRefreshRate(hwc2_config_t config) {
     if (!bVrrDisplay_) return HWC2::Error::None;
 
     const std::vector<int> vrr_mode = connector_->vrr_modes();
+
+    if(vrr_mode.size() <= 0) return HWC2::Error::None;
+
     if (config <= (vrr_mode.size() - 1)) {
         int refresh_rate = vrr_mode[config];
         int ret = drm_->UpdateVrrRefreshRate(handle_, refresh_rate);
