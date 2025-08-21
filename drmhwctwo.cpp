@@ -2831,7 +2831,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateVirtualDisplay(uint32_t* num_types, u
         // 只有存在 SidebandStream 的录屏才会使用 WriteBack;
         for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
             DrmHwcTwo::HwcLayer& layer = l.second;
-            if (layer.sf_type() == HWC2::Composition::Sideband) {
+            if (layer.isSidebandLayer()) {
                 exist_sideband_stream = true;
             }
         }
