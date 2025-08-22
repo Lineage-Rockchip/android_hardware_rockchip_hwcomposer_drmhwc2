@@ -859,6 +859,12 @@ void DrmPlane::AddLocalPlaneInfo() {
             scale_max_exclusive_ = true;
         }
     }
+
+    // set max scale and min scale to 1.0 if scale is not supported.
+    if (!b_scale_) {
+        scale_max_ = 1.0f;
+        scale_min_ = 1.0f;
+    }
 }
 
 uint64_t DrmPlane::win_type() const {
@@ -1035,6 +1041,9 @@ void DrmPlane::set_reserved(bool bReserved) {
 }
 
 bool DrmPlane::is_support_scale(float scale_rate) {
+    // 1.0 scale is always supported
+    if (scale_rate == 1.0f) return true;
+
     if (!scale_min_exclusive_ && !scale_max_exclusive_) {  // min闭, max闭
         return (scale_rate >= scale_min_) && (scale_rate <= scale_max_);
     } else if (!scale_min_exclusive_ && scale_max_exclusive_) {  // min闭, max开
