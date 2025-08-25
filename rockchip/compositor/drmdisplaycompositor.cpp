@@ -3396,7 +3396,10 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                         layer.bIsPreScale_ = true;
                     }
                     eotf = layer.uEOTF;
-                    colorspace = layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
+                    if (output_buffer->GetDataspace() != HAL_DATASPACE_UNKNOWN) {
+                        layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
+                    }
+                    colorspace = layer.uColorSpace;
                 } else
 #endif
                 {
@@ -3413,7 +3416,10 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
 
                     layer.sf_handle = output_buffer->GetHandle();
                     eotf = layer.uEOTF;
-                    colorspace = layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
+                    if (output_buffer->GetDataspace() != HAL_DATASPACE_UNKNOWN) {
+                        layer.uColorSpace = layer.GetColorSpace(output_buffer->GetDataspace());
+                    }
+                    colorspace = layer.uColorSpace;
                 }
 
                 if (layer.bBackgraoundLayer_) {
