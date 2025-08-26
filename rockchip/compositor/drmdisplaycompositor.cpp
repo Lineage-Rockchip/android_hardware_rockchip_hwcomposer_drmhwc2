@@ -4395,13 +4395,13 @@ int DrmDisplayCompositor::CollectSidebandHdrInfo(DrmHwcLayer& hdrLayer) {
         // Android full / limit range
         switch (hdrLayer.eDataSpace_ & HAL_DATASPACE_RANGE_MASK) {
             case HAL_DATASPACE_RANGE_FULL:
-                hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_FULL;
+                hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = HWC_HDR_RANGE_FULL;
                 break;
             case HAL_DATASPACE_RANGE_LIMITED:
-                hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_LIMITED;
+                hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = HWC_HDR_RANGE_LIMITED;
                 break;
             default:
-                hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = RANGE_LIMITED;
+                hdrLayer.metadataHdrParam_.hdr_dataspace_info.range = HWC_HDR_RANGE_LIMITED;
                 break;
         }
     }

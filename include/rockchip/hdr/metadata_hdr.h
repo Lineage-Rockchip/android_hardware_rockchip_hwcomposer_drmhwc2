@@ -56,7 +56,7 @@ enum rk_hdr_color_prim {
     COLOR_PRIM_UNSPECIFIED
 };
 
-enum rk_hdr_range { RANGE_FULL = 0, RANGE_LIMITED = 1, RANGE_UNSPECIFIED };
+enum rk_hdr_range { HWC_HDR_RANGE_FULL = 0, HWC_HDR_RANGE_LIMITED = 1, HWC_HDR_RANGE_UNSPECIFIED };
 
 typedef struct {
     unsigned int color_prim;  //enum rk_hdr_color_prim: bt709, bt2020, etc.
