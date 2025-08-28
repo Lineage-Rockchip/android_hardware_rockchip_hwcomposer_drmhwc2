@@ -463,7 +463,7 @@ int DrmHwcTwo::HwcDisplay::ClearDisplay() {
         return -1;
     }
 
-    if (connector_ != NULL) {
+    if (connector_ != NULL && crtc_ != NULL && connector_->encoder() != NULL) {
         compositor_->ClearDisplay();
     }
 
@@ -487,7 +487,7 @@ int DrmHwcTwo::HwcDisplay::ResetDisplay() {
     init_success_ = false;
     // 等待一段时间，display处理完当前帧
     usleep(20 * 1000);
-    if (compositor_ != NULL) {
+    if (compositor_ != NULL && crtc_ != NULL && connector_ != NULL && connector_->encoder() != NULL) {
         compositor_->ClearDisplay();
     }
     HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
@@ -509,7 +509,7 @@ int DrmHwcTwo::HwcDisplay::DisconnectDisplay() {
     force_disconneted_ = true;
     // 等待一段时间，display处理完当前帧
     usleep(20 * 1000);
-    if (compositor_ != NULL) {
+    if (compositor_ != NULL && crtc_ != NULL && connector_ != NULL && connector_->encoder() != NULL) {
         compositor_->ClearDisplay();
     }
     HWC2_LOGI_IF("display-id=%" PRIu64, handle_);
@@ -2393,7 +2393,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::PresentDisplay(int32_t* retire_fence) {
         // 创建 empty composition，更新 ReleaseFence / RetireFence 并立即 Signal
         // Bug: #566932 / #489238 并发对 sp<ReleaseFence> 修改（赋值）操作低概率会引起内存异常问题
         // 故将对 sp<ReleaseFence> 的操作移动到主线程进行处理
-        CreateEmptyComposition();
+        if (crtc_ != NULL && connector_ != NULL && connector_->encoder() != NULL) CreateEmptyComposition();
     } else {
         ret = CreateFrameComposition();
         if (ret == HWC2::Error::BadLayer) {
@@ -2643,6 +2643,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SyncPowerMode() {
 
 HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
     HWC2_LOGV_IF("display-id=%" PRIu64 ", mode_in=%d", handle_, mode_in);
+    int ret = 0;
 #ifdef USE_LIBEBOOK
     if (isEBook()) {
         HWC2::PowerMode old_mode = mPowerMode_;
@@ -2723,13 +2724,16 @@ HWC2::Error DrmHwcTwo::HwcDisplay::SetPowerMode(int32_t mode_in) {
         return HWC2::Error::BadDisplay;
     }
 
-    std::unique_ptr<DrmDisplayComposition> composition = compositor_->CreateComposition();
-    composition->Init(drm_, crtc_, importer_.get(), planner_.get(), frame_no_, handle_);
-    composition->SetDpmsMode(dpms_value);
-    int ret = compositor_->QueueComposition(std::move(composition));
-    if (ret) {
-        ALOGE("Failed to apply the dpms composition ret=%d", ret);
-        return HWC2::Error::BadParameter;
+    // Queue Composition only if we own this crtc
+    if (crtc_ != NULL && connector_ != NULL && connector_->encoder() != NULL) {
+        std::unique_ptr<DrmDisplayComposition> composition = compositor_->CreateComposition();
+        composition->Init(drm_, crtc_, importer_.get(), planner_.get(), frame_no_, handle_);
+        composition->SetDpmsMode(dpms_value);
+        ret = compositor_->QueueComposition(std::move(composition));
+        if (ret) {
+            ALOGE("Failed to apply the dpms composition ret=%d", ret);
+            return HWC2::Error::BadParameter;
+        }
     }
 
     int fb0_fd = resource_manager_->getFb0Fd();
@@ -6248,23 +6252,31 @@ int DrmHwcTwo::EventWorker::HandleDrmHotplugEvent(DrmEvent event) {
             ret = 0;
             drmModeConnection cur_state = conn->state();
             if (cur_state == DRM_MODE_CONNECTED) {
-                if (conn->hwc_state_change_and_plug()) {
-                    int display_id = conn->display();
-                    auto& display = hwc2_->displays_.at(display_id);
-                    ret |= (int32_t)display.HoplugEventTmeline();
-                    ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
-                    ret |= (int32_t)display.ChosePreferredConfig();
-                    if (ret != 0) {
-                        HWC2_LOGE("hwc_hotplug: %s connector %u type=%s type_id=%d state is error, skip hotplug.",
-                                  cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                                  drm_->connector_type_str(conn->type()), conn->type_id());
+                int display_id = conn->display();
+                auto& display = hwc2_->displays_.at(display_id);
+                ret |= (int32_t)display.HoplugEventTmeline();
+                ret |= (int32_t)display.CheckStateAndReinit(!hwc2_->IsHasRegisterDisplayId(display_id));
+                ret |= (int32_t)display.ChosePreferredConfig();
+                if (ret != 0) {
+                    HWC2_LOGE(
+                            "hwc_hotplug: ConnCompete %s connector %u type=%s type_id=%d state is error, skip hotplug.",
+                            cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                            drm_->connector_type_str(conn->type()), conn->type_id());
+                } else {
+                    if (hwc2_->IsHasRegisterDisplayId(display_id)) {
+                        HWC2_LOGD_IF(
+                                "hwc_hotplug: ConnCompete %s connector %u type=%s type_id=%d has register, skip "
+                                "hotplug.",
+                                cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                                drm_->connector_type_str(conn->type()), conn->type_id());
                     } else {
-                        HWC2_LOGI("hwc_hotplug: %s connector %u type=%s type_id=%d send hotplug event to SF.",
-                                  cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
-                                  drm_->connector_type_str(conn->type()), conn->type_id());
+                        HWC2_LOGI(
+                                "hwc_hotplug: ConnCompete %s connector %u type=%s type_id=%d send hotplug event to SF.",
+                                cur_state == DRM_MODE_CONNECTED ? "Plug" : "Unplug", conn->id(),
+                                drm_->connector_type_str(conn->type()), conn->type_id());
                         hwc2_->HandleDisplayHotplug(display_id, cur_state);
-                        display.SyncPowerMode();
                     }
+                    display.SyncPowerMode();
                 }
             }
         }

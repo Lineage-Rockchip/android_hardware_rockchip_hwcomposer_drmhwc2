@@ -1105,14 +1105,6 @@ drmModeConnection DrmConnector::state() {
     return state_;
 }
 
-bool DrmConnector::hwc_state_change_and_plug() {
-    if (plug_) {
-        plug_ = false;
-        return true;
-    }
-    return false;
-}
-
 void DrmConnector::update_hotplug_state() {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     hotplug_state_ = state_;

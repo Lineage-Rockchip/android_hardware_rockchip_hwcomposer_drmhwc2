@@ -117,7 +117,6 @@ class DrmConnector {
     DrmEncoder* encoder() const;
     void set_encoder(DrmEncoder* encoder);
     drmModeConnection state();
-    bool hwc_state_change_and_plug();
 
     void update_hotplug_state();
     drmModeConnection hotplug_state();
@@ -246,7 +245,6 @@ class DrmConnector {
     uint32_t unique_id_;
     uint32_t priority_;
     drmModeConnection state_;
-    bool plug_;
     drmModeConnection hotplug_state_;
 
     uint32_t mm_width_;

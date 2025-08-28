@@ -1297,6 +1297,12 @@ void DrmDevice::UpdateDrmInfoFromKernel() {
                           mirror_primary->type_id(), mirror_external->display(),
                           connector_type_str(mirror_external->type()), mirror_external->type_id());
             }
+            // 确保将crtc的屏幕设置为mirror主屏而不是副屏
+            for(auto &crtc : crtcs_){
+                if(crtc->id() == pair_crtc_id.first){
+                    crtc->set_display(mirror_primary->display());
+                }
+            }
         }
     }
 
