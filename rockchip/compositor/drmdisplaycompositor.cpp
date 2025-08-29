@@ -3328,6 +3328,9 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     transform |= DRM_MODE_RK_POST_PROCESS_MEMC;
                 }
 
+                // 每个屏幕均使用独立的Transform避免出现缩放后仍超出限制的问题
+                if (layer.bUseSidebandScale_) transform |= DRM_MODE_RK_POST_PROCESS_SCALE(crtc->get_port_id());
+
                 ret = dvp->CreateConnection(display_, layer.iTunnelId_, layer.eDataSpace_, transform);
                 if (ret < 0) {
                     HWC2_LOGI("SidebandStream: display-id=%d CreateConnection fail, iTunnelId = %d", display_,

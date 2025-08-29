@@ -923,8 +923,13 @@ int Vop3576::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                             bool bNeed = false;
                             if (IsExcceedVopLimit((*iter_layer), (*iter_plane)->win_type()) &&
                                 !(*iter_layer)->bFbTarget_) {
-                                HWC2_LOGD_IF("%s excceed vop limit, can't overlay ", (*iter_plane)->name());
-                                continue;
+                                if ((*iter_layer)->bSidebandStreamLayer_) {
+                                    HWC2_LOGD_IF("Sideband layer use post scale !");
+                                    (*iter_layer)->bUseSidebandScale_ = true;
+                                } else {
+                                    HWC2_LOGD_IF("%s excceed vop limit, can't overlay ", (*iter_plane)->name());
+                                    continue;
+                                }
                             }
 
                             // 初始化 Cluster 图层匹配参数
@@ -1065,6 +1070,9 @@ int Vop3576::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                             if ((*iter_plane)->is_support_scale((*iter_layer)->fHScaleMul_) &&
                                 (*iter_plane)->is_support_scale((*iter_layer)->fVScaleMul_)) {
                                 bNeed = true;
+                            } else if ((*iter_layer)->bSidebandStreamLayer_) {
+                                HWC2_LOGD_IF("Sideband layer use post scale !");
+                                (*iter_layer)->bUseSidebandScale_ = true;
                             } else {
 #ifdef USE_LIBPQ_HWPQ
                                 if ((*iter_plane)->win_type() == PLANE_RK3576_CLUSTER0_WIN0 &&
@@ -1227,6 +1235,7 @@ void Vop3576::ResetLayer(std::vector<DrmHwcLayer*>& layers) {
     for (auto& drmHwcLayer : layers) {
         drmHwcLayer->bMatch_ = false;
         drmHwcLayer->uWinType_ = 0;
+        drmHwcLayer->bUseSidebandScale_ = false;
         if (drmHwcLayer->bFbTarget_) {
             drmHwcLayer->bAfbcd_ = ctx.state.fbUseAfbc;
         }

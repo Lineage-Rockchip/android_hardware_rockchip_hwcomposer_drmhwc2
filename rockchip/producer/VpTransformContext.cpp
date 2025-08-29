@@ -525,7 +525,7 @@ int VpTransformContext::DoTransformByRga(std::shared_ptr<VpComposition> input) {
     dst_buffer->SetExternalId(src_buffer->GetExternalId());
     int usage = 0;
     // 处理旋转
-    switch (mTransform_) {
+    switch (mTransform_ & (DRM_MODE_REFLECT_MASK | DRM_MODE_ROTATE_MASK)) {
         case DRM_MODE_ROTATE_0:
             usage = 0;
             break;

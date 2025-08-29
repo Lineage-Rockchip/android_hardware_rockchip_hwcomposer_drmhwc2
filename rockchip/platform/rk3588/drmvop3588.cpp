@@ -1036,6 +1036,9 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                                 if (bCenterScale && (*iter_plane)->is_support_scale_8k((*iter_layer)->fHScaleMul_) &&
                                     (*iter_plane)->is_support_scale_8k((*iter_layer)->fVScaleMul_)) {
                                     bNeed = true;
+                                } else if ((*iter_layer)->bSidebandStreamLayer_) {
+                                    HWC2_LOGD_IF("Sideband layer use post scale !");
+                                    (*iter_layer)->bUseSidebandScale_ = true;
                                 } else {
                                     ALOGD_IF(LogLevel(DBG_DEBUG), "%s cann't support bCenterScale(%d) factor(%f,%f)",
                                              (*iter_plane)->name(), bCenterScale, (*iter_layer)->fHScaleMul_,
@@ -1051,6 +1054,9 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                                      (bCenterScale && (*iter_layer)->fHScaleMul_ < 1.1 &&
                                       (*iter_layer)->fVScaleMul_ < 1.1))) {
                                     bNeed = true;
+                                } else if ((*iter_layer)->bSidebandStreamLayer_) {
+                                    HWC2_LOGD_IF("Sideband layer use post scale !");
+                                    (*iter_layer)->bUseSidebandScale_ = true;
                                 } else {
                                     ALOGD_IF(LogLevel(DBG_DEBUG), "%s cann't support bCenterScale(%d) factor(%f,%f)",
                                              (*iter_plane)->name(), bCenterScale, (*iter_layer)->fHScaleMul_,
@@ -1061,6 +1067,9 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                                 if ((*iter_plane)->is_support_scale((*iter_layer)->fHScaleMul_) &&
                                     (*iter_plane)->is_support_scale((*iter_layer)->fVScaleMul_)) {
                                     bNeed = true;
+                                } else if ((*iter_layer)->bSidebandStreamLayer_) {
+                                    HWC2_LOGD_IF("Sideband layer use post scale !");
+                                    (*iter_layer)->bUseSidebandScale_ = true;
                                 } else {
                                     ALOGD_IF(LogLevel(DBG_DEBUG), "%s cann't support scale factor(%f,%f)",
                                              (*iter_plane)->name(), (*iter_layer)->fHScaleMul_,
