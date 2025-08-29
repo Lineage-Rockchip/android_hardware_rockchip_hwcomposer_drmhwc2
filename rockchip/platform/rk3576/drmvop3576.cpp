@@ -1278,7 +1278,8 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
     int total_size = 0;
 
     // 判断是否需要预留Cluster0给HWPQ模块
-    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE) {
+    if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_VIDEO_MODE ||
+        (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_HDMIRX_MODE && ctx.request.bSidebandStreamMode)) {
         DrmHwcLayer* layer_use_cluster0 = nullptr;
         // Search for video layer need use Cluster0
         for (auto& layer : layers) {
@@ -1410,6 +1411,20 @@ int Vop3576::MatchPlanes(std::vector<DrmCompositionPlane>* composition, std::vec
                 return MatchPlanes(composition, layers, crtc, plane_groups);
             }
             HWC2_LOGD_IF("Not use HwPq Video Mode.");
+        }
+    } else if (ctx.state.bCurrentHwPqMode_ == PqUtils::HWPQ_HDMIRX_MODE && !ctx.request.bSidebandStreamMode) {
+        //Only vp0 support HWPQ reg
+        if (crtc && crtc->get_port_id() == 0) {
+            for (auto& layer : layers) {
+                if (layer->bMatch_) {
+                    if (int ret = ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(layer)) {
+                        HWC2_LOGE("HWPQ: RunHwPqGetReg fail! ret=%d, LayerName=%s", ret, layer->sLayerName_.c_str());
+                    } else {
+                        HWC2_LOGD_IF("HWPQ-Overlay enable on LayerName=%s", layer->sLayerName_.c_str());
+                    }
+                    break;
+                }
+            }
         }
     }
     // If HWPQ video mode did not used, run GetLumaAvg for video layer.

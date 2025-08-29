@@ -3358,6 +3358,7 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                     } else {
                         if (crtc && crtc->get_port_id() == 0) {
                             ResourceManager::getInstance()->GetDrmPq()->RunHwPqGetReg(output_buffer);
+                            vp_composition->SetPqBuffer(output_buffer);
                         }
                     }
                 }
