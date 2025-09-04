@@ -3329,7 +3329,18 @@ int DrmDisplayCompositor::CollectSidebandInfo() {
                 }
 
                 // 每个屏幕均使用独立的Transform避免出现缩放后仍超出限制的问题
-                if (layer.bUseSidebandScale_) transform |= DRM_MODE_RK_POST_PROCESS_SCALE(crtc->get_port_id());
+                if (layer.bUseSidebandScale_) {
+                    // 图层需要缩小2-4倍
+                    if ((layer.fHScaleMul_ >= 2 && layer.fHScaleMul_ < 4) ||
+                        (layer.fVScaleMul_ >= 2 && layer.fVScaleMul_ < 4)) {
+                        transform |= DRM_MODE_RK_POST_SCALE_DOWN_2;
+                    } else if ((layer.fHScaleMul_ >= 4 && layer.fHScaleMul_ < 8) ||
+                               (layer.fVScaleMul_ >= 4 && layer.fVScaleMul_ < 8)) {
+                        transform |= DRM_MODE_RK_POST_SCALE_DOWN_4;
+                    } else if (layer.fHScaleMul_ >= 8 || layer.fVScaleMul_ >= 8) {
+                        transform |= DRM_MODE_RK_POST_SCALE_DOWN_8;
+                    }
+                }
 
                 ret = dvp->CreateConnection(display_, layer.iTunnelId_, layer.eDataSpace_, transform);
                 if (ret < 0) {

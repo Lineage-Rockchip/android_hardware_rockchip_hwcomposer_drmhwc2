@@ -98,8 +98,10 @@ class VpComposition {
 #define DRM_MODE_RK_POST_PROCESS_SR (1 << 6)
 #define DRM_MODE_RK_POST_PROCESS_MEMC (1 << 7)
 
-// Scale的Transform，每个VP会占用1个bit
-#define DRM_MODE_RK_POST_PROCESS_SCALE(crtc_port_id) (1 << (8 + crtc_port_id))
+// Scale 倍数的 mask
+#define DRM_MODE_RK_POST_SCALE_DOWN_2  (1 << 8)
+#define DRM_MODE_RK_POST_SCALE_DOWN_4  (1 << 9)
+#define DRM_MODE_RK_POST_SCALE_DOWN_8  (1 << 10)
 
 class VpTransformContext {
   public:

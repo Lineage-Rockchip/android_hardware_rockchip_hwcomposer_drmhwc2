@@ -895,8 +895,8 @@ int Vop3588::MatchPlane(std::vector<DrmCompositionPlane>* composition_planes, st
                     if (match_best) {
                         if (!((*iter)->win_type & (*iter_layer)->iBestPlaneType)) {
                             HWC2_LOGV_IF("line=%d, plane_group win-type = 0x%" PRIx64
-                                            " , layer best-type = %x, not match ",
-                                            __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
+                                         " , layer best-type = %x, not match ",
+                                         __LINE__, (*iter)->win_type, (*iter_layer)->iBestPlaneType);
                             continue;
                         }
                     }
@@ -3092,7 +3092,8 @@ int Vop3588::TryMemcPolicy(std::vector<DrmCompositionPlane>* composition, std::v
     bool enableSr = (HwcAProperty::getInstance().getIntWithInterval(MEMC_ENABLR_SR_NAME, 500, 0) > 0);
     bool enableMemcComparation = (HwcAProperty::getInstance().getIntWithInterval(MEMC_CONTRAST_MODE_NAME, 500, 0) > 0);
     bool enableMemcOsd = (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_DISABLE_MODE, 500, 0) == 0);
-    bool enableMemcOsdOneline = (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0) > 0);
+    bool enableMemcOsdOneline =
+            (HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_MODE, 500, 0) > 0);
     int osd_oneline_wait_second =
             HwcAProperty::getInstance().getIntWithInterval(MEMC_OSD_VIDEO_ONELINE_WATI_SEC, 500, 12);
     static MemcMode memc_match_mode = MemcMode::MEMC_UNSUPPORT;

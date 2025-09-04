@@ -117,6 +117,10 @@ DrmBuffer::DrmBuffer(native_handle_t* in_handle)
     iWidth_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_WIDTH);
     iHeight_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT);
     iStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_STRIDE);
+    // 由于RK3528 版本无法获取 Stride ，故使用 width 代替 stride
+    if (iStride_ == 0) {
+        iStride_ = iWidth_;
+    }
     iHeightStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT_STRIDE);
     iByteStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_BYTE_STRIDE_WORKROUND);
     iSize_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_SIZE);
@@ -287,6 +291,12 @@ int DrmBuffer::Init() {
     iWidth_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_WIDTH);
     iHeight_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT);
     iStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_STRIDE);
+
+    // 由于RK3528 版本无法获取 Stride ，故使用 width 代替 stride
+    if (iStride_ == 0) {
+        iStride_ = iWidth_;
+    }
+
     iHeightStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT_STRIDE);
     iByteStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_BYTE_STRIDE_WORKROUND);
     iSize_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_SIZE);
@@ -736,6 +746,11 @@ int DrmBuffer::ResetPreScaleBuffer() {
     iWidth_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_WIDTH);
     iHeight_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT);
     iStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_STRIDE);
+    // 由于RK3528 版本无法获取 Stride ，故使用 width 代替 stride
+    if (iStride_ == 0) {
+        iStride_ = iWidth_;
+    }
+
     iHeightStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_HEIGHT_STRIDE);
     iByteStride_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_BYTE_STRIDE_WORKROUND);
     iSize_ = ptrDrmGralloc_->hwc_get_handle_attibute(buffer_, ATT_SIZE);

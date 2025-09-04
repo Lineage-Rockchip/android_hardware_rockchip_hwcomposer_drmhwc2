@@ -169,6 +169,15 @@ std::string VpTransformContext::TransformToString(uint32_t transform) const {
     } else if (transform & DRM_MODE_RK_POST_PROCESS_MEMC) {
         result += "_MM";
     }
+
+    if (transform & DRM_MODE_RK_POST_SCALE_DOWN_2) {
+        result += "_2";
+    } else if (transform & DRM_MODE_RK_POST_SCALE_DOWN_4) {
+        result += "_4";
+    } else if (transform & DRM_MODE_RK_POST_SCALE_DOWN_8) {
+        result += "_8";
+    }
+
     return result;
 }
 
@@ -429,24 +438,18 @@ int VpTransformContext::DoTransformByRga(std::shared_ptr<VpComposition> input) {
     src_rect.height = ALIGN_DOWN((int)(bottom - top), 2);
 
     // 3.3 设置目标buffer属性
-    int dst_width = 0;
-    int dst_height = 0;
-    // 获取VOP端的送显参数，屏幕最大的一组值
-    for (auto pair_display_frame : mMapDisplayFrame_) {
-        int display_frame_w = pair_display_frame.second.right - pair_display_frame.second.left;
-        int display_frame_h = pair_display_frame.second.bottom - pair_display_frame.second.top;
-        if (display_frame_w > dst_width) {
-            dst_width = ALIGN_DOWN(display_frame_w, 2);
-        }
-        if (display_frame_h > dst_height) {
-            dst_height = ALIGN_DOWN(display_frame_h, 2);
-        }
-    }
-
-    // 若屏幕大于HDMI-IN原始图像数据，则使用原始图像的参数，主要目的是VOP避免VOP做大倍率缩小
-    if (dst_width == 0 || dst_width > src_buffer->GetWidth() || dst_height > src_buffer->GetHeight()) {
-        dst_width = src_buffer->GetWidth();
-        dst_height = src_buffer->GetHeight();
+    int dst_width = src_rect.width;
+    int dst_height = src_rect.height;
+    // 根据缩小的mask执行缩小
+    if ((mTransform_ & DRM_MODE_RK_POST_SCALE_DOWN_2) > 0) {
+        dst_width = ALIGN_DOWN(src_rect.width / 2, 4);
+        dst_height = ALIGN_DOWN(src_rect.height / 2, 4);
+    } else if ((mTransform_ & DRM_MODE_RK_POST_SCALE_DOWN_4) > 0) {
+        dst_width = ALIGN_DOWN(src_rect.width / 4, 4);
+        dst_height = ALIGN_DOWN(src_rect.height / 4, 4);
+    } else if ((mTransform_ & DRM_MODE_RK_POST_SCALE_DOWN_8) > 0) {
+        dst_width = ALIGN_DOWN(src_rect.width / 8, 4);
+        dst_height = ALIGN_DOWN(src_rect.height / 8, 4);
     }
 
     if ((mTransform_ == DRM_MODE_ROTATE_90) || (mTransform_ & DRM_MODE_ROTATE_270)) {
