@@ -439,6 +439,16 @@ int DrmConnector::UpdatePropertys() {
                 hdr_metadata_.min_display_mastering_luminance));
     }
 
+    auto c = drmModeGetConnector(drm_->fd(), id_);
+    if (!c) {
+        HWC2_LOGE("Get connector %" PRIu32 " failed!", id_);
+        return -1;
+    } else {
+        mm_width_ = c->mmWidth;
+        mm_height_ = c->mmHeight;
+        drmModeFreeConnector(c);
+    }
+
     return 0;
 }
 int DrmConnector::UpdateVrrModes() {
