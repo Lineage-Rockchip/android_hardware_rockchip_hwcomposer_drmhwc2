@@ -864,17 +864,15 @@ bool DrmConnector::ParseHdmiOutputFormat(char* strprop, int* format, int* depth)
     return false;
 }
 
-int DrmConnector::UpdateOutputFormat(int display_id, int update_base_timeline) {
+std::pair<int, int> DrmConnector::UpdateOutputFormat(int display_id, int update_base_timeline) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     if (!(color_format_property().id() > 0 || color_depth_property().id() > 0)) {
-        return 0;
+        return {output_ycbcr_high_subsampling, depth_24bit};
     }
 
     int ret = 0;
-    bool update = false;
     int color_format = -1;
     int color_depth = -1;
-    bool need_change_format = false, need_change_depth = false;
     bool exist_suitable_property = false;
     char output_format_value[PROPERTY_VALUE_MAX] = {0};
 
@@ -917,121 +915,82 @@ int DrmConnector::UpdateOutputFormat(int display_id, int update_base_timeline) {
         color_depth = depth_24bit;
     }
 
-    if (color_format != -1 && uColorFormat_ != color_format) {
-        update = true;
-        need_change_format = true;
-    }
-
-    if (color_depth != -1 && uColorDepth_ != color_depth) {
-        update = true;
-        need_change_depth = true;
-    }
-
-    if (!update) return 0;
-
-    drmModeAtomicReqPtr pset = drmModeAtomicAlloc();
-    if (!pset) {
-        ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
-        return false;
-    }
-
-    if (need_change_format > 0) {
-        color_format = FilterColorFormatWithCaps(color_format);
-        ALOGI("%s,line=%d %s change hdmi output format: %d", __FUNCTION__, __LINE__, cUniqueName_, color_format);
-        ret = drmModeAtomicAddProperty(pset, id(), color_format_property().id(), color_format);
-        if (ret < 0) {
-            ALOGE("%s:line=%d Failed to add prop[%d] to [%d]", __FUNCTION__, __LINE__, color_format_property().id(),
-                  id());
-        }
-    }
-
-    if (need_change_depth > 0) {
-        ALOGI("%s,line=%d %s change hdmi output depth: %d", __FUNCTION__, __LINE__, cUniqueName_, color_depth);
-        ret = drmModeAtomicAddProperty(pset, id(), color_depth_property().id(), color_depth);
-        if (ret < 0) {
-            ALOGE("%s:line=%d Failed to add prop[%d] to [%d]", __FUNCTION__, __LINE__, color_depth_property().id(),
-                  id());
-        }
-    }
-
-    ret = drmModeAtomicCommit(drm_->fd(), pset, DRM_MODE_ATOMIC_ALLOW_MODESET, drm_);
-    if (ret < 0) {
-        ALOGE("%s:line=%d %s Failed to commit! ret=%d", __FUNCTION__, __LINE__, cUniqueName_, ret);
-    } else {
-        uColorFormat_ = color_format;
-        uColorDepth_ = color_depth;
-    }
-
-    drmModeAtomicFree(pset);
-    pset = NULL;
-
-    return 0;
+    color_format = FilterColorFormatWithCaps(color_format);
+    ALOGI("%s,line=%d %s Get hdmi output format: %d, output depth: %d", __FUNCTION__, __LINE__, cUniqueName_,
+          color_format, color_depth);
+    return {color_format, color_depth};
 }
 
-int DrmConnector::UpdateOutputFormat(drmModeAtomicReqPtr pset) {
+int DrmConnector::UpdateOutputFormat(drmModeAtomicReqPtr pset, int format, int depth) {
     if (!(color_format_property().id() > 0 || color_depth_property().id() > 0)) {
         return 0;
     }
 
     int ret = 0;
-    bool update = false;
-    int color_format = -1;
-    int color_depth = -1;
-    bool need_change_format = false, need_change_depth = false;
-    bool exist_suitable_property = false;
-    char output_format_value[PROPERTY_VALUE_MAX] = {0};
-
-    ret = property_get(output_format_pro_, output_format_value, "");
-    if (!ret) {
-        if (display_ == HWC_DISPLAY_PRIMARY) {
-            ret = property_get("persist.vendor.color.main", output_format_value, "");
+    int color_format = format;
+    int color_depth = depth;
+    // 如果没有传递准确的 format  / depth 信息，自行获取
+    if (format == -1 || depth == -1) {
+        bool exist_suitable_property = false;
+        char output_format_value[PROPERTY_VALUE_MAX] = {0};
+        ret = property_get(output_format_pro_, output_format_value, "");
+        if (!ret) {
+            if (display_ == HWC_DISPLAY_PRIMARY) {
+                ret = property_get("persist.vendor.color.main", output_format_value, "");
+            } else {
+                ret = property_get("persist.vendor.color.aux", output_format_value, "");
+            }
+            if (ret) {
+                exist_suitable_property = true;
+            }
         } else {
-            ret = property_get("persist.vendor.color.aux", output_format_value, "");
-        }
-        if (ret) {
             exist_suitable_property = true;
         }
-    } else {
-        exist_suitable_property = true;
-    }
 
-    if (exist_suitable_property) {
-        ret = ParseHdmiOutputFormat(output_format_value, &color_format, &color_depth);
-        if (ret == false) {
-            ALOGE("Get color fail! to use default ");
+        if (exist_suitable_property) {
+            ret = ParseHdmiOutputFormat(output_format_value, &color_format, &color_depth);
+            if (ret == false) {
+                ALOGE("Get color fail! to use default ");
+                color_format = output_ycbcr_high_subsampling;
+                color_depth = depth_24bit;
+            }
+        } else if (baseparameter_ready_) {
+            ALOGI("%s,line=%d, %s can't find suitable output format Property, try to use Baseparameter.", __FUNCTION__,
+                  __LINE__, cUniqueName_);
+            int ret = drm_->UpdateConnectorBaseInfo(type_, unique_id_, &baseparameter_);
+            if (ret) {
+                ALOGW("%s,line=%d,%s UpdateConnectorBaseInfo fail, the device may not have a baseparameter.",
+                      __FUNCTION__, __LINE__, cUniqueName_);
+            }
+            color_format = baseparameter_.screen_info[0].format;
+            color_depth = baseparameter_.screen_info[0].depthc;
+        } else {
             color_format = output_ycbcr_high_subsampling;
             color_depth = depth_24bit;
         }
-    } else if (baseparameter_ready_) {
-        ALOGI("%s,line=%d, %s can't find suitable output format Property, try to use Baseparameter.", __FUNCTION__,
-              __LINE__, cUniqueName_);
-        int ret = drm_->UpdateConnectorBaseInfo(type_, unique_id_, &baseparameter_);
-        if (ret) {
-            ALOGW("%s,line=%d,%s UpdateConnectorBaseInfo fail, the device may not have a baseparameter.", __FUNCTION__,
-                  __LINE__, cUniqueName_);
-        }
-        color_format = baseparameter_.screen_info[0].format;
-        color_depth = baseparameter_.screen_info[0].depthc;
-    } else {
-        color_format = output_ycbcr_high_subsampling;
-        color_depth = depth_24bit;
     }
 
     color_format = FilterColorFormatWithCaps(color_format);
-    ALOGI("%s,line=%d %s change hdmi output format: %d", __FUNCTION__, __LINE__, cUniqueName_, color_format);
-    ret = drmModeAtomicAddProperty(pset, id(), color_format_property().id(), color_format);
-    if (ret < 0) {
-        ALOGE("%s:line=%d Failed to add prop[%d] to [%d]", __FUNCTION__, __LINE__, color_format_property().id(), id());
+
+    if (uColorFormat_ != color_format) {
+        HWC2_LOGD_IF("%s change hdmi output format: %d", cUniqueName_, color_format);
+        ret = drmModeAtomicAddProperty(pset, id(), color_format_property().id(), color_format);
+        if (ret < 0) {
+            ALOGE("%s:line=%d Failed to add prop[%d] to [%d]", __FUNCTION__, __LINE__, color_format_property().id(),
+                  id());
+        }
+        uColorFormat_ = color_format;
     }
 
-    ALOGI("%s,line=%d %s change hdmi output depth: %d", __FUNCTION__, __LINE__, cUniqueName_, color_depth);
-    ret = drmModeAtomicAddProperty(pset, id(), color_depth_property().id(), color_depth);
-    if (ret < 0) {
-        ALOGE("%s:line=%d Failed to add prop[%d] to [%d]", __FUNCTION__, __LINE__, color_depth_property().id(), id());
+    if (uColorDepth_ != color_depth) {
+        HWC2_LOGD_IF("%s change hdmi output depth: %d", cUniqueName_, color_depth);
+        ret = drmModeAtomicAddProperty(pset, id(), color_depth_property().id(), color_depth);
+        if (ret < 0) {
+            ALOGE("%s:line=%d Failed to add prop[%d] to [%d]", __FUNCTION__, __LINE__, color_depth_property().id(),
+                  id());
+        }
+        uColorDepth_ = color_depth;
     }
-
-    uColorFormat_ = color_format;
-    uColorDepth_ = color_depth;
 
     return 0;
 }

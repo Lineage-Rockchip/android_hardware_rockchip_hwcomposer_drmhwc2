@@ -202,6 +202,21 @@ class DrmDisplayComposition {
     void SetExpectedPresentTime(int64_t expected_present_time) { iExpectedPresentTime_ = expected_present_time; }
     int64_t GetExpectedPresentTime() { return iExpectedPresentTime_; }
 
+    void SetOutputFormat(int display_id, int format, int depth) {
+        mMapOutputFormat_[display_id] = {format, depth};
+        return;
+    }
+
+    int GetOutputFormat(int display_id, int* output_format, int* output_depth) {
+        if (mMapOutputFormat_.count(display_id)) {
+            auto output = mMapOutputFormat_[display_id];
+            *output_format = output.first;
+            *output_depth = output.second;
+            return 0;
+        }
+        return -1;
+    }
+
   private:
     bool validate_composition_type(DrmCompositionType desired);
 
@@ -240,6 +255,9 @@ class DrmDisplayComposition {
     int overscan_top_ = 100;
     int overscan_right_ = 100;
     int overscan_bottom_ = 100;
+
+    // output format
+    std::map<int /*display-id*/, std::pair<int /*output_format*/, int /*output_depth*/>> mMapOutputFormat_;
 
     std::vector<DrmHwcLayer> layers_;
     std::vector<DrmCompositionPlane> composition_planes_;

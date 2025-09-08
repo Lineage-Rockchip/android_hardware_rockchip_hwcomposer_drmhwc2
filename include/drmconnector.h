@@ -87,7 +87,8 @@ class DrmConnector {
     int GetBestDisplayMode(int display_id, int update_base_timeline);
     int GetSuitableMode(int display_id, uint64_t max_width, uint64_t dlck);
     int UpdateBCSH(int display_id, int update_base_timeline);
-    int UpdateOutputFormat(int display_id, int update_base_timeline);
+    std::pair<int, int> UpdateOutputFormat(int display_id, int update_base_timeline);
+    int UpdateOutputFormat(drmModeAtomicReqPtr pset, int format = -1, int depth = -1);
     int UpdateOverscan(int display_id, int* left, int* top, int* right, int* bottom);
     int SetDisplayModeInfo(int display_id);
     bool ParseHdmiOutputFormat(char* strprop, int* format, int* depth);
@@ -308,7 +309,6 @@ class DrmConnector {
     uint32_t uHue_ = 50;
     // output format
     int uColorFormat_ = output_ycbcr_high_subsampling;
-    ;
     int uColorDepth_ = Automatic;
     // Split mode
     bool bSplitMode_ = false;
@@ -348,7 +348,6 @@ class DrmConnector {
     char framebuffer_property_[PROPERTY_VALUE_MAX] = {0};
 
     mutable std::recursive_mutex mRecursiveMutex;
-    int UpdateOutputFormat(drmModeAtomicReqPtr pset);
 };
 }  // namespace android
 

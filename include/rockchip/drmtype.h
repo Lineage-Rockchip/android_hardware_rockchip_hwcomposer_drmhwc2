@@ -365,6 +365,12 @@ typedef struct hwc2_drm_display {
     int top_margin = 100;
     int right_margin = 100;
     int bottom_margin = 100;
+    int output_format = output_ycbcr_high_subsampling;
+    int output_depth = Automatic;
+    // RK3566 才会用到的
+    int rk3566_mirror_display_id = -1;
+    int rk3566_mirror_output_format = output_ycbcr_high_subsampling;
+    int rk3566_mirror_output_depth = Automatic;
 
     const struct disp_info* baseparameter_info;
 #ifdef USE_LIBPQ_HWPQ

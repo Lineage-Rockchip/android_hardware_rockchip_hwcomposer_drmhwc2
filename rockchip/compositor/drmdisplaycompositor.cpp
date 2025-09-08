@@ -1306,6 +1306,33 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
         return -ENODEV;
     }
 
+    // output format
+    int output_format = -1;
+    int output_depth = -1;
+    ret = display_comp->GetOutputFormat(display_, &output_format, &output_depth);
+    if (ret == 0) {
+        connector->UpdateOutputFormat(pset, output_format, output_depth);
+    }
+
+    if (gIsRK3566()) {
+        bool mirror_mode = true;
+        int display_id = drm->GetCommitMirrorDisplayId();
+        DrmConnector* conn_mirror = drm->GetConnectorForDisplay(display_id);
+        if (!conn_mirror || conn_mirror->state() != DRM_MODE_CONNECTED) {
+            ALOGI_IF(LogLevel(DBG_DEBUG), "%s,line=%d disable bCommitMirrorMode", __FUNCTION__, __LINE__);
+            mirror_mode = false;
+        }
+
+        if (mirror_mode) {
+            output_format = -1;
+            output_depth = -1;
+            ret = display_comp->GetOutputFormat(display_id, &output_format, &output_depth);
+            if (ret == 0) {
+                conn_mirror->UpdateOutputFormat(pset, output_format, output_depth);
+            }
+        }
+    }
+
     // 由 VividHdr 切换到其他 HDR 状态
     if (display_comp->hdr_mode() != DRM_HWC_METADATA_HDR) {
         if (current_mode_set_.hdr_.mode_ == DRM_HWC_METADATA_HDR) {

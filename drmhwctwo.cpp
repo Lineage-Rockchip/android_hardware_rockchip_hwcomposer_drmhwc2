@@ -1944,6 +1944,8 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateEmptyComposition() {
     composition->SetDropMode(resource_manager_->IsCompositionDropMode());
     // 配置Overscan信息
     composition->SetOverscan(ctx_.left_margin, ctx_.top_margin, ctx_.right_margin, ctx_.bottom_margin);
+    // 配置 OutputFormat
+    composition->SetOutputFormat(static_cast<int>(handle_), ctx_.output_format, ctx_.output_depth);
 
     ret = compositor_->QueueComposition(std::move(composition));
     if (ret) {
@@ -2012,6 +2014,12 @@ HWC2::Error DrmHwcTwo::HwcDisplay::CreateFrameComposition() {
     composition->SetDropMode(resource_manager_->IsCompositionDropMode());
     // 配置Overscan信息
     composition->SetOverscan(ctx_.left_margin, ctx_.top_margin, ctx_.right_margin, ctx_.bottom_margin);
+    // 配置 OutputFormat， RK3566 mirror 模式需要更新两个Connector
+    composition->SetOutputFormat(static_cast<int>(handle_), ctx_.output_format, ctx_.output_depth);
+    if (isRK3566(resource_manager_->getSocId())) {
+        composition->SetOutputFormat(static_cast<int>(ctx_.rk3566_mirror_display_id), ctx_.rk3566_mirror_output_format,
+                                     ctx_.rk3566_mirror_output_depth);
+    }
     // 配置 ExpectedPresentTime
     composition->SetExpectedPresentTime(iExpectedPresentTime_);
 
@@ -2531,7 +2539,7 @@ HWC2::Error DrmHwcTwo::HwcDisplay::UpdateRefreshRate(hwc2_config_t config) {
 
     const std::vector<int> vrr_mode = connector_->vrr_modes();
 
-    if(vrr_mode.size() <= 0) return HWC2::Error::None;
+    if (vrr_mode.size() <= 0) return HWC2::Error::None;
 
     if (config <= (vrr_mode.size() - 1)) {
         int refresh_rate = vrr_mode[config];
@@ -3764,9 +3772,12 @@ int DrmHwcTwo::HwcDisplay::UpdateHdmiOutputFormat() {
      */
     if (timeline && timeline == ctx_.display_timeline && ctx_.hotplug_timeline == drm_->timeline()) return 0;
 
-    connector_->UpdateOutputFormat(handle_, timeline);
+    std::pair<int, int> output_format = connector_->UpdateOutputFormat(handle_, timeline);
+    ctx_.output_format = output_format.first;
+    ctx_.output_depth = output_format.second;
 
     if (isRK3566(resource_manager_->getSocId())) {
+        ctx_.rk3566_mirror_display_id = -1;
         bool mirror_mode = true;
         int display_id = drm_->GetCommitMirrorDisplayId();
         DrmConnector* conn_mirror = drm_->GetConnectorForDisplay(display_id);
@@ -3776,7 +3787,10 @@ int DrmHwcTwo::HwcDisplay::UpdateHdmiOutputFormat() {
         }
 
         if (mirror_mode) {
-            conn_mirror->UpdateOutputFormat(display_id, timeline);
+            std::pair<int, int> output_format = conn_mirror->UpdateOutputFormat(handle_, timeline);
+            ctx_.rk3566_mirror_display_id = display_id;
+            ctx_.rk3566_mirror_output_format = output_format.first;
+            ctx_.rk3566_mirror_output_depth = output_format.second;
         }
     }
 
