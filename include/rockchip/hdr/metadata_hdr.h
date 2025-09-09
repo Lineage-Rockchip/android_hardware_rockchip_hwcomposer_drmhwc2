@@ -13,7 +13,7 @@
 #define RK_HDR_REG_BUF_BYTES_MAX 4096
 
 #define RK_MAGIC_WORD 318
-enum rk_video_format { AVS2 = 0, HEVC = 1, H264 = 2, VIDEO_FORMAT_MAX };
+enum rk_video_format { AVS2 = 0, HEVC = 1, H264 = 2, VP9 = 3, VIDEO_FORMAT_MAX };
 
 enum rk_hdr_format {
     NONE = 0,
@@ -34,6 +34,13 @@ enum rk_hdr_format {
 };
 
 enum rk_hdr_platform { HDR_PLAT_DEFAULT = 0, HDR_PLAT_RK356x = 1, HDR_PLAT_RK3576 = 2, HDR_PLAT_MAX };
+
+enum rk_device_adaptation_mode {
+    ADAPTATION_DEFAULT = 0,
+    ADAPTATION_RECEIVING = 1,
+    ADAPTATION_MONITOR = 2,
+    ADAPTATION_MODE_MAX
+};
 
 enum rk_hdr_payload_format { STATIC = 0, DYNAMIC = 1, HDR_PAYLOAD_FORMAT_MAX };
 
@@ -259,7 +266,9 @@ typedef struct {
 typedef struct {
     // Header
     // Hdr protocol (enum rk_hdr_format NONE, HDR10, HLGSTATIC, HDRVIVID, etc.) and hardware platform ID
-    unsigned int hdr_plat_prot;  //Bits 0~7 for hdr protocal and bits 8~15 for hdr hardware platform id
+    unsigned int hdr_plat_prot;  //Bits 0~7 for hdr protocal,
+                                 //bits 8~15 for hdr hardware platform id,
+                                 //bits 16~19 for rk_device_adaptation_mode
     // Payload length of HdrVivid Register
     unsigned int length;
     // hdr registers' value
