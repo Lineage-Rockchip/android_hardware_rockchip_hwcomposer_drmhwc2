@@ -1135,7 +1135,7 @@ bool DrmConnector::is_hdmi_support_hdr() const {
     return (hdr_metadata_property_.id() && bSupportSt2084_) || (hdr_metadata_property_.id() && bSupportHLG_);
 }
 
-int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspace_t input_colorspace, bool is_10bit) {
+int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspace_t input_colorspace) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
     HWC2_LOGD_IF("conn-id=%d, isSupportSt2084 = %d, isSupportHLG = %d , colorspace = %x", id(), isSupportSt2084(),
                  isSupportHLG(), input_colorspace);
@@ -1205,36 +1205,15 @@ int DrmConnector::switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspa
         }
     }
 
-    int color_depth = depth_24bit;
-    if (hdmi_metadata_type.eotf == TRADITIONAL_GAMMA_SDR) {
-        UpdateOutputFormat(pset);
-    } else {
-        color_depth = is_10bit ? depth_30bit : depth_24bit;
-        uColorFormat_ = FilterColorFormatWithCaps(uColorFormat_);
-        HWC2_LOGD_IF("change hdmi output format: %d", uColorFormat_);
-        ret = drmModeAtomicAddProperty(pset, id(), color_format_property().id(), uColorFormat_);
-        if (ret < 0) {
-            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_format_property().id(), id());
-        }
-
-        HWC2_LOGD_IF("change hdmi output depth: %d", color_depth);
-        ret = drmModeAtomicAddProperty(pset, id(), color_depth_property().id(), color_depth);
-        if (ret < 0) {
-            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_depth_property().id(), id());
-        }
-    }
-
     memcpy(&last_hdr_metadata_, &hdr_metadata, sizeof(struct hdr_output_metadata));
     colorspace_ = colorspace;
-    uColorDepth_ = color_depth;
     return 0;
 }
 
 int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uint32_t color_prim,
-                                                   hdr_output_metadata* hdr_metadata, bool is_10bit) {
+                                                   hdr_output_metadata* hdr_metadata) {
     std::unique_lock<std::recursive_mutex> lock(mRecursiveMutex);
-    HWC2_LOGD_IF("conn-id=%d 10bit=%d, isSupportSt2084 = %d, isSupportHLG = %d", id(), is_10bit, isSupportSt2084(),
-                 isSupportHLG());
+    HWC2_LOGD_IF("conn-id=%d, isSupportSt2084 = %d, isSupportHLG = %d", id(), isSupportSt2084(), isSupportHLG());
 
     if (!pset) {
         ALOGE("%s:line=%d Failed to allocate property set", __FUNCTION__, __LINE__);
@@ -1290,11 +1269,9 @@ int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uin
         colorspace = DrmColorspaceType::DEFAULT;
     }
 
-    int color_depth = is_10bit ? depth_30bit : depth_24bit;
-
     if (last_hdmi_metadata_type.eotf == hdmi_metadata_type.eotf && colorspace_ == colorspace &&
-        uColorDepth_ == color_depth && !memcmp(&last_hdr_metadata_, hdr_metadata, sizeof(struct hdr_output_metadata))) {
-        HWC2_LOGD_IF("eotf / colorspace / color_depth / hdr_output_metadata is same, skip update.");
+        !memcmp(&last_hdr_metadata_, hdr_metadata, sizeof(struct hdr_output_metadata))) {
+        HWC2_LOGD_IF("eotf / colorspace / hdr_output_metadata is same, skip update.");
         return 0;
     }
 
@@ -1323,31 +1300,8 @@ int DrmConnector::switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uin
         }
     }
 
-    // TODO: SDR 模式不去修改 color depth
-    // 2:自动模式: 电视支持 HDR模式播放HDR视频则切换HDR模式，否则使用SDR模式
-    // 1:HDR模式: 等同自动模式
-    // 0:SDR模式: 电视强制使用SDR模式，HDR片源也采用SDR显示
-    if (HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.hdr_mode", 100, 2) == 0 ||
-        hdmi_metadata_type.eotf == TRADITIONAL_GAMMA_SDR) {
-        UpdateOutputFormat(pset);
-    } else {
-        uColorFormat_ = FilterColorFormatWithCaps(uColorFormat_);
-        HWC2_LOGD_IF("change hdmi output format: %d", uColorFormat_);
-        ret = drmModeAtomicAddProperty(pset, id(), color_format_property().id(), uColorFormat_);
-        if (ret < 0) {
-            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_format_property().id(), id());
-        }
-
-        HWC2_LOGD_IF("change hdmi output depth: %d", color_depth);
-        ret = drmModeAtomicAddProperty(pset, id(), color_depth_property().id(), color_depth);
-        if (ret < 0) {
-            HWC2_LOGE("Failed to add prop[%d] to [%d]", color_depth_property().id(), id());
-        }
-    }
-
     memcpy(&last_hdr_metadata_, hdr_metadata, sizeof(struct hdr_output_metadata));
     colorspace_ = colorspace;
-    uColorDepth_ = color_depth;
     return 0;
 }
 

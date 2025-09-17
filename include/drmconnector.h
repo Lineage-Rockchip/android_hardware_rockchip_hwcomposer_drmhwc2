@@ -131,9 +131,9 @@ class DrmConnector {
     bool isSupportSt2084() { return bSupportSt2084_; }
     bool isSupportHLG() { return bSupportHLG_; }
     bool is_hdmi_support_hdr() const;
-    int switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspace_t colorspace, bool is_10bit);
+    int switch_hdmi_hdr_mode(drmModeAtomicReqPtr pset, android_dataspace_t colorspace);
     int switch_hdmi_hdr_mode_by_medadata(drmModeAtomicReqPtr pset, uint32_t color_prim,
-                                         hdr_output_metadata* hdr_metadata, bool is_10bit);
+                                         hdr_output_metadata* hdr_metadata);
 
     int GetSplitModeId() const;
     void ResetSplitMode();

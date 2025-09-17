@@ -1309,7 +1309,17 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
     // output format
     int output_format = -1;
     int output_depth = -1;
+
+    // set 10 bit output for HDR 10Bit video
+    bool use_10bit_output = display_comp->hdr_mode() != DRM_HWC_SDR && display_comp->has_10bit_Yuv();
+
+    // do not change to 10bit if disable by property in metadata HDR mode
+    if (display_comp->hdr_mode() == DRM_HWC_METADATA_HDR &&
+        HwcAProperty::getInstance().getIntWithInterval("persist.sys.vivid.hdr_mode", 100, 2) == 0)
+        use_10bit_output = false;
+
     ret = display_comp->GetOutputFormat(display_, &output_format, &output_depth);
+    if (use_10bit_output) output_depth = depth_30bit;
     if (ret == 0) {
         connector->UpdateOutputFormat(pset, output_format, output_depth);
     }
@@ -1327,6 +1337,7 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
             output_format = -1;
             output_depth = -1;
             ret = display_comp->GetOutputFormat(display_id, &output_format, &output_depth);
+            if (use_10bit_output) output_depth = depth_30bit;
             if (ret == 0) {
                 conn_mirror->UpdateOutputFormat(pset, output_format, output_depth);
             }
@@ -1352,7 +1363,7 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
             display_comp->has_10bit_Yuv() != current_mode_set_.hdr_.bHasYuv10bit_ ||
             display_comp->dataspace() != current_mode_set_.hdr_.datespace_) {
             // 进入HDR10/SDR的处理逻辑
-            ret = connector->switch_hdmi_hdr_mode(pset, display_comp->dataspace(), display_comp->has_10bit_Yuv());
+            ret = connector->switch_hdmi_hdr_mode(pset, display_comp->dataspace());
             if (ret) {
                 ALOGE("display %d enable hdr fail. datespace=%x", display_, display_comp->dataspace());
             } else {
@@ -1362,8 +1373,7 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
                     if (mirror_set.size() > 0) {
                         for (int mirror_display_id : mirror_set) {
                             DrmConnector* conn_mirror = drm->GetConnectorForDisplay(mirror_display_id);
-                            ret = conn_mirror->switch_hdmi_hdr_mode(pset, display_comp->dataspace(),
-                                                                    display_comp->has_10bit_Yuv());
+                            ret = conn_mirror->switch_hdmi_hdr_mode(pset, display_comp->dataspace());
                             if (ret) {
                                 ALOGE("display %d enable hdr fail. datespace=%x", conn_mirror->display(),
                                       display_comp->dataspace());
@@ -1387,7 +1397,7 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
                 hdr_output_metadata hdr_metadata;
                 memcpy(&hdr_metadata, &layer.metadataHdrParam_.target_display_data, sizeof(struct hdr_output_metadata));
                 ret = connector->switch_hdmi_hdr_mode_by_medadata(
-                        pset, layer.metadataHdrParam_.hdr_hdmi_meta.color_prim, &hdr_metadata, layer.bYuv10bit_);
+                        pset, layer.metadataHdrParam_.hdr_hdmi_meta.color_prim, &hdr_metadata);
                 if (ret) {
                     ALOGE("display %d enable hdr fail.", display_);
                 } else {
@@ -1398,8 +1408,7 @@ int DrmDisplayCompositor::CollectModeSetInfo(drmModeAtomicReqPtr pset, DrmDispla
                             for (int mirror_display_id : mirror_set) {
                                 DrmConnector* conn_mirror = drm->GetConnectorForDisplay(mirror_display_id);
                                 ret = conn_mirror->switch_hdmi_hdr_mode_by_medadata(
-                                        pset, layer.metadataHdrParam_.hdr_hdmi_meta.color_prim, &hdr_metadata,
-                                        layer.bYuv10bit_);
+                                        pset, layer.metadataHdrParam_.hdr_hdmi_meta.color_prim, &hdr_metadata);
                                 if (ret) {
                                     ALOGE("display %d enable hdr fail. datespace=%x", conn_mirror->display(),
                                           display_comp->dataspace());
@@ -2834,7 +2843,7 @@ void DrmDisplayCompositor::ClearDisplayHdrState() {
             }
         }
         // 进入HDR10/SDR的处理逻辑
-        int ret = connector->switch_hdmi_hdr_mode(pset, HAL_DATASPACE_UNKNOWN, false);
+        int ret = connector->switch_hdmi_hdr_mode(pset, HAL_DATASPACE_UNKNOWN);
         if (ret) {
             HWC2_LOGE("display %d enable hdr fail. datespace=%x", display_, HAL_DATASPACE_UNKNOWN);
         }
