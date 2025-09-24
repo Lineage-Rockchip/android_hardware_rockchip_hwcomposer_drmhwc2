@@ -787,6 +787,8 @@ uint32_t DrmGralloc::hwc_get_fourcc_from_hal_format(int hal_format, uint64_t mod
             return DRM_FORMAT_YUYV;
         // case HAL_PIXEL_FORMAT_Y210:           // MALI_GRALLOC_FORMAT_INTERNAL_Y210
         //   return DRM_FORMAT_Y210;
+        case HAL_PIXEL_FORMAT_NV20:
+            return DRM_FORMAT_NV20;
         case HAL_PIXEL_FORMAT_YUV420_8BIT_RFBC:
             return DRM_FORMAT_YUV420_8BIT;
         case HAL_PIXEL_FORMAT_YUV420_10BIT_RFBC:
@@ -971,6 +973,7 @@ bool DrmGralloc::is_yuv_format(int hal_format, uint32_t fourcc_format) {
         case DRM_FORMAT_YVYU:
         case DRM_FORMAT_YUV420_8BIT:
         case DRM_FORMAT_YUV420_10BIT:
+        case DRM_FORMAT_NV20:
             return true;
         default:
             break;
@@ -986,6 +989,7 @@ bool DrmGralloc::is_yuv_format(int hal_format, uint32_t fourcc_format) {
         case HAL_PIXEL_FORMAT_YUV420_8BIT_I:
         case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
         case HAL_PIXEL_FORMAT_Y210:
+        case HAL_PIXEL_FORMAT_NV20:
             return true;
         default:
             return false;

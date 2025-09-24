@@ -413,6 +413,7 @@ bool DrmHwcLayer::IsYuvFormat(int format, uint32_t fourcc_format) {
         case HAL_PIXEL_FORMAT_YUV420_8BIT_I:
         case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
         case HAL_PIXEL_FORMAT_Y210:
+        case HAL_PIXEL_FORMAT_NV20:
             return true;
         default:
             return false;
@@ -438,6 +439,7 @@ bool DrmHwcLayer::Is10bitYuv(int format, uint32_t fourcc_format) {
         case HAL_PIXEL_FORMAT_YCbCr_422_SP_10:
         case HAL_PIXEL_FORMAT_YCrCb_420_SP_10:
         case HAL_PIXEL_FORMAT_YUV420_10BIT_I:
+        case HAL_PIXEL_FORMAT_NV20:
             return true;
         default:
             return false;

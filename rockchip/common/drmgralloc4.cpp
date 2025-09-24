@@ -63,6 +63,7 @@
 #include <gralloctypes/Gralloc4.h>
 // #include <aidl/arm/graphics/ArmMetadataType.h>
 
+#include "3rd/hal/drmhwc2_hal_format.h"
 #include "3rd/drm/drmhwc2_fourcc.h"
 #include "rockchip/drmtype.h"
 #include "rockchip/utils/drmdebug.h"
@@ -351,6 +352,8 @@ uint32_t FourccConvertToHalFormat(uint32_t fourcc, uint64_t modifier) {
             return HAL_PIXEL_FORMAT_YUV420_10BIT_I;
         // case HAL_PIXEL_FORMAT_Y210:           // MALI_GRALLOC_FORMAT_INTERNAL_Y210
         //   return DRM_FORMAT_Y210;
+        case DRM_FORMAT_NV20:
+            return HAL_PIXEL_FORMAT_NV20;
         default:
             ALOGE("Cannot convert drm fourcc 0x%x to hal format ", fourcc);
             return 0;
