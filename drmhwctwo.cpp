@@ -3136,16 +3136,18 @@ HWC2::Error DrmHwcTwo::HwcDisplay::ValidateDisplay(uint32_t* num_types, uint32_t
         resource_manager_->AddWBDisplayLayerInfo(wbd_info);
     }
 
+    bool has_client_layer = false;
     for (std::pair<const hwc2_layer_t, DrmHwcTwo::HwcLayer>& l : layers_) {
         DrmHwcTwo::HwcLayer& layer = l.second;
         //num_types 应该为发生改变的图层，不仅仅是Client图层
         if (layer.type_changed() && (layer.hwc3_sf_type() != HWC3_COMPOSITION_DISPLAY_DECORATION)) {
             ++*num_types;
         }
+        if (layer.validated_type() == HWC2::Composition::Client) has_client_layer = true;
         layer.resetUpdate();
     }
 
-    if (!client_layer_.isAfbc()) {
+    if (has_client_layer && !client_layer_.isAfbc()) {
         ++(*num_requests);
     }
     client_layer_.resetUpdate();
