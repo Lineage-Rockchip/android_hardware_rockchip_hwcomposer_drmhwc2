@@ -1404,6 +1404,8 @@ int DrmConnector::getCropSplitTransform() {
 #define IS_CF_SUPPORT(colorCapMask, inFormat) (((1 << inFormat) & colorCapMask) > 0)
 
 int DrmConnector::FilterColorFormatWithCaps(int inFormat) {
+    if (inFormat == RK_IF_FORMAT_YCBCR_HQ || inFormat == RK_IF_FORMAT_YCBCR_LQ) return inFormat;
+
     int ret = -1;
     if (color_format_caps_property_.id() > 0) {
         uint64_t uColorFormatCapMask = 0;
