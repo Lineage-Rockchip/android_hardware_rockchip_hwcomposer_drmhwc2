@@ -7,6 +7,8 @@
 soong_namespace {
     imports: [
         "hardware/rockchip/libbaseparameter",
+        "hardware/rockchip/libpq",
+        "hardware/rockchip/libvisionpq",
         "hardware/rockchip/librga",
         "vendor/rockchip/rk35xx-common",
     ],
@@ -149,4 +151,36 @@ cc_defaults {
 cc_library_shared {
     name: "hwcomposer.rk3588",
     defaults: ["drmhwc2_defaults"],
+}
+
+cc_library_shared {
+    name: "hwcomposer.rk3576",
+    defaults: ["drmhwc2_defaults"],
+    srcs: ["rockchip/common/pq/DrmPq.cpp"],
+    header_libs: [
+        "libpq_headers",
+        "libvisionpq_rk3576_headers",
+    ],
+    shared_libs: [
+        "libhdr_params_parser",
+        "libpq",
+    ],
+    cflags: [
+        "-DUSE_HDR_PARSER=1",
+        "-DUSE_LIBPQ=1",
+        "-DUSE_LIBPQ_HWPQ=1",
+        "-DUSE_VIVID_HDR=1",
+    ],
+    cppflags: ["-DRK3576=1"],
+}
+
+cc_prebuilt_library_shared {
+    name: "libhdr_params_parser",
+    vendor: true,
+    compile_multilib: "first",
+    srcs: ["rockchip/common/hdr/vivid/arm64/libhdr_params_parser.so"],
+    shared_libs: ["liblog"],
+    strip: {
+        none: true,
+    },
 }
