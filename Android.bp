@@ -1,0 +1,152 @@
+//
+// Copyright (C) 2026 The LineageOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
+soong_namespace {
+    imports: [
+        "hardware/rockchip/libbaseparameter",
+        "hardware/rockchip/librga",
+        "vendor/rockchip/rk35xx-common",
+    ],
+}
+
+cc_library_static {
+    name: "libdrmhwcutils",
+    vendor: true,
+    srcs: ["utils/worker.cpp"],
+    local_include_dirs: ["include"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
+
+cc_defaults {
+    name: "drmhwc2_defaults",
+    vendor: true,
+    compile_multilib: "first",
+    relative_install_path: "hw",
+
+    srcs: [
+        "drmhwctwo.cpp",
+        "drm/drmconnector.cpp",
+        "drm/drmcrtc.cpp",
+        "drm/drmdevice.cpp",
+        "drm/drmencoder.cpp",
+        "drm/drmeventlistener.cpp",
+        "drm/drmmode.cpp",
+        "drm/drmplane.cpp",
+        "drm/drmproperty.cpp",
+        "drm/drmcompositorworker.cpp",
+        "resources/resourcemanager.cpp",
+        "resources/resourcescache.cpp",
+        "drm/vsyncworker.cpp",
+        "drm/invalidateworker.cpp",
+        "utils/autolock.cpp",
+        "utils/hwc2_dumper.cpp",
+        "rockchip/compositor/drmdisplaycomposition.cpp",
+        "rockchip/compositor/drmdisplaycompositor.cpp",
+        "rockchip/utils/drmdebug.cpp",
+        "rockchip/utils/rgautils.cpp",
+        "rockchip/utils/localdimming.cpp",
+        "rockchip/common/drmfence.cpp",
+        "rockchip/common/drmlayer.cpp",
+        "rockchip/common/drmtype.cpp",
+        "rockchip/common/drmgralloc.cpp",
+        "rockchip/common/drmgralloc4.cpp",
+        "rockchip/common/drmbaseparameter.cpp",
+        "rockchip/platform/common/platformdrmgeneric.cpp",
+        "rockchip/platform/common/platform.cpp",
+        "rockchip/platform/rk3326/drmvop3326.cpp",
+        "rockchip/platform/rk3399/drmvop3399.cpp",
+        "rockchip/platform/rk356x/drmvop356x.cpp",
+        "rockchip/platform/rk3588/drmvop3588.cpp",
+        "rockchip/platform/rk3576/drmvop3576.cpp",
+        "rockchip/platform/rk3528/drmvop3528.cpp",
+        "rockchip/platform/rk3562/drmvop3562.cpp",
+        "rockchip/platform/rk3326/drmhwc3326.cpp",
+        "rockchip/platform/rk3399/drmhwc3399.cpp",
+        "rockchip/platform/rk356x/drmhwc356x.cpp",
+        "rockchip/platform/rk3588/drmhwc3588.cpp",
+        "rockchip/platform/rk3576/drmhwc3576.cpp",
+        "rockchip/platform/rk3528/drmhwc3528.cpp",
+        "rockchip/platform/rk3562/drmhwc3562.cpp",
+        "rockchip/common/drmbufferqueue.cpp",
+        "rockchip/common/drmbuffer.cpp",
+        "rockchip/common/hdr/drmhdrparser.cpp",
+        "rockchip/producer/drmvideoproducer.cpp",
+        "rockchip/producer/vpcontext.cpp",
+        "rockchip/producer/VpTransformContext.cpp",
+        "rockchip/utils/HwcAProperty.cpp",
+    ],
+
+    local_include_dirs: [
+        "include",
+        "rockchip/common/solidcolor",
+    ],
+
+    include_dirs: [
+        "external/libdrm",
+        "external/libdrm/include/drm",
+        "system/core",
+        "system/core/libsync/include",
+    ],
+
+    header_libs: [
+        "libbaseparameter_headers",
+        "libhardware_rockchip_headers",
+        "librga_headers",
+        "libsync_headers",
+    ],
+
+    shared_libs: [
+        "android.hardware.graphics.mapper@4.0",
+        "libbase",
+        "libbaseparameter",
+        "libcutils",
+        "libdrm",
+        "libgralloctypes",
+        "libhardware",
+        "libhidlbase",
+        "liblog",
+        "librga",
+        "libsync_vendor",
+        "libtinyxml2",
+        "libui",
+        "libutils",
+    ],
+
+    static_libs: ["libdrmhwcutils"],
+
+    cflags: [
+        "-DANDROID_S",
+        "-DPLATFORM_SDK_VERSION=36",
+        "-Wno-unused-function",
+        "-Wno-unused-private-field",
+        "-Wno-unused-variable",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+    ],
+
+    cppflags: [
+        "-DHWC2_USE_CPP11",
+        "-DHWC2_INCLUDE_STRINGIFICATION",
+        "-DRK_DRM_GRALLOC",
+        "-DUSE_HWC2",
+        "-DMALI_AFBC_GRALLOC",
+        "-Wno-unreachable-code-loop-increment",
+        "-DUSE_NO_ASPECT_RATIO",
+        "-DANDROID_T",
+        "-DANDROID_R",
+        "-DANDROID_Q",
+        "-DUSE_GRALLOC_4=1",
+        "-DUSE_HWC3_AIDL=1",
+    ],
+}
+
+cc_library_shared {
+    name: "hwcomposer.rk3588",
+    defaults: ["drmhwc2_defaults"],
+}
