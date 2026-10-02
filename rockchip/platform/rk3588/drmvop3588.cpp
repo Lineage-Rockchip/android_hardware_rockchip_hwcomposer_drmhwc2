@@ -220,7 +220,6 @@ bool Vop3588::SvepSrAllowedByWhitelist(DrmHwcLayer* layer) {
     return false;
 }
 
-#define SVEP_SUPPORT_MAX_FPS 35
 bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     // 视频大于4K则不使用 SR.
     if (layer->iWidth_ > 4096) {
@@ -312,12 +311,6 @@ bool Vop3588::SvepSrAllowedByLocalPolicy(DrmHwcLayer* layer) {
     uint64_t video_area_rate = dis_area_size * 100 / screen_size;
     if (video_area_rate < allow_rate) {
         HWC2_LOGD_IF("disable-sr: video_area_rate=%" PRIu64 "%% name=%s", video_area_rate, layer->sLayerName_.c_str());
-        return false;
-    }
-
-    // HWC内部会计算图层刷新率，若刷新率大于35帧，则关闭SR-SR功能
-    if (layer->fFps_ > SVEP_SUPPORT_MAX_FPS) {
-        HWC2_LOGD_IF("disable-sr: video_max_fps=%f name=%s", layer->fFps_, layer->sLayerName_.c_str());
         return false;
     }
 
