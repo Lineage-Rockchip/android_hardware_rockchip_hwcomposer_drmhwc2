@@ -103,13 +103,14 @@ void DrmEventListener::UEventHandler() {
     int ret;
 
     while (true) {
-        ret = read(uevent_fd_.get(), &buffer, sizeof(buffer));
+        ret = read(uevent_fd_.get(), &buffer, sizeof(buffer) - 1);
         if (ret == 0) {
             return;
         } else if (ret < 0) {
             ALOGE("Got error reading uevent %d", ret);
             return;
         }
+        buffer[ret] = '\0';
 
         bool drm_event = false, hotplug_event = false;
         for (int i = 0; i < ret;) {
