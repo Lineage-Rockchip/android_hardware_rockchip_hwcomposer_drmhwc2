@@ -38,6 +38,7 @@
 
 #include "rockchip/drmtype.h"
 #include <drm_fourcc.h>
+#include "3rd/drm/drmhwc2_fourcc.h"
 #include <errno.h>
 #include <hardware/gralloc.h>
 #include <log/log.h>
