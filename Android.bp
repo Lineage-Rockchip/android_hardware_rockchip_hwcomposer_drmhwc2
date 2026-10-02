@@ -10,6 +10,7 @@ soong_namespace {
         "hardware/rockchip/libpq",
         "hardware/rockchip/libvisionpq",
         "hardware/rockchip/librga",
+        "hardware/rockchip/libsvep/libsvepmemc",
         "hardware/rockchip/libsvep/libsvepsr",
         "vendor/rockchip/rk35xx-common",
     ],
@@ -152,16 +153,34 @@ cc_defaults {
 cc_library_shared {
     name: "hwcomposer.rk3588",
     defaults: ["drmhwc2_defaults"],
-    header_libs: ["libsvepsr_rk3588_headers"],
-    shared_libs: ["libsvepsr"],
-    cflags: ["-DUSE_LIBSR=1"],
-    required: ["HwcSvepEnv.xml"],
+    header_libs: [
+        "libsvepmemc_rk3588_headers",
+        "libsvepsr_rk3588_headers",
+    ],
+    shared_libs: [
+        "libsvepmemc",
+        "libsvepsr",
+    ],
+    cflags: [
+        "-DUSE_LIBSR=1",
+        "-DUSE_LIBSVEP_MEMC=1",
+    ],
+    required: [
+        "HwcSvepEnv.xml",
+        "HwcSvepMemcEnv.xml",
+    ],
 }
 
 prebuilt_etc {
     name: "HwcSvepEnv.xml",
     vendor: true,
     src: "configs/HwcSvepEnv.xml",
+}
+
+prebuilt_etc {
+    name: "HwcSvepMemcEnv.xml",
+    vendor: true,
+    src: "configs/HwcSvepMemcEnv.xml",
 }
 
 cc_library_shared {
