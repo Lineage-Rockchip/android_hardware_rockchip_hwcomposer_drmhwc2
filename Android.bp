@@ -13,6 +13,7 @@ soong_namespace {
         "hardware/rockchip/libsvep/libsvepmemc",
         "hardware/rockchip/libsvep/libsvepsr",
         "vendor/rockchip/rk35xx-common",
+        "vendor/rockchip/rk3576",
     ],
 }
 
