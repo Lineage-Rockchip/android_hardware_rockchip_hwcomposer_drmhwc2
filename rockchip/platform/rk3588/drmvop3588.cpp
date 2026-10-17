@@ -4053,7 +4053,7 @@ int Vop3588::InitContext(std::vector<DrmHwcLayer*>& layers, std::vector<PlaneGro
     int iPqMode = HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0);
     // Match policy first
     HWC2_LOGD_IF("%s=%d ", "persist.vendor.tvinput.rkpq.mode", iPqMode);
-    if (iPqMode > 0) {
+    if (iPqMode == 1) {
         ctx.state.bUseSwPq = true;
         //   DrmDevice *drm = crtc->getDrmDevice();
         //   DrmConnector *conn = drm->GetConnectorForDisplay(crtc->display());

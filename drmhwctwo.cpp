@@ -5386,7 +5386,7 @@ void DrmHwcTwo::HwcLayer::PopulateFB(hwc2_layer_t layer_id, DrmHwcLayer* drmHwcL
 #ifdef USE_LIBPQ
 int DrmHwcTwo::HwcLayer::DoSwPq(bool validate, DrmHwcLayer* drmHwcLayer, hwc2_drm_display_t* ctx) {
     bool pq_mode_enable =
-            HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0) > 0;
+            HwcAProperty::getInstance().getIntWithInterval("persist.vendor.tvinput.rkpq.mode", 500, 0) == 1;
 
     if (pq_mode_enable == 1) {
         std::lock_guard<std::recursive_mutex> pq_lock(ResourceManager::getInstance()->GetSwpqMutex());
